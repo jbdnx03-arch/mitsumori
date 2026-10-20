@@ -1,12 +1,12 @@
 /* WEB見積書作成：ホーム画面に追加／電波が弱い現場でも開けるようにする Service Worker
    ・index.html と同じフォルダに置いたときだけ働く（scope はこのフォルダ）
-   ・index.html・アイコン・manifest は「キャッシュ優先＋裏で更新」(stale-while-revalidate)
+   ・アイコン・manifest などは「キャッシュ優先＋裏で更新」(stale-while-revalidate)。index.html は「ネット優先（4秒でキャッシュに切り替え）」で、開くたびに最新を取る
    ・html2canvas / jsPDF / pdf-lib（cdnjs）もキャッシュ。PDFづくりが電波なしでも動く
    ・Firebase など、ほかのサイトへの通信には手を出さない（そのまま通す）
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-2';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-3';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -55,9 +55,11 @@ function 古いまま出して裏で更新(key, req){
     });
   });
 }
-function ネット優先(key, req){
-  return 更新して入れる(key, req).catch(function(){
-    return caches.open(VER).then(function(c){ return c.match(key); }).then(function(hit){ return hit || Response.error(); });
+function ネット優先(key, req, ms){
+  var net = 更新して入れる(key, req);
+  var guard = ms ? Promise.race([net, new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('slow')); }, ms); })]) : net;
+  return guard.catch(function(){
+    return caches.open(VER).then(function(c){ return c.match(key); }).then(function(hit){ return hit || net.catch(function(){ return Response.error(); }); });
   });
 }
 
@@ -88,7 +90,8 @@ self.addEventListener('fetch', function(ev){
       if(req.mode === 'navigate') ev.respondWith(ネット優先(INDEX, plain));
       return;                                                // それ以外の確認はそのままネットへ
     }
-    ev.respondWith(古いまま出して裏で更新(INDEX, plain));
+    // 本体は「ネット優先」：開くたびに最新かを確認する（変わっていなければ 304 で軽い）。4秒たっても返らない・切れているときはキャッシュの版
+    ev.respondWith(ネット優先(INDEX, plain, 4000));
     return;
   }
   if(rel === 'sw.js') return;
