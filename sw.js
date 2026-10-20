@@ -6,7 +6,7 @@
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-1';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-2';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
