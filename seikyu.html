@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 07:09-->
+<!--BUILD:2026-10-24 07:18-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1276,6 +1276,12 @@ function openWork(o){
   S.workId = o.id; S.meta = o.meta; S.sheets = o.sheets; S.lines = o.lines; S.seq = o.seq || 1000; S.opt = Object.assign(S.opt, o.opt || {});
   S.cur = o.cur || (S.sheets[0] && S.sheets[0].id); S.prev = o.prevLabel ? { label: o.prevLabel, byKey:{}, continuing:new Set() } : null; S.sameMonth = !!o.sameMonth;
   S.built = true; S.bulkRows = ''; S.bulkSel = null; S.status = o.status || 'draft'; S.printedAt = o.printedAt || '';
+  /* 「前月に手で足した行」の ✓ は、いまのシートに本当にその行があるときだけ（消していたら、また足せるように） */
+  S.sheets.forEach(sh => (sh.prevManual || []).forEach(p => {
+    if(!p.added) return;
+    const has = linesOf(sh).some(l => l.manual && ((p.pmKey && l.pmKey === p.pmKey) || (l.name === p.name && num(l.qty) === num(p.qty))));
+    if(!has) p.added = false;
+  }));
   undoLast = undoState(); updUndoBtn();
   setTab('sites'); setTimeout(askNoBill, 400);
   showSaveSt('この端末に保存 ✓' + (o.cloudAt ? '　クラウド ✓' : ''));
@@ -1563,7 +1569,7 @@ function onLineInput(ev){
 function onSiteClick(ev){
   const sb = ev.target.closest('.site'); if(sb){ if(S.cur !== sb.dataset.id){ S.bulkRows = ''; S.bulkSel = null; bulkLast = 0; } S.cur = sb.dataset.id; save(); drawSites(); return; }
   const ap = ev.target.closest('[data-addprev]');
-  if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; if(p.added){ toast('もう足してあります'); return; } const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p); delete n.key; delete n.added; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); calcLine(n); if(lineAmt(n) !== p.la + p.sa + p.ba){ n.la = p.la; n.sa = p.sa; n.ba = p.ba; } placeLine(sh, n, p); p.added = true; save(); drawSites(); const no = linesOf(sh).indexOf(n) + 1; toast('前月の行を足した（' + no + ' 行目・前月と同じ場所）'); setTimeout(() => { const tr = $('tr[data-id="' + n.id + '"]'); if(tr){ tr.scrollIntoView({ block:'center' }); tr.classList.add('flash'); } }, 50); return; }
+  if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; if(p.added){ toast('もう足してあります'); return; } const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p); delete n.key; delete n.added; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); calcLine(n); if(lineAmt(n) !== p.la + p.sa + p.ba){ n.la = p.la; n.sa = p.sa; n.ba = p.ba; } placeLine(sh, n, p); p.added = true; save(); drawSites(); const no = linesOf(sh).indexOf(n) + 1; toast(p.after ? '前月の行を足した（' + no + ' 行目・前月と同じ場所）' : '前月の行を足した（' + no + ' 行目）。前の版で作った作業なので前月の場所がわからない：読み込みに前月のファイルを入れて「照らし直す」と、前月と同じ場所に並べ直す', p.after ? 2600 : 8000); setTimeout(() => { const tr = $('tr[data-id="' + n.id + '"]'); if(tr){ tr.scrollIntoView({ block:'center' }); tr.classList.add('flash'); } }, 50); return; }
   const ut = ev.target.closest('[data-untrash]'); if(ut){ untrash(+ut.dataset.untrash); return; }
   const b = ev.target.closest('[data-act]'); if(!b || b.tagName === 'SELECT') return;
   const tr = b.closest('tr[data-id]'); const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
@@ -2247,7 +2253,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 07:09';
+const BUILD = '2026-10-24 07:18';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
