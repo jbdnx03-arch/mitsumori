@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 21:35-->
+<!--BUILD:2026-10-23 21:36-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -166,6 +166,7 @@ tr.nbrow input.e{text-decoration:line-through}
 .dlg h3{margin:0 0 10px;font-size:16px}
 .dlg-b{font-size:14px;line-height:1.7;max-height:55vh;overflow:auto}
 .dlg-b ul{margin:8px 0;padding-left:20px;font-size:13px}
+.seg2{display:inline-flex;gap:0;vertical-align:middle}.seg2 .btn{border-radius:0;margin:0}.seg2 .btn:first-child{border-radius:6px 0 0 6px}.seg2 .btn:last-child{border-radius:0 6px 6px 0;margin-left:-1px}.seg2 .btn.on{background:#2a6670;color:#fff;border-color:#2a6670}.seg2 .btn.on.ng{background:#b3412f;border-color:#b3412f}
 .ckh{display:flex;justify-content:space-between;align-items:center;margin:10px 0 2px;font-size:12.5px;color:var(--ink3)}.ckh a{color:var(--acc,#2a6670);font-weight:600}
 .dlg-b ul.ckl{list-style:none;padding:0;margin:4px 0}.ckl li{border-top:1px solid #eee}.ckl li:first-child{border-top:0}.ckl label{display:flex;gap:10px;align-items:flex-start;padding:7px 4px;cursor:pointer;border-radius:6px}.ckl label:hover{background:#f4f8f8}.ckl input{width:18px;height:18px;margin-top:2px;flex:none;accent-color:#2a6670}.ckl li.off span{color:#999;text-decoration:line-through}
 .dlg-f{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px}
@@ -1306,8 +1307,7 @@ function lineRow(l, i, others){
   const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : f === 'kashi' ? ' placeholder="月/日" title="貸出日"' : '') + '>';
   return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押すと「まとめて変える」の行に入る（Shift で範囲）">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 ' + esc(denOf(l) || '—') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
-      (l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : (isNbCand(l) && !l.nbDec ? '<div class="why" style="color:var(--warn)">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　<button class="btn sm" data-act="nb">出さない</button> <button class="btn sm" data-act="nbkeep">出す</button></div>' : '')) +
-      (isLeaseUp(l) && !l.nb ? (() => { const u = luInfo(l); return '<div class="why" style="color:' + (l.luDec ? 'var(--ink3)' : 'var(--warn)') + '">リースアップ（月極で貸している購入品）　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) + (l.luDec ? '　→ 請求書に出す' : '　<button class="btn sm" data-act="lukeep">出す</button> <button class="btn sm" data-act="nb">出さない</button>') + '</div>'; })() : '') + '</td>' +
+      lineDecHtml(l) + '</td>' +
     '<td class="sub" style="white-space:nowrap"><span class="per">貸出 ' + inp('kashi', md(l.kashi), 46) + '</span><br><span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + ((l.start || l.end || l.retd || l.cont) ? '<br><span class="per">返却 ' + inp('retd', md(l.retd), 46) + (l.cont && !l.retd ? '<small> ' + esc(l.cont) + '</small>' : '') + '</span>' : '') + '</td>' +
     '<td>' + kbSel + '</td>' +
     '<td class="n">' + inp('qty', l.qty || '', 46) + '<input class="e unit" data-f="unit" value="' + esc(l.unit || '') + '" list="unitList" title="単位（式・台・ケ など）"></td>' +
@@ -1391,6 +1391,8 @@ function onSiteClick(ev){
   if(a === 'nb'){ l.nb = !l.nb; l.nbDec = true; toast(l.nb ? '請求書に出さないにした（行は残る）' : '請求書に出すにもどした'); }
   if(a === 'nbkeep'){ l.nb = false; l.nbDec = true; toast('請求書に出す'); }
   if(a === 'lukeep'){ l.nb = false; l.luDec = true; toast('リースアップの品：請求書に出す'); }
+  if(a === 'keep'){ l.nb = false; l.nbDec = true; if(isLeaseUp(l)) l.luDec = true; toast('請求書に出す'); }
+  if(a === 'nboff'){ l.nb = true; l.nbDec = true; if(isLeaseUp(l)) l.luDec = true; toast('請求書に出さないにした（行は残る）'); }
   if(a === 'nb' && isLeaseUp(l)) l.luDec = true;
   if(a === 'revert'){ Object.assign(l, { name: l.sys.name, qty: l.sys.qty, lu: l.sys.lu, su: l.sys.su, bu: l.sys.bu, la: l.sys.la, sa: l.sys.sa, ba: l.sys.ba, kb: l.sys.kb, days: l.sys.days, sdays: l.sys.sdays, carried: '', edited: false }); toast('CSVのとおりに戻した'); }
   save(); drawSites();
@@ -1777,6 +1779,20 @@ async function askLeaseUp(){
 }
 
 /* ====================== チェックは、直すたびに数え直してタブに出す ====================== */
+/* 出す／出さない：いつでも両方のボタンを出す（決めたあとも切りかえられる） */
+function lineDecHtml(l){
+  const seg = (on, dec) => '<span class="seg2"><button class="btn sm' + (dec && !on ? ' on' : '') + '" data-act="keep">出す</button><button class="btn sm' + (on ? ' on ng' : '') + '" data-act="nboff">出さない</button></span>';
+  if(isLeaseUp(l)){
+    const u = luInfo(l), dec = l.luDec || l.nb;
+    return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">リースアップ（月極で貸している購入品）　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) +
+      '　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
+  }
+  if(isNbCand(l)){
+    const dec = l.nbDec || l.nb;
+    return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
+  }
+  return l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : '';
+}
 function updChkBadge(){
   const b = document.querySelector('.tabs button[data-tab="check"]'); if(!b || !S.built) return;
   let c = []; try{ c = checks(); }catch(e){}
@@ -1907,7 +1923,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 21:35';
+const BUILD = '2026-10-23 21:36';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
