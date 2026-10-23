@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 16:12-->
+<!--BUILD:2026-10-23 16:26-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -45,7 +45,7 @@ kbd{display:inline-block;min-width:16px;padding:0 4px;border-radius:4px;border:1
 .kpi .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
 .kpi .s{font-size:11px;color:var(--ink2);margin-top:2px}
 .kpi.ok{border-color:var(--ok);background:var(--okbg)} .kpi.ng{border-color:var(--ng);background:var(--ngbg)}
-.main{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}
+.main{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;align-items:start}
 @media (max-width:900px){.main{grid-template-columns:1fr}}
 .sites{position:sticky;top:68px;max-height:calc(100vh - 84px);overflow:auto;padding:6px}
 .site{display:block;width:100%;text-align:left;border:1px solid transparent;background:transparent;border-radius:9px;padding:8px 10px;cursor:pointer;margin-bottom:2px}
@@ -189,6 +189,24 @@ table.wl td{padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:m
 table.wl .n{text-align:right;font-variant-numeric:tabular-nums}
 table.wl tr.now td{background:var(--soft)}
 table.wl small{color:var(--ink3)}
+.shead{position:sticky;top:var(--toph,56px);z-index:6;background:var(--surface);margin:-14px -16px 6px;padding:8px 16px 6px;border-bottom:1px solid var(--line);border-radius:12px 12px 0 0;box-shadow:0 4px 8px -6px rgba(0,0,0,.18)}
+.shead .sh{gap:6px 10px;align-items:center}
+.shead .sh .nm{flex-basis:220px}
+.shead .sh .nm input{font-size:15px;padding:0 4px;line-height:1.25}
+.shead .sh .nm .full{font-size:11px;line-height:1.25}
+.shead .fld{flex-direction:row;align-items:center;gap:4px;font-size:11px;white-space:nowrap}
+.shead .fld input{font-size:13px;padding:3px 6px;width:92px}
+.shead .btn{padding:5px 12px;min-height:30px}
+.shead .tot{display:flex;flex-wrap:wrap;gap:2px 12px;margin-top:4px;font-size:12px;line-height:1.35}
+.shead .tot b{font-size:14px}
+.shead .prev{margin-top:4px;padding:3px 8px;line-height:1.35;white-space:nowrap;overflow-x:auto;scrollbar-width:thin}
+.shead .prev .btn.sm{padding:1px 7px;font-size:11px;min-height:22px}
+.shead .bulk{margin:4px 0 0;padding:3px 8px;gap:3px 10px;flex-wrap:wrap;white-space:nowrap}
+.shead .fld > span{display:inline-flex;align-items:center;gap:4px}
+.shead .bulk input,.shead .bulk select{padding:2px 5px;font-size:12px}
+.shead .bulk .btn{min-height:24px;padding:2px 10px}
+.tabs .pvtop{border:0;background:#F2B544;color:#2A2000;margin-left:6px;font-weight:700;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;min-height:36px}
+.tabs .pvtop kbd{margin-left:4px}
 </style>
 
 <div class="top">
@@ -203,6 +221,7 @@ table.wl small{color:var(--ink3)}
     <button data-tab="sites">現場<kbd>2</kbd></button>
     <button data-tab="check">チェック<kbd>3</kbd></button>
     <button data-tab="paper">印刷・PDF<kbd>4</kbd></button>
+    <button class="pvtop" id="btnTopPv" type="button" title="請求書を印刷と同じ形で見る（現場の画面ではその現場、ほかの画面では全部）">プレビュー<kbd>V</kbd></button>
   </div>
 </div>
 
@@ -1125,12 +1144,12 @@ function drawSite(){
   const others = S.sheets.filter(s => s.id !== sh.id);
   const prevBox = sh.prev ? '<div class="prev"><b>前月（' + esc(sh.prev.name) + '）</b>　請求 ' + yen(sh.prev.total) +
       (sh.prev.fur && sh.prev.fur.length ? '　ふりかえ ' + sh.prev.fur.map(f => (f.amt > 0 ? '+' : '') + yen(f.amt) + (f.memo ? '（' + esc(f.memo) + '）' : '')).join('、') : '') +
-      (sh.prevManual && sh.prevManual.length ? '<div style="margin-top:6px">前月に手で足した行が ' + sh.prevManual.length + ' 行：' + sh.prevManual.slice(0, 6).map((p, i) => '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>').join(' ') + '</div>' : '') + '</div>' : '';
-  B.innerHTML = '<div class="card">' +
+      (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>').join(' ') + '</span>' : '') + '</div>' : '';
+  B.innerHTML = '<div class="card">' + '<div class="shead" id="shead">' +
     '<div class="sh"><div class="nm"><input id="shName" value="' + esc(sh.name) + '" aria-label="呼び名"><div class="full">' + esc(sh.siteName) + '　現場コード ' + esc(sh.code) + '</div></div>' +
     '<label class="fld">工事番号（三貴）<input id="shKouji" value="' + esc(sh.kouji) + '" placeholder="T-0000"></label>' +
     '<label class="fld">この現場の税抜を<input id="shTarget" inputmode="numeric" placeholder="' + yen(net) + '"></label>' +
-    '<label class="fld" style="justify-content:flex-end"><span><input type="checkbox" id="shKg"' + (sh.inKagami ? ' checked' : '') + '> 鑑に出す</span></label>' +
+    '<label class="fld"><span><input type="checkbox" id="shKg"' + (sh.inKagami ? ' checked' : '') + '> 鑑に出す</span></label>' +
     '<button class="btn primary" id="btnSitePv" type="button" title="この現場の請求書を、印刷と同じ形で見る">プレビュー<kbd>V</kbd></button></div>' +
     '<div class="tot"><span class="muted">今回の税抜</span><b>' + yen(net) + '</b><span class="muted">消費税</span><b>' + yen(tax(net)) + '</b><span class="muted">システム（CSV）</span><span>' + yen(sys) + '</span><span class="muted">差</span><span>' + (net - sys ? (net - sys > 0 ? '+' : '') + yen(net - sys) : '0') + '</span></div>' +
     prevBox +
@@ -1143,6 +1162,7 @@ function drawSite(){
       '<label title="返却日を終了日と同じにする"><input type="checkbox" id="bkRetSame"' + (S.opt.bkRetSame ? ' checked' : '') + '> 返却も終了と同じ</label>' +
       '<label>区分 <select id="bkKb"><option value="">変えない</option><option>日極</option><option>月極</option></select></label>' +
       '<button class="btn primary sm" id="bkGo" type="button">変える</button><span class="muted" id="bkInfo"></span></div>' +
+    '</div>' +
     '<div style="overflow:auto"><table class="ln"><thead><tr><th>#</th><th>商品名／伝票・管理番号</th><th>貸出〜終了</th><th>区分</th><th class="n">数量</th><th class="n">日数<br>ｻﾎﾟｰﾄ</th><th class="n">賃貸単価<br>ｻﾎﾟｰﾄ単価</th><th class="n">基本料・販売<br>単価</th><th class="n">金額</th><th></th></tr></thead><tbody>' +
     ls.map((l, i) => lineRow(l, i, others)).join('') + '</tbody></table></div>' +
     '<div class="row" style="margin-top:10px"><button class="btn" id="addLine">＋ 行を足す（手入力）</button><button class="btn" id="addAdj">＋ 調整の行（値引き・端数）</button></div></div>';
@@ -1531,28 +1551,39 @@ function sitePaperHtml(){
   const sk = S.meta.custCode === '3057';
   return (sk ? paperSkSheet(sh) : '') + paperSheet(sh);
 }
-function sitePreview(){
-  const sh = sheetById(S.cur); if(!sh) return;
+let pvAll = false;
+function curPvHtml(){ return pvAll ? paperHtml() : sitePaperHtml(); }
+function topPreview(){
+  if(!S.built){ toast('先にCSVを入れるか、保存してある作業を開いて'); return; }
+  sitePreview(S.tab !== 'sites');
+}
+function sitePreview(all){
+  pvAll = !!all;
+  const sh = sheetById(S.cur); if(!sh && !pvAll) return;
   let M = $('#sitePv');
   if(!M){
     M = document.createElement('div'); M.id = 'sitePv'; M.className = 'spv';
     M.innerHTML = '<div class="spv-bar"><b id="spvT"></b><span class="sp"></span><button class="btn" id="spvPrev" type="button" title="前の現場（←）">← 前</button><button class="btn" id="spvNext" type="button" title="次の現場（→）">次 →</button><button class="btn primary" id="spvPrint" type="button">この現場を印刷<kbd>P</kbd></button><button class="btn" id="spvClose" type="button">閉じる<kbd>Esc</kbd></button></div><div class="spv-body" id="spvBody"></div>';
     document.body.appendChild(M);
     $('#spvClose').onclick = closeSitePv;
-    $('#spvPrint').onclick = () => doPrint(sitePaperHtml());
+    $('#spvPrint').onclick = () => doPrint(curPvHtml());
     $('#spvPrev').onclick = () => stepSitePv(-1);
     $('#spvNext').onclick = () => stepSitePv(1);
     M.addEventListener('keydown', ev => { if(ev.key === 'ArrowLeft'){ stepSitePv(-1); ev.preventDefault(); } if(ev.key === 'ArrowRight'){ stepSitePv(1); ev.preventDefault(); } });
     M.tabIndex = -1;
   }
-  $('#spvT').textContent = sh.name + '　' + yen(sheetNet(sh)) + '（税抜）';
-  const B = $('#spvBody'); B.innerHTML = sitePaperHtml();
+  const B = $('#spvBody'); B.innerHTML = curPvHtml();
+  const np = B.querySelectorAll('.xp').length;
+  $('#spvT').textContent = pvAll ? '請求書ぜんぶ（' + S.meta.custName + '・' + np + '枚）' : sh.name + '　' + yen(sheetNet(sh)) + '（税抜）';
+  $('#spvPrev').hidden = $('#spvNext').hidden = pvAll;
+  $('#spvPrint').innerHTML = (pvAll ? 'ぜんぶ印刷' : 'この現場を印刷') + '<kbd>P</kbd>';
   M.hidden = false; document.body.style.overflow = 'hidden'; M.focus();
   const w = B.clientWidth - 24;
   $$('.xp', B).forEach(p => { const pw = p.classList.contains('port') ? 794 : 1123; p.style.zoom = Math.min(1, w / pw).toFixed(4); });
   XR.fitShrink(B); XR.sysFit(B); B.scrollTop = 0;
 }
 function stepSitePv(d){
+  if(pvAll) return;
   const i = S.sheets.findIndex(s => s.id === S.cur); const j = i + d;
   if(j < 0 || j >= S.sheets.length) return;
   S.cur = S.sheets[j].id; save(); drawSites(); sitePreview();
@@ -1634,6 +1665,8 @@ function bindDrop(el, input, fn){
 }
 
 /* ====================== はじめ ====================== */
+/* 上の帯の高さ（現場の見出しを、その下に固定するため） */
+(function(){ const t = document.querySelector('.top'); if(!t) return; const f = () => document.documentElement.style.setProperty('--toph', t.offsetHeight + 'px'); f(); try{ new ResizeObserver(f).observe(t); }catch(e){ window.addEventListener('resize', f); } })();
 bindDrop($('#dropCsv'), $('#fCsv'), takeCsv);
 bindDrop($('#dropPrev'), $('#fPrev'), takePrev);
 $('#btnBuild').addEventListener('click', async () => {
@@ -1654,7 +1687,7 @@ $('#btnBuild').addEventListener('click', async () => {
   const cr = document.querySelector('input[name="carry"]:checked'); S.opt.carry = cr ? cr.value : 'simple';
   try{ build(); S.workId = id || workIdOf(S.meta); save(); toast('現場ごとに分けた' + (S.prev ? '（前月の手直しを引き継ぎ）' : '')); setTab('sites'); setTimeout(askNoBill, 400); }catch(e){ console.error(e); toast('作れませんでした：' + (e.message || e), 6000); }
 });
-$$('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$$('.tabs button[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $('#siteList').addEventListener('click', onSiteClick);
 $('#siteBody').addEventListener('click', ev => {
   const rn = ev.target.closest('.rowno');
@@ -1681,16 +1714,17 @@ $('#siteBody').addEventListener('keydown', ev => {
 });
 $('#pvOpts').addEventListener('change', ev => { const k = ev.target.dataset.o; if(k === 'xlstyle'){ S.opt.style = ev.target.checked ? 'excel' : 'sys'; save(); drawPaper(); return; } if(k){ S.opt[k] = ev.target.checked; save(); drawPaper(); } });
 $('#btnPrint').addEventListener('click', doPrint);
+$('#btnTopPv').addEventListener('click', topPreview);
 $('#btnExport').addEventListener('click', exportCarry);
 document.addEventListener('keydown', ev => {
   if(ev.key === 'Escape' && $('#sitePv') && !$('#sitePv').hidden){ closeSitePv(); ev.preventDefault(); return; }
   if(ev.target.matches('input,select,textarea') || ev.metaKey || ev.ctrlKey || ev.altKey) return;
-  if($('#sitePv') && !$('#sitePv').hidden){ if(ev.key === 'p' || ev.key === 'P'){ doPrint(sitePaperHtml()); ev.preventDefault(); } return; }
+  if($('#sitePv') && !$('#sitePv').hidden){ if(ev.key === 'p' || ev.key === 'P'){ doPrint(curPvHtml()); ev.preventDefault(); } return; }
   const map = { '1':'load', '2':'sites', '3':'check', '4':'paper' };
   if(map[ev.key]){ setTab(map[ev.key]); ev.preventDefault(); return; }
   if(ev.key === 'Enter' && S.tab === 'load' && !$('#btnBuild').disabled){ $('#btnBuild').click(); ev.preventDefault(); return; }
   if((ev.key === 'p' || ev.key === 'P') && S.tab === 'paper'){ doPrint(); ev.preventDefault(); return; }
-  if((ev.key === 'v' || ev.key === 'V') && S.tab === 'sites'){ sitePreview(); ev.preventDefault(); return; }
+  if(ev.key === 'v' || ev.key === 'V'){ topPreview(); ev.preventDefault(); return; }
   if((ev.key === 'm' || ev.key === 'M') && S.tab === 'sites'){ const r = $('#bkRows'); if(r){ r.focus(); r.select(); r.scrollIntoView({ block:'center' }); } ev.preventDefault(); return; }
   if(S.tab === 'sites' && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp')){
     const i = S.sheets.findIndex(s => s.id === S.cur); const j = Math.max(0, Math.min(S.sheets.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
@@ -1717,7 +1751,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 16:12';
+const BUILD = '2026-10-23 16:26';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
