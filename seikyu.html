@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 14:16-->
+<!--BUILD:2026-10-23 14:32-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -615,6 +615,16 @@ const sheetNet = sh => billOf(sh).reduce((a, l) => a + lineAmt(l), 0);
 /* ふだん請求書に出さない販売の品（設定の商品番号。いくつかなら 、か , で区切る） */
 const nbCodes = () => String(S.opt.nbCodes == null ? 'ETC888' : S.opt.nbCodes).normalize('NFKC').toUpperCase().split(/[,、\s]+/).filter(Boolean);
 const isNbCand = l => l.kb === '販売' && nbCodes().indexOf(String(l.shohin || '').normalize('NFKC').toUpperCase().trim()) >= 0;
+/* リースアップ：月極で貸している購入品（商品番号か管理番号が ETC で始まる・KETC・HHETC。Excel版と同じ見分け方） */
+const luCode = c => { c = String(c || '').normalize('NFKC').toUpperCase().trim(); return c.slice(0, 3) === 'ETC' || c === 'KETC' || c === 'HHETC'; };
+const isLeaseUp = l => l.kb === '月極' && (luCode(l.shohin) || luCode(l.kanri));
+/* 貸出から何か月目か（今月の終わりまで）・これまでの売上のめやす（月額 × 月数） */
+function luInfo(l){
+  const k = l.kashi, e = l.end || (S.meta && S.meta.seikyuDate);
+  let m = 1; if(k && e){ m = (+e.slice(0, 4) - +k.slice(0, 4)) * 12 + (+e.slice(5, 7) - +k.slice(5, 7)) + 1; }
+  const mon = Math.round(num(l.lu) * num(l.qty || 1));
+  return { months: Math.max(1, m), mon, cum: mon * Math.max(1, m) };
+}
 /* 紙と同じ「伝票番号・管理番号」の出し方（返却伝票があればそちら／管理番号が空か W なら商品番号） */
 const denOf = l => num(l.ret0) >= 1 ? l.ret0 : (l.den || '');
 const kanOf = l => l.kanri && l.kanri !== 'W' ? l.kanri : (l.shohin || '');
@@ -783,7 +793,8 @@ function lineRow(l, i, others){
   const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '">';
   return '<tr class="' + cls + '" data-id="' + l.id + '"><td class="sub">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 ' + esc(denOf(l) || '—') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
-      (l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : (isNbCand(l) && !l.nbDec ? '<div class="why" style="color:var(--warn)">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　<button class="btn sm" data-act="nb">出さない</button> <button class="btn sm" data-act="nbkeep">出す</button></div>' : '')) + '</td>' +
+      (l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : (isNbCand(l) && !l.nbDec ? '<div class="why" style="color:var(--warn)">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　<button class="btn sm" data-act="nb">出さない</button> <button class="btn sm" data-act="nbkeep">出す</button></div>' : '')) +
+      (isLeaseUp(l) && !l.nb ? (() => { const u = luInfo(l); return '<div class="why" style="color:' + (l.luDec ? 'var(--ink3)' : 'var(--warn)') + '">リースアップ（月極で貸している購入品）　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) + (l.luDec ? '　→ 請求書に出す' : '　<button class="btn sm" data-act="lukeep">出す</button> <button class="btn sm" data-act="nb">出さない</button>') + '</div>'; })() : '') + '</td>' +
     '<td class="sub" style="white-space:nowrap">' + md(l.kashi) + (l.start ? '<br>' + md(l.start) + '〜' + md(l.end) : '') + (l.retd ? '<br>返却 ' + md(l.retd) : (l.cont ? '<br>' + esc(l.cont) : '')) + '</td>' +
     '<td>' + kbSel + '</td>' +
     '<td class="n">' + inp('qty', l.qty || '', 46) + '<div class="sub">' + esc(l.unit || '') + '</div></td>' +
@@ -821,6 +832,8 @@ function onSiteClick(ev){
   }
   if(a === 'nb'){ l.nb = !l.nb; l.nbDec = true; toast(l.nb ? '請求書に出さないにした（行は残る）' : '請求書に出すにもどした'); }
   if(a === 'nbkeep'){ l.nb = false; l.nbDec = true; toast('請求書に出す'); }
+  if(a === 'lukeep'){ l.nb = false; l.luDec = true; toast('リースアップの品：請求書に出す'); }
+  if(a === 'nb' && isLeaseUp(l)) l.luDec = true;
   if(a === 'revert'){ Object.assign(l, { name: l.sys.name, qty: l.sys.qty, lu: l.sys.lu, su: l.sys.su, bu: l.sys.bu, la: l.sys.la, sa: l.sys.sa, ba: l.sys.ba, kb: l.sys.kb, days: l.sys.days, sdays: l.sys.sdays, carried: '', edited: false }); toast('CSVのとおりに戻した'); }
   save(); drawSites();
 }
@@ -868,6 +881,7 @@ function checks(){
     });
     S.sheets.forEach(sh => { if(sh.prev && sh.prev.total){ const r = sheetNet(sh) / sh.prev.total; if(r > 1.5 || r < 0.5) out.push({ lv:'info', t:sh.name + '：前月から大きく変わった', s:'前月 ' + yen(sh.prev.total) + ' → 今月 ' + yen(sheetNet(sh)), sh: sh.id }); } });
   }
+  S.lines.filter(l => isLeaseUp(l) && !l.luDec && !l.nb).forEach(l => { const u = luInfo(l); out.push({ lv:'warn', t:'出すか決めていないリースアップの品：' + l.name + '（' + (l.shohin || '') + '）', s: sheetById(l.sheet).name + '　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) + '。行の「出す／出さない」で決めて', id: l.id, sh: l.sheet }); });
   S.lines.filter(l => isNbCand(l) && !l.nbDec && !l.nb).forEach(l => out.push({ lv:'warn', t:'出すか決めていない販売の品：' + l.name + '（' + l.shohin + '）', s: sheetById(l.sheet).name + '　ふだんは請求書に出さない品。行の「出さない／出す」で決めて', id: l.id, sh: l.sheet }));
   S.lines.filter(l => l.sugg).forEach(l => out.push({ lv:'info', t:'前月の書きかえ候補：' + l.name, s: sheetById(l.sheet).name + '　前月は「' + l.sugg.names.slice(0, 3).join('・') + '」で請求。今月も同じにするか確かめて', id: l.id, sh: l.sheet }));
   S.sheets.forEach(sh => { if(!linesOf(sh).length && !sh.emptyNow) out.push({ lv:'warn', t:sh.name + '：行がない', s:'鑑に0円で出ます。いらなければ「鑑に出す」を外して', sh: sh.id }); if(S.meta.custCode === '3057' && sh.inKagami && !sh.kouji) out.push({ lv:'warn', t:sh.name + '：工事番号が空', s:'三貴の請求書に入ります', sh: sh.id }); });
@@ -1038,6 +1052,10 @@ function askDialog(title, html, buttons){
   });
 }
 async function askNoBill(){
+  await askNoBillSales();
+  await askLeaseUp();
+}
+async function askNoBillSales(){
   const ls = S.lines.filter(l => isNbCand(l) && !l.nbDec && !l.nb);
   if(!ls.length) return;
   const list = ls.slice(0, 15).map(l => '<li>' + esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + yen(lineAmt(l)) + '）</li>').join('') + (ls.length > 15 ? '<li>…ほか ' + (ls.length - 15) + ' 件</li>' : '');
@@ -1046,6 +1064,17 @@ async function askNoBill(){
     [{ t:'ぜんぶ出さない（おすすめ）', v:'all', primary:true, k:'Y' }, { t:'1つずつ選ぶ', v:'one', k:'N' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
   if(v === 'all'){ ls.forEach(l => { l.nb = true; l.nbDec = true; }); save(); if(S.tab === 'sites') drawSites(); toast(ls.length + ' 件を請求書に出さないにした（行は残る。⊘ で戻せる）'); }
   else if(v === 'one'){ toast('各現場の行に「出さない／出す」が出ています'); const l = ls[0]; S.cur = l.sheet; setTab('sites'); const tr = $('tr[data-id="' + l.id + '"]'); if(tr) tr.scrollIntoView({ block:'center' }); }
+  else toast('あとで決める：チェックに出しておきます');
+}
+async function askLeaseUp(){
+  const ls = S.lines.filter(l => isLeaseUp(l) && !l.luDec && !l.nb);
+  if(!ls.length) return;
+  const list = ls.slice(0, 15).map(l => { const u = luInfo(l); return '<li>' + esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + esc(l.shohin || '') + '）月額 ' + yen(u.mon) + '・' + u.months + ' か月目・これまで ' + yen(u.cum) + '</li>'; }).join('') + (ls.length > 15 ? '<li>…ほか ' + (ls.length - 15) + ' 件</li>' : '');
+  const v = await askDialog('リースアップの品を決める',
+    'リースアップの品（月極で貸している購入品）が <b>' + ls.length + ' 件</b>あります。単月の赤字は意図どおりです。今月も請求書に出しますか？<ul>' + list + '</ul>',
+    [{ t:'ぜんぶ出す（おすすめ）', v:'all', primary:true, k:'Y' }, { t:'1つずつ選ぶ', v:'one', k:'N' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
+  if(v === 'all'){ ls.forEach(l => { l.luDec = true; l.nb = false; }); save(); if(S.tab === 'sites') drawSites(); toast('リースアップの品 ' + ls.length + ' 件を請求書に出す'); }
+  else if(v === 'one'){ toast('各現場の行に「出す／出さない」が出ています'); const l = ls[0]; S.cur = l.sheet; setTab('sites'); const tr = $('tr[data-id="' + l.id + '"]'); if(tr) tr.scrollIntoView({ block:'center' }); }
   else toast('あとで決める：チェックに出しておきます');
 }
 
@@ -1123,7 +1152,7 @@ document.addEventListener('keydown', ev => {
 })();
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 14:16';
+const BUILD = '2026-10-23 14:32';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
