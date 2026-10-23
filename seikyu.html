@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 07:21-->
+<!--BUILD:2026-10-24 07:33-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1303,9 +1303,8 @@ function openWork(o){
   if(autoRe) setTimeout(() => toast('新しい版に合わせて、前月を照らし直した（手直しの候補 ' + autoRe.sg + '・並べ直した行 ' + autoRe.mv + '）', 6000), 600);
   /* 「前月に手で足した行」の ✓ は、いまのシートに本当にその行があるときだけ（消していたら、また足せるように） */
   S.sheets.forEach(sh => (sh.prevManual || []).forEach(p => {
-    if(!p.added) return;
-    const has = linesOf(sh).some(l => l.manual && ((p.pmKey && l.pmKey === p.pmKey) || (l.name === p.name && num(l.qty) === num(p.qty))));
-    if(!has) p.added = false;
+    const has = linesOf(sh).some(l => l.manual && ((p.pmKey && l.pmKey === p.pmKey) || (!p.pmKey && l.name === p.name && num(l.qty) === num(p.qty))));
+    p.added = has;
   }));
   undoLast = undoState(); updUndoBtn();
   setTab('sites'); setTimeout(askNoBill, 400);
@@ -1493,7 +1492,7 @@ function drawSite(){
   const others = S.sheets.filter(s => s.id !== sh.id);
   const prevBox = sh.prev ? '<div class="prev"><b>前月（' + esc(sh.prev.name) + '）</b>　請求 ' + yen(sh.prev.total) +
       (sh.prev.fur && sh.prev.fur.length ? '　ふりかえ ' + sh.prev.fur.map(f => (f.amt > 0 ? '+' : '') + yen(f.amt) + (f.memo ? '（' + esc(f.memo) + '）' : '')).join('、') : '') +
-      (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => p.added ? '<span class="tag ok">✓ ' + esc(p.name) + '</span>' : '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>').join(' ') + '</span>' : '') + '</div>' : '';
+      (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => p.added ? '<span class="tag ok">✓ ' + esc(p.name) + '</span>' : '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>').join(' ') + '</span>' : '') + relinkBtn() + '</div>' : (S.prev ? '<div class="prev">' + relinkBtn() + '</div>' : '');
   B.innerHTML = '<div class="card">' + '<div class="shead" id="shead">' +
     '<div class="sh"><div class="nm"><input id="shName" value="' + esc(sh.name) + '" aria-label="呼び名"><div class="full">' + esc(sh.siteName) + '　現場コード ' + esc(sh.code) + '</div></div>' +
     '<label class="fld">工事番号（三貴）<input id="shKouji" value="' + esc(sh.kouji) + '" placeholder="T-0000"></label>' +
@@ -1594,8 +1593,12 @@ function onLineInput(ev){
 function onSiteClick(ev){
   const sb = ev.target.closest('.site'); if(sb){ if(S.cur !== sb.dataset.id){ S.bulkRows = ''; S.bulkSel = null; bulkLast = 0; } S.cur = sb.dataset.id; save(); drawSites(); return; }
   const ap = ev.target.closest('[data-addprev]');
-  if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; if(p.added){ toast('もう足してあります'); return; } const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p); delete n.key; delete n.added; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); calcLine(n); if(lineAmt(n) !== p.la + p.sa + p.ba){ n.la = p.la; n.sa = p.sa; n.ba = p.ba; } placeLine(sh, n, p); p.added = true; save(); drawSites(); const no = linesOf(sh).indexOf(n) + 1; toast(p.after ? '前月の行を足した（' + no + ' 行目・前月と同じ場所）' : '前月の行を足した（' + no + ' 行目）。前の版で作った作業なので前月の場所がわからない：読み込みに前月のファイルを入れて「照らし直す」と、前月と同じ場所に並べ直す', p.after ? 2600 : 8000); setTimeout(() => { const tr = $('tr[data-id="' + n.id + '"]'); if(tr){ tr.scrollIntoView({ block:'center' }); tr.classList.add('flash'); } }, 50); return; }
+  if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; if(p.added || linesOf(sh).some(l => l.manual && p.pmKey && l.pmKey === p.pmKey)){ p.added = true; drawSites(); toast('もう足してあります'); return; } const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p); delete n.key; delete n.added; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); calcLine(n); if(lineAmt(n) !== p.la + p.sa + p.ba){ n.la = p.la; n.sa = p.sa; n.ba = p.ba; } placeLine(sh, n, p); p.added = true; save(); drawSites(); const no = linesOf(sh).indexOf(n) + 1; toast(p.after ? '前月の行を足した（' + no + ' 行目・前月と同じ場所）' : '前月の行を足した（' + no + ' 行目）。前の版で作った作業なので前月の場所がわからない：読み込みに前月のファイルを入れて「照らし直す」と、前月と同じ場所に並べ直す', p.after ? 2600 : 8000); setTimeout(() => { const tr = $('tr[data-id="' + n.id + '"]'); if(tr){ tr.scrollIntoView({ block:'center' }); tr.classList.add('flash'); } }, 50); return; }
   const ut = ev.target.closest('[data-untrash]'); if(ut){ untrash(+ut.dataset.untrash); return; }
+  if(ev.target.closest('[data-relink]')){
+    if(S.prevPack){ const P = unpackPrev(S.prevPack); if(P){ const r = relinkPrev(P); drawSites(); toast('照らし直した：前月とつながった行 ' + r.pv + '・手直しの候補 ' + r.sg + '・並べ直した行 ' + r.mv, 6000); setTimeout(askCarrySugg, 300); return; } }
+    $('#fPrev').click(); return;
+  }
   const b = ev.target.closest('[data-act]'); if(!b || b.tagName === 'SELECT') return;
   const tr = b.closest('tr[data-id]'); const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
   const a = b.dataset.act;
@@ -1675,6 +1678,10 @@ function checks(){
     });
     S.sheets.forEach(sh => { if(sh.prev && sh.prev.total){ const r = sheetNet(sh) / sh.prev.total; if(r > 1.5 || r < 0.5) out.push({ lv:'info', t:sh.name + '：前月から大きく変わった', s:'前月 ' + yen(sh.prev.total) + ' → 今月 ' + yen(sheetNet(sh)), sh: sh.id }); } });
   }
+  /* 前月に手で足した行を2回以上足している */
+  const pmc = {};
+  S.lines.filter(l => l.manual && l.pmKey && !l.nb).forEach(l => { const g = l.sheet + '|' + l.pmKey; (pmc[g] = pmc[g] || []).push(l); });
+  Object.values(pmc).forEach(g => { if(g.length > 1) out.unshift({ lv:'warn', t:'同じ行を ' + g.length + ' 回足している：' + g[0].name, s: sheetById(g[0].sheet).name + '　前月に手で足した行を2回以上足しています。1つだけ残して、ほかは × で消して', id: g[1].id, sh: g[0].sheet }); });
   /* 前月は手で数量を変えて請求していたのに、今月はちがう数量 */
   S.lines.filter(l => l.pv && !l.sugg && !l.nb && l.pv.n === 1 && l.pv.sysq != null && l.pv.qty !== l.pv.sysq && num(l.qty) !== l.pv.qty).forEach(l => out.unshift({ lv:'warn', t:'前月は手で数量を ' + l.pv.sysq + ' → ' + l.pv.qty + ' にしていた：' + l.name, s: sheetById(l.sheet).name + '　今月は ' + num(l.qty) + '。行の「前月にあわせる」で同じにできる', id: l.id, sh: l.sheet }));
   /* 同じ品（同じシステムの行）を何行かに分けていて、数量の合計がCSVより多い：前月の分け方をそのまま引き継いで二重になっているかも */
@@ -2042,6 +2049,11 @@ async function askLeaseUp(){
 
 /* ====================== チェックは、直すたびに数え直してタブに出す ====================== */
 /* 消した行（この現場）：もどせる */
+/* 前月を照らし直すボタン：前月が作業に入っていなければ目立たせる */
+function relinkBtn(){
+  const need = !S.prevPack;
+  return '　<button class="btn sm' + (need ? ' primary' : '') + '" data-relink="1" title="前月のファイル（.xlsm か .json）を選ぶと、今の作業のまま前月とくらべ直す。今月の手直しは消えない">↻ 前月を照らし直す' + (need ? '（前月のファイルを選ぶ）' : '') + '</button>';
+}
 function trashBox(sh){
   const t = (S.trash || []).map((x, i) => ({ x, i })).filter(o => o.x.line.sheet === sh.id);
   if(!t.length) return '';
@@ -2050,6 +2062,7 @@ function trashBox(sh){
 function untrash(i){
   const T = S.trash || [], o = T[i]; if(!o) return;
   const l = o.line, sh = sheetById(l.sheet) || sheetById(S.cur); l.sheet = sh.id;
+  if(l.pmKey && linesOf(sh).some(x => x.manual && x.pmKey === l.pmKey)){ T.splice(i, 1); save(); drawSites(); toast('「' + l.name + '」はもう入っているので、もどさなかった'); return; }
   const a = S.lines.find(x => x.id === o.afterId && x.sheet === sh.id), b = S.lines.find(x => x.id === o.beforeId && x.sheet === sh.id);
   if(a) S.lines.splice(S.lines.indexOf(a) + 1, 0, l); else if(b) S.lines.splice(S.lines.indexOf(b), 0, l); else { const ls = linesOf(sh); if(ls.length) S.lines.splice(S.lines.indexOf(ls[0]), 0, l); else S.lines.push(l); }
   if(l.pmKey){ const pp = (sh.prevManual || []).find(x => x.pmKey === l.pmKey); if(pp) pp.added = true; }
@@ -2158,6 +2171,7 @@ function relinkPrev(P){
     sh.prev = ps;
     const old = sh.prevManual || [], pm = prevManualOf(ps.lines || []);
     sh.prevManual = pm;   /* 足してあるかは、いまのシートに同じ行があるかで決める（消していたら、また足せる） */
+    pm.forEach(p => { p.added = linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey); });
     /* もう足してある「前月に手で足した行」を、前月と同じ場所へ */
     linesOf(sh).filter(l => l.manual && !l.pmKey).forEach(l => {
       const p = pm.find(x => !x._p && x.name === l.name && String(x.den || '') === String(l.den || '') && num(x.qty) === num(l.qty)); if(!p) return;
@@ -2278,7 +2292,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 07:21';
+const BUILD = '2026-10-24 07:33';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
