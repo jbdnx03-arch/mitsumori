@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 18:28-->
+<!--BUILD:2026-10-23 21:35-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -166,6 +166,8 @@ tr.nbrow input.e{text-decoration:line-through}
 .dlg h3{margin:0 0 10px;font-size:16px}
 .dlg-b{font-size:14px;line-height:1.7;max-height:55vh;overflow:auto}
 .dlg-b ul{margin:8px 0;padding-left:20px;font-size:13px}
+.ckh{display:flex;justify-content:space-between;align-items:center;margin:10px 0 2px;font-size:12.5px;color:var(--ink3)}.ckh a{color:var(--acc,#2a6670);font-weight:600}
+.dlg-b ul.ckl{list-style:none;padding:0;margin:4px 0}.ckl li{border-top:1px solid #eee}.ckl li:first-child{border-top:0}.ckl label{display:flex;gap:10px;align-items:flex-start;padding:7px 4px;cursor:pointer;border-radius:6px}.ckl label:hover{background:#f4f8f8}.ckl input{width:18px;height:18px;margin-top:2px;flex:none;accent-color:#2a6670}.ckl li.off span{color:#999;text-decoration:line-through}
 .dlg-f{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px}
 .tabs .cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:#F2B544;color:#3A2A00;font-size:11px;font-weight:800;line-height:18px;text-align:center}
 .tabs .cnt.ng{background:#E25B4B;color:#fff}
@@ -1727,10 +1729,12 @@ function askDialog(title, html, buttons){
     D.innerHTML = '<div class="dlg" role="dialog" aria-modal="true"><h3>' + esc(title) + '</h3><div class="dlg-b">' + html + '</div><div class="dlg-f">' +
       buttons.map((b, i) => '<button class="btn' + (b.primary ? ' primary' : b.ghost ? ' ghost' : '') + '" data-i="' + i + '">' + esc(b.t) + (b.k ? '<kbd>' + esc(b.k) + '</kbd>' : '') + '</button>').join('') + '</div></div>';
     document.body.appendChild(D);
-    const done = v => { document.removeEventListener('keydown', kd, true); D.remove(); res(v); };
+    const upd = () => { const all = D.querySelectorAll('input[data-ck]'), on = D.querySelectorAll('input[data-ck]:checked'); const c = D.querySelector('[data-ckn]'); if(c) c.textContent = on.length + ' / ' + all.length; const t = D.querySelector('[data-ckall]'); if(t) t.textContent = on.length === all.length ? 'すべて外す' : 'すべてチェック'; D.querySelectorAll('.ckl li').forEach(li => { const x = li.querySelector('input'); if(x) li.classList.toggle('off', li.parentNode.classList.contains('inv') ? x.checked : !x.checked); }); };
+    const done = v => { askDialog.checked = [...D.querySelectorAll('input[data-ck]:checked')].map(x => x.dataset.ck); document.removeEventListener('keydown', kd, true); D.remove(); res(v); };
+    D.addEventListener('change', upd); setTimeout(upd, 0);
     const kd = ev => { const b = buttons.findIndex(x => x.k && x.k.toLowerCase() === ev.key.toLowerCase()); if(b >= 0){ ev.preventDefault(); ev.stopPropagation(); done(buttons[b].v); } else if(ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); done(null); } };
     document.addEventListener('keydown', kd, true);
-    D.addEventListener('click', ev => { const b = ev.target.closest('[data-i]'); if(b) done(buttons[+b.dataset.i].v); });
+    D.addEventListener('click', ev => { const a = ev.target.closest('[data-ckall]'); if(a){ ev.preventDefault(); const all = [...D.querySelectorAll('input[data-ck]')], on = all.every(x => x.checked); all.forEach(x => { x.checked = !on; }); upd(); return; } const b = ev.target.closest('[data-i]'); if(b) done(buttons[+b.dataset.i].v); });
     const f = D.querySelector('.btn.primary') || D.querySelector('.btn'); if(f) f.focus();
   });
 }
@@ -1741,23 +1745,34 @@ async function askNoBill(){
 async function askNoBillSales(){
   const ls = S.lines.filter(l => isNbCand(l) && !l.nbDec && !l.nb);
   if(!ls.length) return;
-  const list = ls.slice(0, 15).map(l => '<li>' + esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + yen(lineAmt(l)) + '）</li>').join('') + (ls.length > 15 ? '<li>…ほか ' + (ls.length - 15) + ' 件</li>' : '');
+  const list = ckList(ls, l => esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + yen(lineAmt(l)) + '）', true, true);
   const v = await askDialog('販売の品を決める',
-    '商品番号 <b>' + esc(nbCodes().join('・')) + '</b> の販売の品が <b>' + ls.length + ' 件</b>あります（ふだんは請求書に出さない品）。<ul>' + list + '</ul>',
-    [{ t:'ぜんぶ出さない（おすすめ）', v:'all', primary:true, k:'Y' }, { t:'1つずつ選ぶ', v:'one', k:'N' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
-  if(v === 'all'){ ls.forEach(l => { l.nb = true; l.nbDec = true; }); save(); if(S.tab === 'sites') drawSites(); toast(ls.length + ' 件を請求書に出さないにした（行は残る。⊘ で戻せる）'); }
-  else if(v === 'one'){ toast('各現場の行に「出さない／出す」が出ています'); const l = ls[0]; S.cur = l.sheet; setTab('sites'); const tr = $('tr[data-id="' + l.id + '"]'); if(tr) tr.scrollIntoView({ block:'center' }); }
+    '商品番号 <b>' + esc(nbCodes().join('・')) + '</b> の販売の品が <b>' + ls.length + ' 件</b>あります（ふだんは請求書に出さない品）。<br><b>チェックした品を請求書に出さない</b>にします。' + list,
+    [{ t:'チェックした品を出さない', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
+  if(v === 'ok'){
+    const on = new Set(askDialog.checked || []); let n = 0;
+    ls.forEach(l => { l.nbDec = true; if(on.has(l.id)){ l.nb = true; n++; } });
+    save(); if(S.tab === 'sites') drawSites(); toast(n + ' 件を請求書に出さない・' + (ls.length - n) + ' 件は出す（行は残る。⊘ で戻せる）');
+  }
   else toast('あとで決める：チェックに出しておきます');
+}
+/* チェックつきの一覧（ダイアログ用） */
+function ckList(ls, label, def, inv){
+  return '<div class="ckh"><span>チェック <b data-ckn></b></span><a href="#" data-ckall>すべて外す</a></div><ul class="ckl' + (inv ? ' inv' : '') + '">' +
+    ls.map(l => '<li><label><input type="checkbox" data-ck="' + esc(l.id) + '"' + (def ? ' checked' : '') + '><span>' + label(l) + '</span></label></li>').join('') + '</ul>';
 }
 async function askLeaseUp(){
   const ls = S.lines.filter(l => isLeaseUp(l) && !l.luDec && !l.nb);
   if(!ls.length) return;
-  const list = ls.slice(0, 15).map(l => { const u = luInfo(l); return '<li>' + esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + esc(l.shohin || '') + '）月額 ' + yen(u.mon) + '・' + u.months + ' か月目・これまで ' + yen(u.cum) + '</li>'; }).join('') + (ls.length > 15 ? '<li>…ほか ' + (ls.length - 15) + ' 件</li>' : '');
+  const list = ckList(ls, l => { const u = luInfo(l); return esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + esc(l.shohin || '') + '）月額 ' + yen(u.mon) + '・' + u.months + ' か月目・これまで ' + yen(u.cum); }, true);
   const v = await askDialog('リースアップの品を決める',
-    'リースアップの品（月極で貸している購入品）が <b>' + ls.length + ' 件</b>あります。単月の赤字は意図どおりです。今月も請求書に出しますか？<ul>' + list + '</ul>',
-    [{ t:'ぜんぶ出す（おすすめ）', v:'all', primary:true, k:'Y' }, { t:'1つずつ選ぶ', v:'one', k:'N' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
-  if(v === 'all'){ ls.forEach(l => { l.luDec = true; l.nb = false; }); save(); if(S.tab === 'sites') drawSites(); toast('リースアップの品 ' + ls.length + ' 件を請求書に出す'); }
-  else if(v === 'one'){ toast('各現場の行に「出す／出さない」が出ています'); const l = ls[0]; S.cur = l.sheet; setTab('sites'); const tr = $('tr[data-id="' + l.id + '"]'); if(tr) tr.scrollIntoView({ block:'center' }); }
+    'リースアップの品（月極で貸している購入品）が <b>' + ls.length + ' 件</b>あります。単月の赤字は意図どおりです。<br><b>チェックした品を今月の請求書に出します</b>（外した品は出さない）。' + list,
+    [{ t:'チェックした品を出す', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
+  if(v === 'ok'){
+    const on = new Set(askDialog.checked || []); let n = 0;
+    ls.forEach(l => { l.luDec = true; l.nb = !on.has(l.id); if(!l.nb) n++; });
+    save(); if(S.tab === 'sites') drawSites(); toast('リースアップの品：' + n + ' 件を出す・' + (ls.length - n) + ' 件は出さない');
+  }
   else toast('あとで決める：チェックに出しておきます');
 }
 
@@ -1892,7 +1907,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 18:28';
+const BUILD = '2026-10-23 21:35';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
