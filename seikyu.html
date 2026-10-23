@@ -1,4 +1,5 @@
 <!doctype html>
+<!--BUILD:2026-10-23 14:03-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -13,6 +14,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .top h1 small{font-size:11px;opacity:.75;margin-left:6px;font-weight:400}
 .top .who{font-size:12px;opacity:.9}
 .top .sp{flex:1}
+.top .latest{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;min-height:32px;text-decoration:none;display:inline-flex;align-items:center}
+.top .latest:hover{background:rgba(255,255,255,.12)}
+.top .latest:disabled{opacity:.5}
 .tabs{display:flex;gap:4px}
 .tabs button{border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;min-height:36px}
 .tabs button.on{background:#fff;color:var(--brand2);font-weight:700}
@@ -149,7 +153,9 @@ details.help{font-size:12px;color:var(--ink2);margin-top:8px}
 </style>
 
 <div class="top">
-  <h1>請求ナビ <small>Web 試作　版 <span id="verTxt">10/23 13:58</span></small></h1>
+  <h1>請求ナビ <small>Web 試作　版 <span id="verTxt"></span></small></h1>
+  <button class="latest" id="btnLatest" type="button" title="古い画面が出るとき：キャッシュを消して最新版を取り直す（作業のデータは消えない）">↻ 最新版</button>
+  <a class="latest" href="./index.html" title="web見積をひらく">web見積</a>
   <span class="who" id="who"></span>
   <span class="sp"></span>
   <div class="tabs" role="tablist">
@@ -1009,24 +1015,64 @@ document.addEventListener('keydown', ev => {
   }
 })();
 
-/* ====================== 版：ページの版を見て、新しい版があれば帯で知らせる ====================== */
-const APP_VER = '10/23 13:58';
-let verChecked = 0;
-function checkVer(){
-  if(location.protocol === 'file:' || Date.now() - verChecked < 60000) return;
-  verChecked = Date.now();
-  fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(t => {
-    const m = /const APP_VER = '([^']+)'/.exec(t || '');
-    if(!m || m[1] === APP_VER || document.getElementById('verBar')) return;
-    const b = document.createElement('div'); b.id = 'verBar';
-    b.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99;background:#0F4C55;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer';
-    b.textContent = '新しい版（' + m[1] + '）があります。押すと読み直します';
-    b.onclick = () => { save(); location.reload(); };
-    document.body.appendChild(b);
-  }).catch(() => {});
+/* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
+const BUILD = '2026-10-23 14:03';
+const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
+/* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
+function 上がっている版(){
+  return fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store', headers: { 'Range': 'bytes=0-399' } })
+    .then(r => r.text()).then(t => { const m = /<!--BUILD:([^>]*?)-->/.exec(t || ''); return m ? m[1] : null; });
 }
-document.addEventListener('visibilitychange', () => { if(!document.hidden) checkVer(); });
-setTimeout(checkVer, 3000);
+/* 古い画面が出つづけるとき用：保存してあるページのコピー（Service Worker とキャッシュ）を消して取り直す。作業のデータは消さない */
+async function 強制で入れかえ(){
+  try{ save(); }catch(e){}
+  toast('キャッシュを消して、最新版を取り直します…');
+  try{ const rs = await navigator.serviceWorker.getRegistrations(); for(const r of rs){ try{ await r.unregister(); }catch(e){} } }catch(e){}
+  try{ const ks = await caches.keys(); for(const k of ks){ try{ await caches.delete(k); }catch(e){} } }catch(e){}
+  setTimeout(() => { location.replace(location.pathname + '?v=' + Date.now()); }, 600);
+}
+function 最新をたしかめる(){
+  if(!/^https?:$/.test(location.protocol)){ toast('ファイルから開いているので たしかめられない'); return; }
+  const btn = $('#btnLatest'); if(btn) btn.disabled = true;
+  toast('版をたしかめています…');
+  上がっている版().then(v => {
+    if(!v){ toast('版が読めなかった。キャッシュを消して取り直します'); setTimeout(強制で入れかえ, 900); return; }
+    if(v === BUILD){ toast('これが最新（版 ' + verShort(BUILD) + '）'); return; }
+    toast('新しい版 ' + verShort(v) + ' が上がっている。入れかえます');
+    setTimeout(強制で入れかえ, 900);
+  }).catch(() => toast('つながらなかった（電波を確認して もう一度）')).finally(() => { if(btn) btn.disabled = false; });
+}
+/* 開いたままでも新しい版に気づく：画面にもどったとき・5分ごとに、そっと版を見て、上がっていたら帯を出す */
+let 版みた時 = 0;
+function 新しい版の帯(v){
+  let b = document.getElementById('verBar');
+  if(!b){
+    b = document.createElement('div'); b.id = 'verBar';
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:99;display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;border-radius:12px;background:#0E4C54;color:#fff;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:calc(100vw - 24px)';
+    const tx = document.createElement('span'); tx.className = 'nv-t';
+    const go = document.createElement('button'); go.type = 'button'; go.textContent = '入れかえる';
+    go.style.cssText = 'min-height:36px;padding:0 14px;border-radius:9px;border:0;background:#fff;color:#0E4C54;font-weight:800;font-size:13px;cursor:pointer';
+    go.addEventListener('click', 強制で入れかえ);
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'あとで');
+    x.style.cssText = 'min-height:36px;min-width:32px;border:0;background:transparent;color:#fff;font-size:18px;cursor:pointer';
+    x.addEventListener('click', () => { b.hidden = true; });
+    b.append(tx, go, x); document.body.appendChild(b);
+  }
+  b.querySelector('.nv-t').textContent = '新しい版（' + verShort(v) + '）があります';
+  b.hidden = false;
+}
+function 版をそっとみる(force){
+  if(!/^https?:$/.test(location.protocol)) return;
+  const now = Date.now(); if(!force && now - 版みた時 < 60000) return; 版みた時 = now;
+  上がっている版().then(v => { if(v && v !== BUILD && v > BUILD) 新しい版の帯(v); }).catch(() => {});
+}
+$('#verTxt').textContent = verShort(BUILD);
+$('#btnLatest').addEventListener('click', 最新をたしかめる);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') 版をそっとみる(); });
+window.addEventListener('focus', () => 版をそっとみる());
+window.addEventListener('pageshow', e => { if(e.persisted) 版をそっとみる(true); });
+setInterval(() => { if(document.visibilityState === 'visible') 版をそっとみる(); }, 5 * 60000);
+setTimeout(() => 版をそっとみる(true), 3000);
 </script>
 
 </body></html>
