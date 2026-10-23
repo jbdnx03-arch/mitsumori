@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 15:01-->
+<!--BUILD:2026-10-23 15:13-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -611,6 +611,8 @@ function readCarry(obj){
 
 /* ====================== 計算 ====================== */
 function calcLine(l){
+  /* 日極・月極なのに日数が空のときは、期間から入れる（期間を直したあと日数が消えていた、など） */
+  if((l.kb === '日極' || l.kb === '月極') && !num(l.days) && l.start && l.end && typeof daysFromPeriod === 'function') daysFromPeriod(l);
   const q = num(l.qty);
   /* Excelと同じく切り捨て（ROUNDDOWN） */
   if(l.kb === '日極') l.la = Math.floor(num(l.lu) * q * num(l.days) + 1e-9);
@@ -825,6 +827,7 @@ function drawSite(){
     prevBox +
     '<div class="bulk" id="bulkBar"><b>まとめて変える<kbd>M</kbd></b>' +
       '<label>行 <input id="bkRows" placeholder="例 4-24（空なら全部）" value="' + esc(S.bulkRows || '') + '" style="width:150px" title="4-24・1,3,5-8 のように。左の番号を押しても選べる（Shift で範囲）"></label>' +
+      '<label>貸出 <input id="bkKashi" class="bkd" inputmode="decimal" placeholder="月/日" title="貸出日"></label>' +
       '<label>開始 <input id="bkStart" class="bkd" inputmode="decimal" placeholder="月/日"></label>' +
       '<label>終了 <input id="bkEnd" class="bkd" inputmode="decimal" placeholder="月/日"></label>' +
       '<label>返却 <input id="bkRet" class="bkd" inputmode="decimal" placeholder="月/日" title="返却日。「継続」と入れると継続にもどす"></label>' +
@@ -840,12 +843,12 @@ function lineRow(l, i, others){
   const why = (l.carried ? '<div class="why">' + esc(l.carried) + '</div>' : (l.edited && l.sys ? '<div class="why">手直し（CSVは「' + esc(l.sys.name) + '」' + yen(lineAmt(l.sys)) + '）</div>' : '') + (l.manual ? '<div class="why" style="color:var(--warn)">手入力の行</div>' : ''))
     + (l.sugg ? '<div class="why" style="color:var(--warn)">前月はこの行を ' + (l.sugg.n > 1 ? l.sugg.n + '行に分けて' : '別の品にして') + '「' + esc(l.sugg.names.slice(0, 3).join('・')) + (l.sugg.n > 3 ? ' ほか' : '') + '」で請求（今月の日数で ' + yen(l.sugg.amt) + '）　<button class="btn sm" data-act="usesugg">今月も同じにする</button></div>' : '');
   const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
-  const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : '') + '>';
+  const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : f === 'kashi' ? ' placeholder="月/日" title="貸出日"' : '') + '>';
   return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押すと「まとめて変える」の行に入る（Shift で範囲）">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 ' + esc(denOf(l) || '—') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
       (l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : (isNbCand(l) && !l.nbDec ? '<div class="why" style="color:var(--warn)">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　<button class="btn sm" data-act="nb">出さない</button> <button class="btn sm" data-act="nbkeep">出す</button></div>' : '')) +
       (isLeaseUp(l) && !l.nb ? (() => { const u = luInfo(l); return '<div class="why" style="color:' + (l.luDec ? 'var(--ink3)' : 'var(--warn)') + '">リースアップ（月極で貸している購入品）　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) + (l.luDec ? '　→ 請求書に出す' : '　<button class="btn sm" data-act="lukeep">出す</button> <button class="btn sm" data-act="nb">出さない</button>') + '</div>'; })() : '') + '</td>' +
-    '<td class="sub" style="white-space:nowrap">' + (l.kashi ? '貸出 ' + md(l.kashi) + '<br>' : '') + '<span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + ((l.start || l.end || l.retd || l.cont) ? '<br><span class="per">返却 ' + inp('retd', md(l.retd), 46) + (l.cont && !l.retd ? '<small> ' + esc(l.cont) + '</small>' : '') + '</span>' : '') + '</td>' +
+    '<td class="sub" style="white-space:nowrap"><span class="per">貸出 ' + inp('kashi', md(l.kashi), 46) + '</span><br><span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + ((l.start || l.end || l.retd || l.cont) ? '<br><span class="per">返却 ' + inp('retd', md(l.retd), 46) + (l.cont && !l.retd ? '<small> ' + esc(l.cont) + '</small>' : '') + '</span>' : '') + '</td>' +
     '<td>' + kbSel + '</td>' +
     '<td class="n">' + inp('qty', l.qty || '', 46) + '<input class="e unit" data-f="unit" value="' + esc(l.unit || '') + '" list="unitList" title="単位（式・台・ケ など）"></td>' +
     '<td class="n">' + inp('days', l.days || '', 40) + inp('sdays', l.sdays || '', 40) + '</td>' +
@@ -892,6 +895,11 @@ function onLineInput(ev){
     const d = v ? dateIn(v) : '';
     if(v && !d){ toast('日付が読めない（10/1 や 1001 のように）'); t.value = md(l[f]); return; }
     l[f] = d; daysFromPeriod(l);
+  }
+  else if(f === 'kashi'){
+    const v = String(t.value).trim(); const d = v ? dateIn(v) : '';
+    if(v && !d){ toast('日付が読めない（10/1 や 1001 のように）'); t.value = md(l.kashi); return; }
+    l.kashi = d; if(l.sys) l.edited = true; save(); drawSites(); return;
   }
   else if(f === 'retd'){
     const v = String(t.value).trim(); const d = v ? dateIn(v) : '';
@@ -958,6 +966,7 @@ function checks(){
     if(l.kb === '月極' && num(l.days) > 0 && num(l.days) <= 7 && l.retd) out.push({ lv:'info', t:'月極で ' + l.days + ' 日で返却：' + l.name, s: sh.name + '　日極のほうが合うかも', id: l.id, sh: sh.id });
     if(lineAmt(l) < 0 && !l.manual) out.push({ lv:'warn', t:'マイナスの行：' + l.name + ' ' + yen(lineAmt(l)), s: sh.name, id: l.id, sh: sh.id });
     if(!lineAmt(l) && num(l.qty) && !['訂正'].includes(l.kb)) out.push({ lv:'info', t:'0円の行：' + l.name, s: sh.name + '（' + l.kb + '）', id: l.id, sh: sh.id });
+    if((l.kb === '日極' || l.kb === '月極') && num(l.lu) && !num(l.days)) out.push({ lv:'warn', t:'日数が空で金額が出ない：' + l.name, s: sh.name + '　' + l.kb + '・単価 ' + yen(l.lu) + '。日数か期間を入れて', id: l.id, sh: sh.id });
     if(!l.name || !String(l.name).trim()) out.push({ lv:'warn', t:'品名が空の行', s: sh.name, id: l.id, sh: sh.id });
   });
   if(P){
@@ -1020,8 +1029,7 @@ function lineVals(v, l, r){
   v['C' + r] = l.name; v['O' + r] = ret; v['O' + (r + 1)] = kan;
   v['S' + r] = l.kashi || ''; v['U' + r] = l.start || ''; v['W' + r] = l.end || ''; v['Y' + r] = l.cont || l.retd || '';
   v['Z' + r] = num(l.qty); v['AC' + r] = l.unit || ''; v['AD' + r] = dd(l.start, l.end); v['AE' + r] = num(l.kyu);
-  const same = !l.sys || (l.sys.start === l.start && (l.sys.end === undefined || l.sys.end === l.end));
-  v['AG' + r] = same ? num(l.days) : dd(l.start, l.end); v['AG' + (r + 1)] = num(l.sdays); v['AI' + r] = l.kb || '';
+  v['AG' + r] = num(l.days);   /* 請求日数は画面の日数のまま（期間を変えたら日数も入れ直している） */ v['AG' + (r + 1)] = num(l.sdays); v['AI' + r] = l.kb || '';
   v['AJ' + r] = num(l.lu); v['AL' + r] = num(l.la); v['AJ' + (r + 1)] = num(l.su); v['AL' + (r + 1)] = num(l.sa);
   v['AM' + r] = num(l.bu); v['AP' + r] = num(l.ba);
 }
@@ -1132,6 +1140,8 @@ function bulkApply(){
   if(!rows){ toast('行の書き方が読めない（4-24・1,3,5-8 のように）'); $('#bkRows').focus(); return; }
   const sv = $('#bkStart').value.trim(), ev = $('#bkEnd').value.trim(), kb = $('#bkKb').value;
   const rsame = $('#bkRetSame').checked; S.opt.bkRetSame = rsame;
+  const kv = $('#bkKashi').value.trim(), dk = kv ? dateIn(kv) : '';
+  if(kv && !dk){ toast('貸出の日付が読めない'); $('#bkKashi').focus(); return; }
   let rv = $('#bkRet').value.trim(); const rCont = /^継続$/.test(rv);
   if(rsame && !rv) rv = ev;
   const dr = rCont ? '' : (rv ? dateIn(rv) : '');
@@ -1139,11 +1149,12 @@ function bulkApply(){
   const ds = sv ? dateIn(sv) : '', de = ev ? dateIn(ev) : '';
   if(sv && !ds){ toast('開始の日付が読めない（10/1 や 1001 のように）'); $('#bkStart').focus(); return; }
   if(ev && !de){ toast('終了の日付が読めない'); $('#bkEnd').focus(); return; }
-  if(!ds && !de && !kb && !dr && !rCont){ toast('開始・終了・返却・区分のどれかを入れて'); $('#bkStart').focus(); return; }
+  if(!dk && !ds && !de && !kb && !dr && !rCont){ toast('貸出・開始・終了・返却・区分のどれかを入れて'); $('#bkKashi').focus(); return; }
   if(ds && de && de < ds){ toast('終了が開始より前になっています'); return; }
   let n = 0, skip = 0;
   ls.forEach((l, i) => {
     if(!rows.has(i + 1)) return;
+    if(dk){ l.kashi = dk; if(l.sys) l.edited = true; if(!ds && !de && !kb && !dr && !rCont && !rsame){ n++; return; } }
     if(l.kb !== '日極' && l.kb !== '月極' && !kb){
       /* 販売・配送などは期間なし。返却だけは、もともと返却日のある行（返却運賃など）にも入れる */
       if((dr || rCont) && (l.retd || l.cont)){ if(dr){ l.retd = dr; l.cont = ''; } else { l.retd = ''; l.cont = '継続'; } if(l.sys) l.edited = true; n++; } else skip++;
@@ -1332,7 +1343,7 @@ document.addEventListener('keydown', ev => {
 })();
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 15:01';
+const BUILD = '2026-10-23 15:13';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
