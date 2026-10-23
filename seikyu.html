@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 07:33-->
+<!--BUILD:2026-10-24 07:39-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1596,7 +1596,7 @@ function onSiteClick(ev){
   if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; if(p.added || linesOf(sh).some(l => l.manual && p.pmKey && l.pmKey === p.pmKey)){ p.added = true; drawSites(); toast('もう足してあります'); return; } const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p); delete n.key; delete n.added; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); calcLine(n); if(lineAmt(n) !== p.la + p.sa + p.ba){ n.la = p.la; n.sa = p.sa; n.ba = p.ba; } placeLine(sh, n, p); p.added = true; save(); drawSites(); const no = linesOf(sh).indexOf(n) + 1; toast(p.after ? '前月の行を足した（' + no + ' 行目・前月と同じ場所）' : '前月の行を足した（' + no + ' 行目）。前の版で作った作業なので前月の場所がわからない：読み込みに前月のファイルを入れて「照らし直す」と、前月と同じ場所に並べ直す', p.after ? 2600 : 8000); setTimeout(() => { const tr = $('tr[data-id="' + n.id + '"]'); if(tr){ tr.scrollIntoView({ block:'center' }); tr.classList.add('flash'); } }, 50); return; }
   const ut = ev.target.closest('[data-untrash]'); if(ut){ untrash(+ut.dataset.untrash); return; }
   if(ev.target.closest('[data-relink]')){
-    if(S.prevPack){ const P = unpackPrev(S.prevPack); if(P){ const r = relinkPrev(P); drawSites(); toast('照らし直した：前月とつながった行 ' + r.pv + '・手直しの候補 ' + r.sg + '・並べ直した行 ' + r.mv, 6000); setTimeout(askCarrySugg, 300); return; } }
+    if(S.prevPack){ const P = unpackPrev(S.prevPack); if(P){ const r = relinkPrev(P); drawSites(); toast('照らし直した：前月とつながった行 ' + r.pv + '・手直しの候補 ' + r.sg + '・並べ直した行 ' + r.mv + (r.dup ? '・二重に足していた行 ' + r.dup + ' を消した（「消した行」からもどせる）' : ''), 7000); setTimeout(askCarrySugg, 300); return; } }
     $('#fPrev').click(); return;
   }
   const b = ev.target.closest('[data-act]'); if(!b || b.tagName === 'SELECT') return;
@@ -2157,13 +2157,13 @@ async function takePrev(f){
       const v = await askDialog('今の作業に前月を照らし直す？',
         '<b>' + esc(S.meta.custName) + '　' + jdate(S.meta.seikyuDate) + '締め</b> を開いています。<br>この前月のファイル（' + esc(f.name) + '）で、<b>今の作業のまま</b>照らし直せます。今月の手直しは消えません。<ul><li>前月に手で直していた行（数量・単価など）を候補に出す</li><li>行ごとに前月の数量・単価とくらべる</li><li>前月に手で足した行を、前月と同じ場所に並べ直す</li></ul>',
         [{ t:'照らし直す', v:'re', primary:true, k:'Y' }, { t:'いまはしない（作り直すときに使う）', v:null, ghost:true, k:'N' }]);
-      if(v === 're'){ const r = relinkPrev(prevData); setTab('sites'); toast('照らし直した：前月とつながった行 ' + r.pv + '・手直しの候補 ' + r.sg + '・並べ直した行 ' + r.mv, 6000); setTimeout(askCarrySugg, 300); }
+      if(v === 're'){ const r = relinkPrev(prevData); setTab('sites'); toast('照らし直した：前月とつながった行 ' + r.pv + '・手直しの候補 ' + r.sg + '・並べ直した行 ' + r.mv + (r.dup ? '・二重に足していた行 ' + r.dup + ' を消した（「消した行」からもどせる）' : ''), 7000); setTimeout(askCarrySugg, 300); }
     }
   }catch(e){ console.error(e); prevData = null; $('#stPrev').textContent = ''; toast('前月のファイルを読めませんでした：' + (e.message || e), 6000); }
 }
 /* いま開いている作業に、前月のファイルを照らし直す（作り直さない） */
 function relinkPrev(P){
-  const used = new Set(); const r = { pv: 0, sg: 0, mv: 0 };
+  const used = new Set(); const r = { pv: 0, sg: 0, mv: 0, dup: 0 };
   S.prev = P; S.sameMonth = false; S.prevPack = packPrev(P); S.relinkVer = RELINK_VER;
   S.sheets.forEach(sh => {
     const ps = P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code));
@@ -2171,6 +2171,14 @@ function relinkPrev(P){
     sh.prev = ps;
     const old = sh.prevManual || [], pm = prevManualOf(ps.lines || []);
     sh.prevManual = pm;   /* 足してあるかは、いまのシートに同じ行があるかで決める（消していたら、また足せる） */
+    /* 同じ「前月に手で足した行」が2つ以上あれば、1つだけ残して、ほかは「消した行」へ（もどせる） */
+    const seen = {};
+    linesOf(sh).filter(l => l.manual && l.pmKey).forEach(l => {
+      if(!seen[l.pmKey]){ seen[l.pmKey] = l; return; }
+      const ls0 = linesOf(sh), ix0 = ls0.indexOf(l);
+      (S.trash = S.trash || []).push({ line: l, afterId: ix0 > 0 ? ls0[ix0 - 1].id : '', beforeId: ls0[ix0 + 1] ? ls0[ix0 + 1].id : '', at: new Date().toISOString(), why: '同じ行が2つ以上あった' });
+      S.lines.splice(S.lines.indexOf(l), 1); r.dup++;
+    });
     pm.forEach(p => { p.added = linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey); });
     /* もう足してある「前月に手で足した行」を、前月と同じ場所へ */
     linesOf(sh).filter(l => l.manual && !l.pmKey).forEach(l => {
@@ -2292,7 +2300,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 07:33';
+const BUILD = '2026-10-24 07:39';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
