@@ -149,7 +149,7 @@ details.help{font-size:12px;color:var(--ink2);margin-top:8px}
 </style>
 
 <div class="top">
-  <h1>請求ナビ <small>Web 試作</small></h1>
+  <h1>請求ナビ <small>Web 試作　版 <span id="verTxt">10/23 13:58</span></small></h1>
   <span class="who" id="who"></span>
   <span class="sp"></span>
   <div class="tabs" role="tablist">
@@ -1008,6 +1008,25 @@ document.addEventListener('keydown', ev => {
     $('#btnDrop').onclick = () => { try{ localStorage.removeItem(LSK); }catch(e){} $('#resumeCard').hidden = true; };
   }
 })();
+
+/* ====================== 版：ページの版を見て、新しい版があれば帯で知らせる ====================== */
+const APP_VER = '10/23 13:58';
+let verChecked = 0;
+function checkVer(){
+  if(location.protocol === 'file:' || Date.now() - verChecked < 60000) return;
+  verChecked = Date.now();
+  fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(t => {
+    const m = /const APP_VER = '([^']+)'/.exec(t || '');
+    if(!m || m[1] === APP_VER || document.getElementById('verBar')) return;
+    const b = document.createElement('div'); b.id = 'verBar';
+    b.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99;background:#0F4C55;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer';
+    b.textContent = '新しい版（' + m[1] + '）があります。押すと読み直します';
+    b.onclick = () => { save(); location.reload(); };
+    document.body.appendChild(b);
+  }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if(!document.hidden) checkVer(); });
+setTimeout(checkVer, 3000);
 </script>
 
 </body></html>
