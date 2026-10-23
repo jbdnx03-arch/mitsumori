@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 14:32-->
+<!--BUILD:2026-10-23 14:42-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -170,6 +170,7 @@ tr.nbrow input.e{text-decoration:line-through}
 .tabs .cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:#F2B544;color:#3A2A00;font-size:11px;font-weight:800;line-height:18px;text-align:center}
 .tabs .cnt.ng{background:#E25B4B;color:#fff}
 .tabs .cnt.ok{background:#5DBB82;color:#fff}
+.per input.e{text-align:center;padding-left:2px;padding-right:2px}
 </style>
 
 <div class="top">
@@ -790,12 +791,12 @@ function lineRow(l, i, others){
   const why = (l.carried ? '<div class="why">' + esc(l.carried) + '</div>' : (l.edited && l.sys ? '<div class="why">手直し（CSVは「' + esc(l.sys.name) + '」' + yen(lineAmt(l.sys)) + '）</div>' : '') + (l.manual ? '<div class="why" style="color:var(--warn)">手入力の行</div>' : ''))
     + (l.sugg ? '<div class="why" style="color:var(--warn)">前月はこの行を ' + (l.sugg.n > 1 ? l.sugg.n + '行に分けて' : '別の品にして') + '「' + esc(l.sugg.names.slice(0, 3).join('・')) + (l.sugg.n > 3 ? ' ほか' : '') + '」で請求（今月の日数で ' + yen(l.sugg.amt) + '）　<button class="btn sm" data-act="usesugg">今月も同じにする</button></div>' : '');
   const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
-  const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '">';
+  const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : '') + '>';
   return '<tr class="' + cls + '" data-id="' + l.id + '"><td class="sub">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 ' + esc(denOf(l) || '—') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
       (l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : (isNbCand(l) && !l.nbDec ? '<div class="why" style="color:var(--warn)">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　<button class="btn sm" data-act="nb">出さない</button> <button class="btn sm" data-act="nbkeep">出す</button></div>' : '')) +
       (isLeaseUp(l) && !l.nb ? (() => { const u = luInfo(l); return '<div class="why" style="color:' + (l.luDec ? 'var(--ink3)' : 'var(--warn)') + '">リースアップ（月極で貸している購入品）　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) + (l.luDec ? '　→ 請求書に出す' : '　<button class="btn sm" data-act="lukeep">出す</button> <button class="btn sm" data-act="nb">出さない</button>') + '</div>'; })() : '') + '</td>' +
-    '<td class="sub" style="white-space:nowrap">' + md(l.kashi) + (l.start ? '<br>' + md(l.start) + '〜' + md(l.end) : '') + (l.retd ? '<br>返却 ' + md(l.retd) : (l.cont ? '<br>' + esc(l.cont) : '')) + '</td>' +
+    '<td class="sub" style="white-space:nowrap">' + (l.kashi ? '貸出 ' + md(l.kashi) + '<br>' : '') + '<span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + (l.retd ? '<br>返却 ' + md(l.retd) : (l.cont ? '<br>' + esc(l.cont) : '')) + '</td>' +
     '<td>' + kbSel + '</td>' +
     '<td class="n">' + inp('qty', l.qty || '', 46) + '<div class="sub">' + esc(l.unit || '') + '</div></td>' +
     '<td class="n">' + inp('days', l.days || '', 40) + inp('sdays', l.sdays || '', 40) + '</td>' +
@@ -805,12 +806,46 @@ function lineRow(l, i, others){
     '<td><div class="lnbtn"><button data-act="dup" title="同じ行をもう1行">⧉</button><select data-act="move" title="別の現場へ移す" style="max-width:26px"><option value="">⇢</option>' + others.map(s => '<option value="' + s.id + '">' + esc(s.name) + 'へ</option>').join('') + '</select>' +
     ((l.carried || l.edited) && l.sys ? '<button data-act="revert" title="CSVのとおりに戻す">↺</button>' : '') + '<button data-act="nb" title="' + (l.nb ? '請求書に出す' : '請求書に出さない（行は残す）') + '">' + (l.nb ? '◎' : '⊘') + '</button><button data-act="del" title="この行を消す">×</button></div></td></tr>';
 }
+
+/* 期間の入力：10/1・1001・2026/10/1・20261001 など。年は締め日から決める（締め月より先の月なら前の年） */
+function dateIn(v){
+  v = String(v).normalize('NFKC').trim().replace(/[年月\.\-]/g, '/').replace(/日/g, '');
+  let y, m, d, a;
+  if((a = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(v))){ y = +a[1]; m = +a[2]; d = +a[3]; }
+  else if((a = /^(\d{1,2})\/(\d{1,2})$/.exec(v))){ m = +a[1]; d = +a[2]; }
+  else if((a = /^(\d{4})(\d{2})(\d{2})$/.exec(v))){ y = +a[1]; m = +a[2]; d = +a[3]; }
+  else if((a = /^(\d{1,2})(\d{2})$/.exec(v))){ m = +a[1]; d = +a[2]; }
+  else return '';
+  const sd = (S.meta && S.meta.seikyuDate) || todayIso();
+  if(!y){ y = +sd.slice(0, 4); if(m > +sd.slice(5, 7) + 1) y--; }
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if(dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return '';
+  return y + '-' + pad2(m) + '-' + pad2(d);
+}
+/* 期間から日数を入れ直す：日極はそのままの日数、月極は 30 日まで（システムと同じ）。サポート日数はそのままの日数 */
+function daysFromPeriod(l){
+  if(!l.start || !l.end) return;
+  const n = Math.round((Date.parse(l.end) - Date.parse(l.start)) / 864e5) + 1;
+  if(n <= 0){ toast('終わりが始まりより前になっています'); return; }
+  if(l.kb === '日極') l.days = n;
+  else if(l.kb === '月極') l.days = Math.min(n, 30);
+  else return;
+  if(num(l.su) || num(l.sdays)) l.sdays = n;
+}
 /* 行の編集 */
 function onLineInput(ev){
   const t = ev.target; const tr = t.closest('tr[data-id]'); if(!tr) return;
   const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
   const f = t.dataset.f; if(!f) return;
-  if(f === 'name') l.name = t.value; else if(f === 'kb') l.kb = t.value; else l[f] = num(t.value);
+  if(f === 'name') l.name = t.value;
+  else if(f === 'start' || f === 'end'){
+    const v = String(t.value).trim();
+    const d = v ? dateIn(v) : '';
+    if(v && !d){ toast('日付が読めない（10/1 や 1001 のように）'); t.value = md(l[f]); return; }
+    l[f] = d; daysFromPeriod(l);
+  }
+  else if(f === 'kb'){ const was = l.kb; l.kb = t.value; daysFromPeriod(l); if((was === '月極' && l.kb === '日極') || (was === '日極' && l.kb === '月極')) setTimeout(() => toast(l.kb + 'にした：日数を期間から入れ直した。単価も' + l.kb + 'の単価に直してね', 4500), 50); }
+  else l[f] = num(t.value);
   if(f !== 'name') calcLine(l);
   if(l.sys) l.edited = true;
   save();
@@ -1152,7 +1187,7 @@ document.addEventListener('keydown', ev => {
 })();
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 14:32';
+const BUILD = '2026-10-23 14:42';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
