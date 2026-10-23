@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 07:18-->
+<!--BUILD:2026-10-24 07:21-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -836,8 +836,17 @@ function readPrevBook(buf){
   /* 品ごと（伝票・品番・管理番号・貸出日）に、前月どの現場シートで、どう書いたか */
   /* システムの1行（採番）ごとにまとめる。同じ伝票・品番・管理番号・貸出日でも、採番がちがえば別の行（途中で一部返却した、など）。
      1つの採番がExcelで何行かになっていたら、それが「分けた」手直し */
+  return finishPrev(P);
+}
+/* 前月の行を、システムの1行ごとにまとめて索引を作る（Excel・引き継ぎファイル・作業に入れておいた前月 のどれでも同じ） */
+function finishPrev(P){
+  P.byKey = {}; P.byLoose = {};
   const ents = {};
-  P.sheets.forEach(sh => sh.lines.forEach(L => { if(!L.key) return; const g = L.key + '#' + (L.saiban != null ? L.saiban : ''); (ents[g] = ents[g] || { sheet: sh.name, vers: [], sys: L.sys, key: L.key }).vers.push(L); }));
+  P.sheets.forEach(sh => (sh.lines || []).forEach(L => {
+    if(!L.key || L.manual) return;
+    const g = L.key + '#' + (L.saiban != null && L.saiban !== '' && L.sys ? 's' + L.saiban : JSON.stringify(L.sys || null));
+    (ents[g] = ents[g] || { sheet: sh.name, vers: [], sys: L.sys || L, key: L.key }).vers.push(L);
+  }));
   indexPrev(P, Object.values(ents));
   Object.values(ents).forEach(e => {
     const s = e.sys;
@@ -846,6 +855,18 @@ function readPrevBook(buf){
   P.continuing = new Set(P.all.filter(e => String(e.vers[0].ret || '').indexOf('継続') >= 0).map(e => e.key));
   return P;
 }
+/* 前月のデータを作業の中に入れておく（開き直しても、前月のファイルをもう一度入れなくていい） */
+function packPrev(P){
+  if(!P) return null;
+  return JSON.parse(JSON.stringify({ label: P.label || '', fromJson: !!P.fromJson, kouji: P.kouji || {}, sheets: P.sheets.map(sh => ({ name: sh.name, code: sh.code, kouji: sh.kouji, total: sh.total, fur: sh.fur || [], inKagami: sh.inKagami, lines: sh.lines || [] })) }));
+}
+function unpackPrev(pk){
+  if(!pk || !pk.sheets) return null;
+  const P = { label: pk.label || '', fromJson: !!pk.fromJson, kouji: pk.kouji || {}, codeSheet: {}, sysByKey: {}, sheets: JSON.parse(JSON.stringify(pk.sheets)) };
+  P.sheets.forEach(sh => { if(sh.code && !P.codeSheet[sh.code]) P.codeSheet[sh.code] = sh.name; (sh.lines || []).forEach(L => { if(L.key && L.sys) P.sysByKey[L.key] = L.sys; }); });
+  return finishPrev(P);
+}
+const RELINK_VER = 1;   /* 前月の照らし直し方を変えたら上げる。古い作業は開いたときに自動で照らし直す */
 
 /* 前月の行の索引。同じキーの行が何本かあるとき（採番ちがい）は alt に並べ、今月の行に合うほうを選ぶ */
 function indexPrev(P, list){
@@ -880,12 +901,7 @@ function readCarry(obj){
   const P = { label: obj.month || '', sheets: [], byKey:{}, byLoose:{}, kouji:{}, codeSheet:{}, fromJson:true };
   obj.sheets.forEach(s => { P.sheets.push({ name: s.name, code: s.code, kouji: s.kouji || '', lines: [], fur: [], total: s.total || 0, inKagami: s.inKagami !== false }); if(s.code && !P.codeSheet[s.code]) P.codeSheet[s.code] = s.name; if(s.kouji) P.kouji[s.name] = s.kouji; });
   obj.lines.forEach(l => { const sh = P.sheets.find(s => s.name === l.sheet); const L = Object.assign({}, l); if(sh) sh.lines.push(L); });
-  const ents = {};
-  P.sheets.forEach(sh => sh.lines.forEach(L => { if(!L.key || L.manual) return; const g = L.key + '#' + JSON.stringify(L.sys || null); (ents[g] = ents[g] || { sheet: sh.name, vers: [], sys: L.sys || L, key: L.key }).vers.push(L); }));
-  indexPrev(P, Object.values(ents));
-  Object.values(ents).forEach(e => { const s = e.sys; e.edited = e.vers.length > 1 || e.vers.some(v => v.name !== s.name || v.qty !== s.qty || v.lu !== s.lu || v.su !== s.su || v.bu !== s.bu || v.la + v.sa + v.ba !== s.la + s.sa + s.ba); });
-  P.continuing = new Set(P.all.filter(e => String(e.vers[0].ret || '').indexOf('継続') >= 0).map(e => e.key));
-  return P;
+  return finishPrev(P);
 }
 
 /* ====================== 計算 ====================== */
@@ -1044,6 +1060,7 @@ function placeLine(sh, n, p){
 function build(){
   const D = readCsv(csvText);
   S.meta = D.meta; S.sheets = []; S.lines = []; S.prev = prevData; S.built = true; S.trash = []; undoReset();
+  S.prevPack = prevData ? packPrev(prevData) : null; S.relinkVer = RELINK_VER;
   const P = prevData;
   const sheetFor = {};
   const mk = (name, code, siteName, kouji) => {
@@ -1124,7 +1141,7 @@ const workIdOf = m => (m && m.custCode ? String(m.custCode) + '-' + String(m.cus
 function snapshot(){
   const net = S.sheets.filter(s => s.inKagami).reduce((a, s) => a + sheetNet(s), 0);
   return { id: S.workId, v: 1, meta: S.meta, sheets: S.sheets.map(s => Object.assign({}, s, { prev: s.prev ? { name: s.prev.name, total: s.prev.total, fur: s.prev.fur, kouji: s.prev.kouji } : null })),
-    lines: S.lines, trash: S.trash || [], seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
+    lines: S.lines, trash: S.trash || [], prevPack: S.prevPack || null, relinkVer: S.relinkVer || 0, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
     savedAt: new Date().toISOString(), custCode: S.meta.custCode, custName: S.meta.custName, seikyuDate: S.meta.seikyuDate, net, nLines: S.lines.length, sites: S.sheets.length,
     tax: S.sheets.filter(s => s.inKagami).reduce((a, s) => a + tax(sheetNet(s)), 0), status: S.status || 'draft', printedAt: S.printedAt || '',
     siteNames: S.sheets.filter(s => s.inKagami).map(s => s.name + (s.siteName && s.siteName !== s.name ? '（' + s.siteName + '）' : '')).join('／').slice(0, 600) };
@@ -1276,6 +1293,14 @@ function openWork(o){
   S.workId = o.id; S.meta = o.meta; S.sheets = o.sheets; S.lines = o.lines; S.seq = o.seq || 1000; S.opt = Object.assign(S.opt, o.opt || {});
   S.cur = o.cur || (S.sheets[0] && S.sheets[0].id); S.prev = o.prevLabel ? { label: o.prevLabel, byKey:{}, continuing:new Set() } : null; S.sameMonth = !!o.sameMonth;
   S.built = true; S.bulkRows = ''; S.bulkSel = null; S.status = o.status || 'draft'; S.printedAt = o.printedAt || '';
+  /* 前月のデータが作業に入っていれば、前月のファイルを入れなくても使える。古い作り方の作業なら、ここで自動で照らし直す */
+  S.prevPack = o.prevPack || null; S.relinkVer = o.relinkVer || 0;
+  let autoRe = null;
+  if(S.prevPack){
+    const P = unpackPrev(S.prevPack);
+    if(P){ S.prev = P; if(S.relinkVer < RELINK_VER && P.label && P.label < (S.meta.seikyuDate || '')){ autoRe = relinkPrev(P); } }
+  }
+  if(autoRe) setTimeout(() => toast('新しい版に合わせて、前月を照らし直した（手直しの候補 ' + autoRe.sg + '・並べ直した行 ' + autoRe.mv + '）', 6000), 600);
   /* 「前月に手で足した行」の ✓ は、いまのシートに本当にその行があるときだけ（消していたら、また足せるように） */
   S.sheets.forEach(sh => (sh.prevManual || []).forEach(p => {
     if(!p.added) return;
@@ -2126,7 +2151,7 @@ async function takePrev(f){
 /* いま開いている作業に、前月のファイルを照らし直す（作り直さない） */
 function relinkPrev(P){
   const used = new Set(); const r = { pv: 0, sg: 0, mv: 0 };
-  S.prev = P; S.sameMonth = false;
+  S.prev = P; S.sameMonth = false; S.prevPack = packPrev(P); S.relinkVer = RELINK_VER;
   S.sheets.forEach(sh => {
     const ps = P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code));
     if(!ps) return;
@@ -2253,7 +2278,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 07:18';
+const BUILD = '2026-10-24 07:21';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
