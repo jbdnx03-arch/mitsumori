@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 16:42-->
+<!--BUILD:2026-10-23 18:28-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -207,6 +207,28 @@ table.wl small{color:var(--ink3)}
 .shead .bulk .btn{min-height:24px;padding:2px 10px}
 .tabs .pvtop{border:0;background:#F2B544;color:#2A2000;margin-left:6px;font-weight:700;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;min-height:36px}
 .tabs .pvtop kbd{margin-left:4px}
+.tabs .hktop{border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;min-height:36px;margin-left:6px}
+.tabs .hktop kbd{margin-left:4px}
+.wc{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px;background:var(--surface)}
+.wc.now{border-color:var(--brand);background:var(--soft)}
+.wc1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wc1 b{font-size:14px}.wc1 small{color:var(--ink3)}
+.wc1 .sp{flex:1}
+.wc1 .amt{font-variant-numeric:tabular-nums;font-weight:700}.wc1 .amt small{font-weight:400;color:var(--ink3)}
+.wc2{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-top:3px}
+.wc3{font-size:11.5px;color:var(--ink3);margin-top:3px;line-height:1.5;max-height:3em;overflow:hidden}
+.wc4{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tag.pr{background:#E8EEF8;color:#2F5597}
+.spv.hk{background:var(--bg)}
+.hk-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 16px 4px}
+.hk-filt{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 16px 10px;border-bottom:1px solid var(--line)}
+.hk-filt button{border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer}
+.hk-filt button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.hk-filt input{flex:1 1 220px;min-width:180px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--surface);color:var(--ink)}
+.hk-body{flex:1;overflow:auto;padding:12px 16px 24px}
+.hk-g{max-width:980px;margin:0 auto 14px}
+.hk-gh{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin:4px 2px 6px}
+.hk-gh b{font-size:14px;color:var(--ink)}
 </style>
 
 <div class="top">
@@ -221,6 +243,7 @@ table.wl small{color:var(--ink3)}
     <button data-tab="sites">現場<kbd>2</kbd></button>
     <button data-tab="check">チェック<kbd>3</kbd></button>
     <button data-tab="paper">印刷・PDF<kbd>4</kbd></button>
+    <button class="hktop" id="btnHikae" type="button" title="保存した作業の一覧（web見積の控えと同じ）">控え<kbd>K</kbd></button>
     <button class="pvtop" id="btnTopPv" type="button" title="請求書を印刷と同じ形で見る（現場の画面ではその現場、ほかの画面では全部）">プレビュー<kbd>V</kbd></button>
   </div>
 </div>
@@ -228,7 +251,7 @@ table.wl small{color:var(--ink3)}
 <div class="wrap">
   <section id="tab-load">
     <div class="card" id="worksCard">
-      <h2>保存してある作業 <span class="n" id="worksNote">得意先・締めごとに、この端末とクラウドに自動で残ります</span></h2>
+      <h2>最近の作業 <span class="n" id="worksNote">得意先・締めごとに、この端末とクラウドに自動で残ります</span><button class="btn sm" id="btnWorksAll" type="button" style="margin-left:auto">控えをすべて見る<kbd>K</kbd></button></h2>
       <div id="worksList" class="works"><div class="muted">読み込んでいます…</div></div>
       <div class="row" style="margin-top:8px"><button class="btn sm" id="btnWorksReload" type="button">↻ クラウドを見直す</button><span class="muted" id="worksCloud"></span></div>
     </div>
@@ -597,24 +620,38 @@ let csvText = null, csvName = '', prevData = null, prevName = '';
 const uid = () => 'x' + (S.seq++);
 
 /* ====================== CSV ====================== */
-function parseCSV(t){
+function parseCSV(t, sep){
+  sep = sep || ',';
+  t = String(t).replace(/\r\n?/g, '\n');                        /* 改行が CR だけのファイルにも対応 */
   const rows = []; let row = [], f = '', q = false;
   for(let i = 0; i < t.length; i++){
     const c = t[i];
     if(q){ if(c === '"'){ if(t[i + 1] === '"'){ f += '"'; i++; } else q = false; } else f += c; }
     else if(c === '"') q = true;
-    else if(c === ','){ row.push(f); f = ''; }
+    else if(c === sep){ row.push(f); f = ''; }
     else if(c === '\n'){ row.push(f); rows.push(row); row = []; f = ''; }
-    else if(c === '\r'){}
     else f += c;
   }
   if(f !== '' || row.length){ row.push(f); rows.push(row); }
   return rows;
 }
 function readCsv(text){
-  const rows = parseCSV(text).filter(r => r.length > 5);
-  const H = rows[0].map(h => h.trim());
   const need = ['請求先コード','現場コード','商品番号','商品名','リース料','基本料'];
+  const nh = h => String(h || '').normalize('NFKC').replace(/[\s"\u0000\uFEFF]/g, '');
+  /* 区切り（, かタブか ;）と見出しの行を探す。上に題名の行があっても読む */
+  let rows = null, hi = -1;
+  for(const sep of [',', '\t', ';']){
+    const rs = parseCSV(text, sep);
+    const i = rs.findIndex(r => r.length > 5 && r.map(nh).indexOf('現場コード') >= 0);
+    if(i >= 0){ rows = rs; hi = i; break; }
+  }
+  if(!rows){
+    const first = String(text).replace(/^\s+/, '').split(/\r?\n|\r/)[0] || '';
+    if(!String(text).trim()) throw new Error('CSVの中身が空っぽです（' + (csvTry || 'ファイル') + '）。システムから出し直してみて');
+    throw new Error('請求明細のCSVではないようです（「現場コード」の列が見つからない）。1行目：' + first.slice(0, 60) + (first.length > 60 ? '…' : ''));
+  }
+  rows = rows.slice(hi).filter(r => r.length > 5);
+  const H = rows[0].map(nh);
   const miss = need.filter(k => H.indexOf(k) < 0);
   if(miss.length) throw new Error('請求明細のCSVではないようです（' + miss.join('・') + ' の列がない）');
   const recs = rows.slice(1).map(r => { const o = {}; H.forEach((h, i) => { o[h] = (r[i] || '').trim(); }); return o; });
@@ -906,7 +943,9 @@ function snapshot(){
   const net = S.sheets.filter(s => s.inKagami).reduce((a, s) => a + sheetNet(s), 0);
   return { id: S.workId, v: 1, meta: S.meta, sheets: S.sheets.map(s => Object.assign({}, s, { prev: s.prev ? { name: s.prev.name, total: s.prev.total, fur: s.prev.fur, kouji: s.prev.kouji } : null })),
     lines: S.lines, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
-    savedAt: new Date().toISOString(), custCode: S.meta.custCode, custName: S.meta.custName, seikyuDate: S.meta.seikyuDate, net, nLines: S.lines.length, sites: S.sheets.length };
+    savedAt: new Date().toISOString(), custCode: S.meta.custCode, custName: S.meta.custName, seikyuDate: S.meta.seikyuDate, net, nLines: S.lines.length, sites: S.sheets.length,
+    tax: S.sheets.filter(s => s.inKagami).reduce((a, s) => a + tax(sheetNet(s)), 0), status: S.status || 'draft', printedAt: S.printedAt || '',
+    siteNames: S.sheets.filter(s => s.inKagami).map(s => s.name + (s.siteName && s.siteName !== s.name ? '（' + s.siteName + '）' : '')).join('／').slice(0, 600) };
 }
 const WK = (function(){
   const DBN = 'seikyuNavi', ST = 'works', LKP = 'seikyuNaviWeb.w.';
@@ -924,9 +963,14 @@ const WK = (function(){
     let out = [];
     try{ out = await tx('readonly', st => st.getAll()) || []; }catch(e){}
     try{ for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.indexOf(LKP) === 0){ try{ const o = JSON.parse(localStorage.getItem(k)); if(o && !out.some(x => x.id === o.id)) out.push(o); }catch(e){} } } }catch(e){}
-    return out.map(o => ({ id: o.id, custCode: o.custCode, custName: o.custName, seikyuDate: o.seikyuDate, savedAt: o.savedAt, net: o.net, nLines: o.nLines, sites: o.sites, cloudAt: o.cloudAt || '' }));
+    return out.map(o => ({ id: o.id, custCode: o.custCode, custName: o.custName, seikyuDate: o.seikyuDate, savedAt: o.savedAt, net: o.net, tax: o.tax, nLines: o.nLines, sites: o.sites, cloudAt: o.cloudAt || '', status: o.status || 'draft', printedAt: o.printedAt || '', siteNames: o.siteNames || '' }));
   }
-  return { put, get, del, list };
+  async function all(){
+    let out = [];
+    try{ out = await tx('readonly', st => st.getAll()) || []; }catch(e){}
+    return out;
+  }
+  return { put, get, del, list, all };
 })();
 
 /* ---- クラウド（web見積の控えと同じ置き場。合鍵も同じものを使う） ---- */
@@ -961,7 +1005,7 @@ async function unpackJson(f){
   if(f.z){ const t = await new Response(new Blob([bufOf(f.z)]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); return JSON.parse(t); }
   return JSON.parse(f.j || 'null');
 }
-const SUMF = ['custCode','custName','seikyuDate','savedAt','net','nLines','sites','device'];
+const SUMF = ['custCode','custName','seikyuDate','savedAt','net','tax','nLines','sites','device','status','printedAt','siteNames'];
 function devName(){ const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'PC'; }
 async function cloudPut(o){
   const t = await 雲トークン();
@@ -1047,7 +1091,7 @@ window.addEventListener('pagehide', () => { if(saveT) saveNow(); });
 function openWork(o){
   S.workId = o.id; S.meta = o.meta; S.sheets = o.sheets; S.lines = o.lines; S.seq = o.seq || 1000; S.opt = Object.assign(S.opt, o.opt || {});
   S.cur = o.cur || (S.sheets[0] && S.sheets[0].id); S.prev = o.prevLabel ? { label: o.prevLabel, byKey:{}, continuing:new Set() } : null; S.sameMonth = !!o.sameMonth;
-  S.built = true; S.bulkRows = ''; S.bulkSel = null;
+  S.built = true; S.bulkRows = ''; S.bulkSel = null; S.status = o.status || 'draft'; S.printedAt = o.printedAt || '';
   setTab('sites'); setTimeout(askNoBill, 400);
   showSaveSt('この端末に保存 ✓' + (o.cloudAt ? '　クラウド ✓' : ''));
 }
@@ -1061,46 +1105,125 @@ async function openWorkId(id, cloudMeta){
   openWork(o);
 }
 let cloudCache = null;
+const STATUS = { draft: ['作業中', ''], printed: ['印刷済', 'pr'], sent: ['送付済', 'ok'] };
+async function mergedWorks(reload){
+  let loc = []; try{ loc = await WK.list(); }catch(e){}
+  if(reload || !cloudCache){
+    try{ cloudCache = await cloudList(); cloudErr2 = ''; }catch(e){ cloudErr2 = String(e.message || e); }
+  }
+  const m = {};
+  loc.forEach(w => { m[w.id] = { id: w.id, loc: w, cl: null }; });
+  (cloudCache || []).forEach(w => { (m[w.id] = m[w.id] || { id: w.id, loc: null }).cl = w; });
+  return Object.values(m).map(x => {
+    const w = (x.cl && (!x.loc || String(x.cl.savedAt) > String(x.loc.savedAt || ''))) ? x.cl : x.loc;
+    const locSent = x.loc && x.loc.cloudAt && String(x.loc.cloudAt) >= String(x.loc.savedAt || '');
+    const where = x.loc && (locSent || (x.cl && String(x.cl.savedAt) >= String(x.loc.savedAt || ''))) ? '端末・クラウド' : x.loc && pendList().indexOf(x.id) >= 0 ? '端末（クラウドへ送る前）' : x.loc ? '端末だけ' : 'クラウド（' + (x.cl.device || 'ほかの端末') + '）';
+    return Object.assign({}, x, { w, where });
+  }).sort((a, b) => String(b.w.seikyuDate || '').localeCompare(String(a.w.seikyuDate || '')) || String(b.w.savedAt || '').localeCompare(String(a.w.savedAt || '')));
+}
+let cloudErr2 = '';
+const fmtT = s => s ? new Date(s).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+async function workAction(ev, rows, redraw){
+  const o = ev.target.closest('[data-wopen]'), d = ev.target.closest('[data-wdel]'), st = ev.target.closest('[data-wst]');
+  if(o){ const id = o.dataset.wopen; if(S.built && S.workId && S.workId !== id) await saveNow(); closeHikae(); openWorkId(id, (cloudCache || []).find(c => c.id === id)); return; }
+  if(st){
+    const id = st.dataset.wst, v = st.dataset.v;
+    if(S.built && S.workId === id){ S.status = v; save(); await saveNow(); }
+    else { let w = await WK.get(id); if(!w){ try{ w = await cloudGet(id); }catch(e){} } if(!w){ toast('作業が読めなかった'); return; } w.status = v; w.savedAt = new Date().toISOString(); await WK.put(w); const p = pendList(); if(p.indexOf(id) < 0){ p.push(id); pendSet(p); } clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 1500); }
+    toast('「' + STATUS[v][0] + '」にした'); redraw(); return;
+  }
+  if(d){
+    const id = d.dataset.wdel; const r = rows.find(x => x.id === id); if(!r) return;
+    const v = await askDialog('作業を消す', esc(r.w.custName || '') + '　' + jdate(r.w.seikyuDate || '') + '締め の作業を消しますか？<br>手直しも含めて消えます。', [{ t:'この端末とクラウドから消す', v:'all', k:'Y' }, { t:'この端末だけ消す', v:'loc', k:'L' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+    if(!v) return;
+    await WK.del(id); pendSet(pendList().filter(x => x !== id));
+    if(v === 'all'){ try{ await cloudDel(id); cloudCache = (cloudCache || []).filter(c => c.id !== id); }catch(e){ toast('クラウドから消せなかった：' + (e.message || e), 5000); } }
+    toast('消した'); redraw();
+  }
+}
+function workCard(x){
+  const w = x.w, isNow = S.built && S.workId === x.id, stt = STATUS[w.status || 'draft'] || STATUS.draft;
+  const gross = num(w.net) + num(w.tax != null ? w.tax : Math.floor(num(w.net) * 0.1));
+  return '<div class="wc' + (isNow ? ' now' : '') + '"><div class="wc1"><b>' + esc(w.custName || '') + '</b><small>' + esc(w.custCode || '') + '</small>' +
+    '<span class="tag ' + stt[1] + '">' + stt[0] + '</span>' + (isNow ? '<span class="tag ok">いま開いている</span>' : '') + '<span class="sp"></span>' +
+    '<span class="amt">' + yen(w.net || 0) + '<small> 税抜</small>　' + yen(gross) + '<small> 税込</small></span></div>' +
+    '<div class="wc2"><span>' + (w.seikyuDate ? jdate(w.seikyuDate) + '締め' : '') + '</span><span>' + (w.sites || 0) + '現場・' + (w.nLines || 0) + '行</span><span>保存 ' + fmtT(w.savedAt) + '</span>' + (w.printedAt ? '<span>印刷 ' + fmtT(w.printedAt) + '</span>' : '') + '<span class="muted">' + esc(x.where) + '</span></div>' +
+    (w.siteNames ? '<div class="wc3">' + esc(w.siteNames) + '</div>' : '') +
+    '<div class="wc4">' + (isNow ? '' : '<button class="btn sm primary" data-wopen="' + esc(x.id) + '">開く</button>') +
+    Object.keys(STATUS).filter(k => k !== (w.status || 'draft')).map(k => '<button class="btn sm" data-wst="' + esc(x.id) + '" data-v="' + k + '">' + STATUS[k][0] + 'にする</button>').join('') +
+    (isNow ? '' : '<button class="btn sm ghost" data-wdel="' + esc(x.id) + '">消す</button>') + '</div></div>';
+}
+/* 読み込みタブ：最近の作業（5件）＋控えへ */
 async function drawWorks(reload){
   const L = $('#worksList'); if(!L) return;
-  let loc = []; try{ loc = await WK.list(); }catch(e){}
-  const render = () => {
-    const m = {};
-    loc.forEach(w => { m[w.id] = { id: w.id, loc: w, cl: null }; });
-    (cloudCache || []).forEach(w => { (m[w.id] = m[w.id] || { id: w.id, loc: null }).cl = w; });
-    const rows = Object.values(m).map(x => { const w = (x.cl && (!x.loc || String(x.cl.savedAt) > String(x.loc.savedAt || ''))) ? x.cl : x.loc; return Object.assign({}, x, { w }); })
-      .sort((a, b) => String(b.w.seikyuDate || '').localeCompare(String(a.w.seikyuDate || '')) || String(b.w.savedAt || '').localeCompare(String(a.w.savedAt || '')));
+  const draw = async rl => {
+    const rows = await mergedWorks(rl);
+    $('#worksCloud').textContent = cloudErr2 ? 'クラウドを見られなかった（' + cloudErr2 + '）。この端末の分だけ出しています' : 'クラウド：' + (cloudCache || []).length + ' 件';
     if(!rows.length){ L.innerHTML = '<div class="muted">まだありません。CSVを入れて「現場ごとに分ける」を押すと、ここに残ります。</div>'; return; }
-    if(cloudCache) $('#worksCloud').textContent = 'クラウド：' + cloudCache.length + ' 件';
-    L.innerHTML = '<table class="wl"><thead><tr><th>得意先</th><th>締め</th><th class="n">税抜（鑑）</th><th class="n">現場・行</th><th>最後に保存</th><th>置き場</th><th></th></tr></thead><tbody>' + rows.map(x => {
-      const w = x.w, t = w.savedAt ? new Date(w.savedAt) : null;
-      const locSent = x.loc && x.loc.cloudAt && String(x.loc.cloudAt) >= String(x.loc.savedAt || '');
-      const where = x.loc && (locSent || (x.cl && String(x.cl.savedAt) >= String(x.loc.savedAt || ''))) ? '端末・クラウド' : x.loc && pendList().indexOf(x.id) >= 0 ? '端末・<span style="color:var(--warn)">クラウドへ送る前</span>' : x.loc ? '端末だけ' : 'クラウド（' + esc(x.cl.device || 'ほかの端末') + '）';
-      const isNow = S.built && S.workId === x.id;
-      return '<tr' + (isNow ? ' class="now"' : '') + '><td><b>' + esc(w.custName || '') + '</b><small> ' + esc(w.custCode || '') + '</small></td><td>' + (w.seikyuDate ? jdate(w.seikyuDate) : '') + '</td><td class="n">' + yen(w.net || 0) + '</td><td class="n">' + (w.sites || 0) + '・' + (w.nLines || 0) + '</td><td>' + (t ? t.toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '') + '</td><td class="sub">' + where + '</td>' +
-        '<td style="white-space:nowrap">' + (isNow ? '<span class="tag ok">いま開いている</span> ' : '<button class="btn sm primary" data-wopen="' + esc(x.id) + '">開く</button> ') + '<button class="btn sm ghost" data-wdel="' + esc(x.id) + '" title="この作業を消す">消す</button></td></tr>';
-    }).join('') + '</tbody></table>';
-    L.onclick = async ev => {
-      const o = ev.target.closest('[data-wopen]'); const d = ev.target.closest('[data-wdel]');
-      if(o){ const id = o.dataset.wopen; if(S.built && S.workId && S.workId !== id) await saveNow(); openWorkId(id, (cloudCache || []).find(c => c.id === id)); }
-      if(d){
-        const id = d.dataset.wdel; const r = m[id];
-        const v = await askDialog('作業を消す', esc((r.loc || r.cl).custName || '') + '　' + jdate((r.loc || r.cl).seikyuDate || '') + '締め の作業を消しますか？', [{ t:'この端末とクラウドから消す', v:'all', k:'Y' }, { t:'この端末だけ消す', v:'loc', k:'L' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
-        if(!v) return;
-        await WK.del(id); pendSet(pendList().filter(x => x !== id));
-        if(v === 'all'){ try{ await cloudDel(id); cloudCache = (cloudCache || []).filter(c => c.id !== id); }catch(e){ toast('クラウドから消せなかった：' + (e.message || e), 5000); } }
-        if(S.workId === id){ S.built = false; S.workId = ''; }
-        toast('消した'); drawWorks();
-      }
-    };
+    L.innerHTML = rows.slice(0, 5).map(workCard).join('') + (rows.length > 5 ? '<div class="muted" style="margin-top:6px">ほか ' + (rows.length - 5) + ' 件は「控え」で見られます</div>' : '');
+    L.onclick = ev => workAction(ev, rows, () => draw(false));
   };
-  render();
-  if(reload || !cloudCache){
-    $('#worksCloud').textContent = 'クラウドを見ています…';
-    try{ cloudCache = await cloudList(); $('#worksCloud').textContent = 'クラウド：' + cloudCache.length + ' 件（' + new Date().toLocaleTimeString('ja-JP').replace(/:\d\d$/, '') + '）'; }
-    catch(e){ $('#worksCloud').textContent = 'クラウドを見られなかった（' + (e.message || e) + '）。この端末の分だけ出しています'; }
-    render();
+  await draw(!!reload);
+}
+/* 控え（web見積と同じ形の一覧） */
+let hkF = '', hkQ = '';
+function closeHikae(){ const H = $('#hikae'); if(H && !H.hidden){ H.hidden = true; document.body.style.overflow = ''; } }
+async function openHikae(){
+  let H = $('#hikae');
+  if(!H){
+    H = document.createElement('div'); H.id = 'hikae'; H.className = 'spv hk';
+    H.innerHTML = '<div class="spv-bar"><b>控え（保存した請求書の作業）</b><span class="sp"></span><button class="btn" id="hkClose" type="button">閉じる<kbd>Esc</kbd></button></div>' +
+      '<div class="hk-tools"><button class="btn sm" id="hkOut" type="button">控えを書き出す</button><button class="btn sm" id="hkIn" type="button">控えを取り込む</button><input type="file" id="hkFile" accept=".json,application/json" hidden><button class="btn sm" id="hkSync" type="button">クラウドと合わせる</button><span class="muted" id="hkCloud"></span></div>' +
+      '<div class="hk-filt" id="hkFilt"><button type="button" data-f="" class="on">すべて</button>' + Object.keys(STATUS).map(k => '<button type="button" data-f="' + k + '">' + STATUS[k][0] + '</button>').join('') +
+      '<input type="search" id="hkQ" placeholder="得意先・コード・現場・締め月でさがす（例：三貴　2026/10）" autocomplete="off"></div>' +
+      '<div class="hk-body" id="hkList"></div>';
+    document.body.appendChild(H);
+    $('#hkClose').onclick = closeHikae;
+    $('#hkFilt').onclick = ev => { const b = ev.target.closest('[data-f]'); if(!b) return; hkF = b.dataset.f; $$('#hkFilt [data-f]').forEach(x => x.classList.toggle('on', x === b)); drawHikae(false); };
+    $('#hkQ').oninput = ev => { hkQ = ev.target.value; drawHikae(false); };
+    $('#hkSync').onclick = async () => { toast('クラウドと合わせています…'); await pushCloud(); await drawHikae(true); toast('合わせた'); };
+    $('#hkOut').onclick = exportWorks;
+    $('#hkIn').onclick = () => $('#hkFile').click();
+    $('#hkFile').onchange = async () => { const f = $('#hkFile').files[0]; $('#hkFile').value = ''; if(f) await importWorks(f); drawHikae(false); };
+    H.addEventListener('keydown', ev => { if(ev.key === 'Escape'){ closeHikae(); ev.preventDefault(); ev.stopPropagation(); } });
+    H.tabIndex = -1;
   }
+  H.hidden = false; document.body.style.overflow = 'hidden'; H.focus();
+  await drawHikae(true);
+}
+async function drawHikae(reload){
+  const L = $('#hkList'); if(!L) return;
+  if(reload) L.innerHTML = '<div class="muted" style="padding:14px">読んでいます…</div>';
+  const rows = await mergedWorks(reload);
+  $('#hkCloud').textContent = cloudErr2 ? 'クラウドを見られなかった（' + cloudErr2 + '）' : 'クラウド：' + (cloudCache || []).length + ' 件・この端末：' + rows.filter(x => x.loc).length + ' 件';
+  const q = hkQ.normalize('NFKC').toLowerCase().replace(/[\/年月\-]/g, ' ').split(/\s+/).filter(Boolean);
+  const hit = x => { const w = x.w; const h = [w.custName, w.custCode, w.siteNames, w.seikyuDate, (w.seikyuDate || '').replace(/-/g, ' '), jdate(w.seikyuDate || '')].join(' ').normalize('NFKC').toLowerCase(); return q.every(t => h.indexOf(t) >= 0 || h.indexOf(t.replace(/^0+/, '')) >= 0); };
+  const list = rows.filter(x => (!hkF || (x.w.status || 'draft') === hkF) && hit(x));
+  if(!list.length){ L.innerHTML = '<div class="muted" style="padding:14px">' + (rows.length ? '当てはまる控えがありません' : 'まだ控えはありません') + '</div>'; return; }
+  /* 締め月ごとにまとめる */
+  const g = {};
+  list.forEach(x => { const k = (x.w.seikyuDate || '').slice(0, 7) || '不明'; (g[k] = g[k] || []).push(x); });
+  L.innerHTML = Object.keys(g).sort().reverse().map(k => {
+    const xs = g[k], net = xs.reduce((a, x) => a + num(x.w.net), 0);
+    const lab = k === '不明' ? '締め不明' : (+k.slice(0, 4)) + '年' + (+k.slice(5, 7)) + '月締め';
+    return '<div class="hk-g"><div class="hk-gh"><b>' + lab + '</b><span>' + xs.length + '件</span><span>税抜 ' + yen(net) + '</span><span>' + xs.filter(x => (x.w.status || 'draft') !== 'draft').length + '件 印刷・送付済</span></div>' + xs.map(workCard).join('') + '</div>';
+  }).join('');
+  L.onclick = ev => workAction(ev, rows, () => drawHikae(false));
+}
+async function exportWorks(){
+  const all = await WK.all();
+  const blob = new Blob([JSON.stringify({ app:'seikyu-navi-web', kind:'works', at: new Date().toISOString(), works: all })], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '請求ナビ_控え_' + todayIso().replace(/-/g, '') + '.json'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  toast('この端末の控え ' + all.length + ' 件を書き出した');
+}
+async function importWorks(f){
+  try{
+    const o = JSON.parse(await f.text()); const ws = Array.isArray(o) ? o : (o.works || []);
+    let n = 0;
+    for(const w of ws){ if(!w || !w.id || !w.meta) continue; const cur = await WK.get(w.id); if(cur && String(cur.savedAt || '') >= String(w.savedAt || '')) continue; await WK.put(w); const p = pendList(); if(p.indexOf(w.id) < 0){ p.push(w.id); pendSet(p); } n++; }
+    clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 1500);
+    toast(n + ' 件を取り込んだ（新しいほうを残す）');
+  }catch(e){ toast('取り込めなかった：' + (e.message || e), 5000); }
 }
 
 /* ====================== 画面 ====================== */
@@ -1473,6 +1596,7 @@ function paperHtml(){
   return h;
 }
 function doPrint(html){
+  if(S.built && (!S.status || S.status === 'draft')){ S.status = 'printed'; S.printedAt = new Date().toISOString(); save(); }
   $('#print').innerHTML = typeof html === 'string' ? html : paperHtml(); $('#print').style.display = 'block'; XR.fitShrink($('#print')); XR.sysFit($('#print')); $('#print').style.display = '';
   const t = document.title; document.title = (S.meta.seikyuDate || '').replace(/-/g, '').slice(2) + '_御請求書_' + S.meta.custName.replace(/\s/g, '') + '御中';
   setTimeout(() => { window.print(); setTimeout(() => { document.title = t; }, 500); }, 100);
@@ -1647,12 +1771,18 @@ function updChkBadge(){
   el.title = '要確認 ' + w + '・気になる ' + i;
 }
 /* ====================== 読み込みの操作 ====================== */
-function readFileText(f){ return f.arrayBuffer().then(b => { let t; try{ t = new TextDecoder('utf-8', { fatal:true }).decode(b); }catch(e){ t = new TextDecoder('shift_jis').decode(b); } return t.replace(/^﻿/, ''); }); }
+let csvTry = '';
+function readFileText(f){ return f.arrayBuffer().then(b => {
+  const u = new Uint8Array(b); let t;
+  if(u[0] === 0xFF && u[1] === 0xFE) t = new TextDecoder('utf-16le').decode(b);          /* Excelの「Unicode テキスト」など */
+  else if(u[0] === 0xFE && u[1] === 0xFF) t = new TextDecoder('utf-16be').decode(b);
+  else { try{ t = new TextDecoder('utf-8', { fatal:true }).decode(b); }catch(e){ t = new TextDecoder('shift_jis').decode(b); } }
+  return t.replace(/^\uFEFF/, ''); }); }
 async function takeCsv(f){
-  try{ const t = await readFileText(f); const D = readCsv(t); csvText = t; csvName = f.name;
+  try{ csvTry = f.name; const t = await readFileText(f); const D = readCsv(t); csvText = t; csvName = f.name;
     $('#stCsv').textContent = '✓ ' + D.meta.custName + '　' + jdate(D.meta.seikyuDate) + '締め　' + D.lines.length + '行・' + Object.keys(D.sites).length + '現場　税抜 ' + yen(D.meta.sysNet);
     $('#btnBuild').disabled = false; $('#buildMsg').textContent = '準備OK。押すと現場ごとに分けます。';
-  }catch(e){ $('#stCsv').textContent = ''; toast(e.message || 'CSVを読めませんでした', 5000); }
+  }catch(e){ console.error(e); $('#stCsv').textContent = '× ' + f.name + '：' + (e.message || 'CSVを読めませんでした'); toast(e.message || 'CSVを読めませんでした', 8000); }
 }
 async function takePrev(f){
   try{
@@ -1691,7 +1821,7 @@ $('#btnBuild').addEventListener('click', async () => {
     }
   }
   const cr = document.querySelector('input[name="carry"]:checked'); S.opt.carry = cr ? cr.value : 'simple';
-  try{ build(); S.workId = id || workIdOf(S.meta); save(); toast('現場ごとに分けた' + (S.prev ? '（前月の手直しを引き継ぎ）' : '')); setTab('sites'); setTimeout(askNoBill, 400); }catch(e){ console.error(e); toast('作れませんでした：' + (e.message || e), 6000); }
+  try{ build(); S.workId = id || workIdOf(S.meta); S.status = 'draft'; S.printedAt = ''; save(); toast('現場ごとに分けた' + (S.prev ? '（前月の手直しを引き継ぎ）' : '')); setTab('sites'); setTimeout(askNoBill, 400); }catch(e){ console.error(e); toast('作れませんでした：' + (e.message || e), 6000); }
 });
 $$('.tabs button[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $('#siteList').addEventListener('click', onSiteClick);
@@ -1721,16 +1851,21 @@ $('#siteBody').addEventListener('keydown', ev => {
 $('#pvOpts').addEventListener('change', ev => { const k = ev.target.dataset.o; if(k === 'xlstyle'){ S.opt.style = ev.target.checked ? 'excel' : 'sys'; save(); drawPaper(); return; } if(k){ S.opt[k] = ev.target.checked; save(); drawPaper(); } });
 $('#btnPrint').addEventListener('click', doPrint);
 $('#btnTopPv').addEventListener('click', topPreview);
+$('#btnHikae').addEventListener('click', openHikae);
+$('#btnWorksAll') && $('#btnWorksAll').addEventListener('click', openHikae);
 $('#btnExport').addEventListener('click', exportCarry);
 document.addEventListener('keydown', ev => {
+  if(ev.key === 'Escape' && $('#hikae') && !$('#hikae').hidden && !$('.dlg')){ closeHikae(); ev.preventDefault(); return; }
   if(ev.key === 'Escape' && $('#sitePv') && !$('#sitePv').hidden){ closeSitePv(); ev.preventDefault(); return; }
   if(ev.target.matches('input,select,textarea') || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if($('#hikae') && !$('#hikae').hidden) return;
   if($('#sitePv') && !$('#sitePv').hidden){ if(ev.key === 'p' || ev.key === 'P'){ doPrint(curPvHtml()); ev.preventDefault(); } return; }
   const map = { '1':'load', '2':'sites', '3':'check', '4':'paper' };
   if(map[ev.key]){ setTab(map[ev.key]); ev.preventDefault(); return; }
   if(ev.key === 'Enter' && S.tab === 'load' && !$('#btnBuild').disabled){ $('#btnBuild').click(); ev.preventDefault(); return; }
   if((ev.key === 'p' || ev.key === 'P') && S.tab === 'paper'){ doPrint(); ev.preventDefault(); return; }
   if(ev.key === 'v' || ev.key === 'V'){ topPreview(); ev.preventDefault(); return; }
+  if(ev.key === 'k' || ev.key === 'K'){ openHikae(); ev.preventDefault(); return; }
   if((ev.key === 'm' || ev.key === 'M') && S.tab === 'sites'){ const r = $('#bkRows'); if(r){ r.focus(); r.select(); r.scrollIntoView({ block:'center' }); } ev.preventDefault(); return; }
   if(S.tab === 'sites' && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp')){
     const i = S.sheets.findIndex(s => s.id === S.cur); const j = Math.max(0, Math.min(S.sheets.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
@@ -1757,7 +1892,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 16:42';
+const BUILD = '2026-10-23 18:28';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
