@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 14:48-->
+<!--BUILD:2026-10-23 15:01-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -179,6 +179,7 @@ td.rowno{cursor:pointer;user-select:none}
 td.rowno:hover{color:var(--brand);text-decoration:underline}
 tr.bksel td{background:color-mix(in srgb,var(--brand) 9%,transparent)}
 tr.bksel td.rowno{color:#fff;background:var(--brand);font-weight:700;border-radius:4px}
+input.e.unit{display:block;width:46px;margin:2px 0 0 auto;font-size:11px;padding:1px 3px;text-align:center;color:var(--ink2)}
 </style>
 
 <div class="top">
@@ -245,6 +246,7 @@ tr.bksel td.rowno{color:#fff;background:var(--brand);font-weight:700;border-radi
   </section>
 </div>
 <div id="print"></div>
+<datalist id="unitList"><option value="式"><option value="台"><option value="ケ"><option value="本"><option value="枚"><option value="個"><option value="m"><option value="㍑"><option value="回"><option value="日"><option value="ヶ月"><option value="セット"></datalist>
 <div class="toast" id="toast" hidden></div>
 
 <style>
@@ -500,7 +502,8 @@ function readCsv(text){
       kb: r['契約区分名'], lu: num(r['リース単価']), la: num(r['リース料']), su: num(r['サポート料単価']), sa: num(r['サポート料']), bu: num(r['基本料単価']), ba: num(r['基本料']), csvIx: ix
     });
   });
-  lines.forEach(l => { l.sys = { name: l.name, qty: l.qty, lu: l.lu, su: l.su, bu: l.bu, la: l.la, sa: l.sa, ba: l.ba, kb: l.kb, days: l.days, sdays: l.sdays, kashi: l.kashi, start: l.start, end: l.end }; l.key = keyOf(l.den, l.shohin, l.kanri, l.kashi); });
+  lines.forEach(l => { if(l.kb === '修理' && l.unit !== '式') l.unit = '式';   /* 修理の単位は「式」 */
+    l.sys = { name: l.name, qty: l.qty, lu: l.lu, su: l.su, bu: l.bu, la: l.la, sa: l.sa, ba: l.ba, kb: l.kb, days: l.days, sdays: l.sdays, kashi: l.kashi, start: l.start, end: l.end }; l.key = keyOf(l.den, l.shohin, l.kanri, l.kashi); });
   return { meta, sites, lines };
 }
 function keyOf(den, shohin, kanri, kashi){ return [String(den || '').trim(), String(shohin || '').trim(), String(kanri || '').trim(), kashi || ''].join('|'); }
@@ -519,13 +522,13 @@ function readPrevBook(buf){
   if(cp){
     const H = {}; for(let c = 14; c < 70; c++){ const a = XLSX.utils.encode_col(c); const v = cell(cp, a, 12); if(v) H[a] = String(v); }
     const by = n => Object.keys(H).find(a => H[a] === n);
-    const cS = by('採番'), cDen = by('貸出伝用番号'), cSh = by('商品番号'), cKan = by('管理番号'), cNm = by('商品名'), cKa = Object.keys(H).filter(a => H[a] === '貸出日').pop(), cSite = by('現場コード'), cDate = by('請求日');
+    const cS = by('採番'), cDen = by('貸出伝用番号'), cRet = by('返却伝票番号'), cSh = by('商品番号'), cKan = by('管理番号'), cNm = by('商品名'), cKa = Object.keys(H).filter(a => H[a] === '貸出日').pop(), cSite = by('現場コード'), cDate = by('請求日');
     const cLa = by('リース料'), cSa = by('サポート料'), cBa = by('基本料'), cLu = by('リース単価'), cSu = by('サポート料単価'), cBu = by('基本料単価'), cQ = by('数量'), cD = by('請求日数'), cSd = by('サポート日数'), cKb = by('契約区分名');
     const R = XLSX.utils.decode_range(cp['!ref']);
     for(let r = 13; r <= R.e.r + 1; r++){
       const s = cell(cp, cS, r); if(s == null || s === '') continue;
       const sh = cell(cp, cSh, r); if(!sh) continue;
-      const o = { den: String(cell(cp, cDen, r) || ''), shohin: String(sh), kanri: String(cell(cp, cKan, r) || ''), kashi: iso(cell(cp, cKa, r)), name: String(cell(cp, cNm, r) || ''), site: String(cell(cp, cSite, r) || ''),
+      const o = { den: String(cell(cp, cDen, r) || ''), ret0: String(cRet ? (cell(cp, cRet, r) || '') : ''), shohin: String(sh), kanri: String(cell(cp, cKan, r) || ''), kashi: iso(cell(cp, cKa, r)), name: String(cell(cp, cNm, r) || ''), site: String(cell(cp, cSite, r) || ''),
         la: num(cell(cp, cLa, r)), sa: num(cell(cp, cSa, r)), ba: num(cell(cp, cBa, r)), lu: num(cell(cp, cLu, r)), su: num(cell(cp, cSu, r)), bu: num(cell(cp, cBu, r)), qty: num(cell(cp, cQ, r)), days: num(cell(cp, cD, r)), sdays: num(cell(cp, cSd, r)), kb: String(cell(cp, cKb, r) || '') };
       o.key = keyOf(o.den, o.shohin, o.kanri, o.kashi);
       sys[String(s)] = o; P.sysByKey[o.key] = o;
@@ -559,7 +562,8 @@ function readPrevBook(buf){
       if(L.kanri === '0') L.kanri = '';
       /* システムの行につながるか（採番が同じで、伝票番号も同じ） */
       const s = L.saiban != null ? sys[String(L.saiban)] : null;
-      if(s && String(s.den) === String(L.den)){ L.key = s.key; L.sys = s; }
+      /* 現場シートの伝票番号は、返却伝票があればそちらが出ている */
+      if(s && (String(s.den) === String(L.den) || (s.ret0 && s.ret0 !== '0' && String(s.ret0) === String(L.den)))){ L.key = s.key; L.sys = s; }
       lines.push(L);
     }
     const total = lines.reduce((a, l) => a + l.la + l.sa + l.ba, 0);
@@ -664,12 +668,20 @@ function simpleEdit(e){
   const A = new Set(a), hit = Array.from(new Set(b)).filter(c => A.has(c)).length;
   return hit / Math.max(new Set(b).size, 1) >= 0.6;
 }
-function applyVers(l, e, sh){
+function applyVers(l, e, sh, exact){
   const out = [];
   e.vers.forEach((v, i) => {
     const n = i === 0 ? l : Object.assign({}, l, { id: uid(), dup: true });
     n.name = v.name; n.qty = v.qty; n.unit = v.unit || l.unit; n.lu = v.lu; n.su = v.su; n.bu = v.bu;
     if(v.kb) n.kb = v.kb;
+    if(exact){
+      /* 同じ締めのExcelの手直し：期間・日数・金額もExcelのとおり */
+      if(v.start) n.start = v.start; if(v.end) n.end = v.end;
+      n.days = v.days; n.sdays = v.sdays; n.la = v.la; n.sa = v.sa; n.ba = v.ba;
+      n.carried = 'Excelの手直しをそのまま取り込み（同じ締め）' + (e.vers.length > 1 ? '（1行を' + e.vers.length + '行に分けていた）' : '') + '。CSVは「' + l.sys.name + '」' + (l.sys.qty !== n.qty ? ' 数量' + l.sys.qty : '') + ' 金額' + yen(lineAmt(l.sys));
+      n.sheet = sh.id; n.sugg = null; n.edited = true;
+      out.push(n); return;
+    }
     if(!num(l.sys.sdays) && num(v.sdays) && num(v.su)) n.sdays = l.days;
     calcLine(n);
     n.carried = '前月の手直しを引き継ぎ' + (e.vers.length > 1 ? '（1行を' + e.vers.length + '行に分けていた）' : '') + '。CSVは「' + l.sys.name + '」' + (l.sys.qty !== n.qty ? ' 数量' + l.sys.qty : '') + ' 金額' + yen(lineAmt(l.sys));
@@ -696,16 +708,32 @@ function build(){
       sh.prev = ps; sheetFor[ps.name] = sh;
     });
   }
+  const same = !!(P && P.label && D.meta.seikyuDate && P.label === D.meta.seikyuDate);   /* 前月ではなく、同じ締めのExcelを入れたとき */
+  S.sameMonth = same;
   const sheetOfCode = code => S.sheets.find(s => s.code === String(code)) || mk(shortName(D.sites[code] ? D.sites[code].name : code), code, D.sites[code] ? D.sites[code].name : '', '');
   /* 行を置く */
+  const usedE = new Set();
   D.lines.forEach(l => {
-    const e = P ? (P.byKey[l.key] || P.byLoose[keyLoose(l.key)]) : null;
+    let e = P ? (P.byKey[l.key] || P.byLoose[keyLoose(l.key)]) : null;
+    if(same && P){
+      /* 同じ締めのExcel：Excelの行にぴったりつながる行だけ（1行に1回）。つながらないのに、Excelのコピペにはある行は、Excelで外した（まとめた・消した）行 */
+      e = P.byKey[l.key] && !usedE.has(l.key) ? P.byKey[l.key] : null;
+      if(e) usedE.add(l.key);
+      else if(P.sysByKey[l.key] && (S.opt.carry || 'simple') !== 'none'){
+        const sh0 = sheetOfCode(l.site); if(!sh0.siteName && D.sites[l.site]) sh0.siteName = D.sites[l.site].name;
+        l.sheet = sh0.id; l.nb = true; l.nbDec = true; l.luDec = true; l.carried = 'Excelでは請求書に出していなかった行（ほかの行にまとめた・外した）。出すなら ◎';
+        S.lines.push(l); return;
+      }
+    }
     let sh = null;
     if(e && sheetFor[e.sheet] && sheetFor[e.sheet].code === l.site) sh = sheetFor[e.sheet];
     if(!sh) sh = sheetOfCode(l.site);
     if(!sh.siteName && D.sites[l.site]) sh.siteName = D.sites[l.site].name;
     const mode = S.opt.carry || 'simple';
-    if(e && e.edited && mode !== 'none' && (mode === 'all' || simpleEdit(e))){
+    if(e && e.edited && mode !== 'none' && same){
+      /* 同じ締めのExcel（今月の作業の続き）：Excelで直したとおりに、期間・日数・金額までそのまま入れる */
+      applyVers(l, e, sh, true).forEach(n => S.lines.push(n));
+    }else if(e && e.edited && mode !== 'none' && (mode === 'all' || simpleEdit(e))){
       /* 前月の手直しを今月にも（何行かに分けていたら、そのまま分ける）。金額は今月の日数で計算し直す */
       applyVers(l, e, sh).forEach(n => S.lines.push(n));
     }else{
@@ -719,6 +747,11 @@ function build(){
   });
   /* 前月の手入力の行（システムにない行）は、候補として各シートに覚えておく */
   if(P) S.sheets.forEach(sh => { if(sh.prev) sh.prevManual = (sh.prev.lines || []).filter(L => !L.key && (L.la + L.sa + L.ba) !== 0); });
+  /* 同じ締めのExcelなら、手で足した行もそのまま入れる */
+  if(P && same && (S.opt.carry || 'simple') !== 'none') S.sheets.forEach(sh => {
+    (sh.prevManual || []).filter(p => p.saiban == null || p.saiban === '' || /^a/i.test(String(p.saiban))).forEach(p => { const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: 'Excelで手で足した行をそのまま取り込み' }, p); delete n.key; delete n.sys; n.retd = ''; n.cont = String(p.ret || ''); S.lines.push(n); });
+    sh.prevManual = [];
+  });
   /* 今月の行がない前月の現場シートは、鑑から外して後ろへ */
   S.sheets.forEach(sh => { if(!S.lines.some(l => l.sheet === sh.id)){ sh.inKagami = false; sh.emptyNow = true; } });
   S.sheets.sort((a, b) => (a.emptyNow ? 1 : 0) - (b.emptyNow ? 1 : 0));
@@ -794,6 +827,8 @@ function drawSite(){
       '<label>行 <input id="bkRows" placeholder="例 4-24（空なら全部）" value="' + esc(S.bulkRows || '') + '" style="width:150px" title="4-24・1,3,5-8 のように。左の番号を押しても選べる（Shift で範囲）"></label>' +
       '<label>開始 <input id="bkStart" class="bkd" inputmode="decimal" placeholder="月/日"></label>' +
       '<label>終了 <input id="bkEnd" class="bkd" inputmode="decimal" placeholder="月/日"></label>' +
+      '<label>返却 <input id="bkRet" class="bkd" inputmode="decimal" placeholder="月/日" title="返却日。「継続」と入れると継続にもどす"></label>' +
+      '<label title="返却日を終了日と同じにする"><input type="checkbox" id="bkRetSame"' + (S.opt.bkRetSame ? ' checked' : '') + '> 返却も終了と同じ</label>' +
       '<label>区分 <select id="bkKb"><option value="">変えない</option><option>日極</option><option>月極</option></select></label>' +
       '<button class="btn primary sm" id="bkGo" type="button">変える</button><span class="muted" id="bkInfo"></span></div>' +
     '<div style="overflow:auto"><table class="ln"><thead><tr><th>#</th><th>商品名／伝票・管理番号</th><th>貸出〜終了</th><th>区分</th><th class="n">数量</th><th class="n">日数<br>ｻﾎﾟｰﾄ</th><th class="n">賃貸単価<br>ｻﾎﾟｰﾄ単価</th><th class="n">基本料・販売<br>単価</th><th class="n">金額</th><th></th></tr></thead><tbody>' +
@@ -805,14 +840,14 @@ function lineRow(l, i, others){
   const why = (l.carried ? '<div class="why">' + esc(l.carried) + '</div>' : (l.edited && l.sys ? '<div class="why">手直し（CSVは「' + esc(l.sys.name) + '」' + yen(lineAmt(l.sys)) + '）</div>' : '') + (l.manual ? '<div class="why" style="color:var(--warn)">手入力の行</div>' : ''))
     + (l.sugg ? '<div class="why" style="color:var(--warn)">前月はこの行を ' + (l.sugg.n > 1 ? l.sugg.n + '行に分けて' : '別の品にして') + '「' + esc(l.sugg.names.slice(0, 3).join('・')) + (l.sugg.n > 3 ? ' ほか' : '') + '」で請求（今月の日数で ' + yen(l.sugg.amt) + '）　<button class="btn sm" data-act="usesugg">今月も同じにする</button></div>' : '');
   const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
-  const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : '') + '>';
+  const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : '') + '>';
   return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押すと「まとめて変える」の行に入る（Shift で範囲）">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 ' + esc(denOf(l) || '—') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
       (l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : (isNbCand(l) && !l.nbDec ? '<div class="why" style="color:var(--warn)">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　<button class="btn sm" data-act="nb">出さない</button> <button class="btn sm" data-act="nbkeep">出す</button></div>' : '')) +
       (isLeaseUp(l) && !l.nb ? (() => { const u = luInfo(l); return '<div class="why" style="color:' + (l.luDec ? 'var(--ink3)' : 'var(--warn)') + '">リースアップ（月極で貸している購入品）　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) + (l.luDec ? '　→ 請求書に出す' : '　<button class="btn sm" data-act="lukeep">出す</button> <button class="btn sm" data-act="nb">出さない</button>') + '</div>'; })() : '') + '</td>' +
-    '<td class="sub" style="white-space:nowrap">' + (l.kashi ? '貸出 ' + md(l.kashi) + '<br>' : '') + '<span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + (l.retd ? '<br>返却 ' + md(l.retd) : (l.cont ? '<br>' + esc(l.cont) : '')) + '</td>' +
+    '<td class="sub" style="white-space:nowrap">' + (l.kashi ? '貸出 ' + md(l.kashi) + '<br>' : '') + '<span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + ((l.start || l.end || l.retd || l.cont) ? '<br><span class="per">返却 ' + inp('retd', md(l.retd), 46) + (l.cont && !l.retd ? '<small> ' + esc(l.cont) + '</small>' : '') + '</span>' : '') + '</td>' +
     '<td>' + kbSel + '</td>' +
-    '<td class="n">' + inp('qty', l.qty || '', 46) + '<div class="sub">' + esc(l.unit || '') + '</div></td>' +
+    '<td class="n">' + inp('qty', l.qty || '', 46) + '<input class="e unit" data-f="unit" value="' + esc(l.unit || '') + '" list="unitList" title="単位（式・台・ケ など）"></td>' +
     '<td class="n">' + inp('days', l.days || '', 40) + inp('sdays', l.sdays || '', 40) + '</td>' +
     '<td class="n">' + inp('lu', yenZ(l.lu), 76) + inp('su', yenZ(l.su), 76) + '</td>' +
     '<td class="n">' + inp('bu', yenZ(l.bu), 76) + '</td>' +
@@ -858,7 +893,13 @@ function onLineInput(ev){
     if(v && !d){ toast('日付が読めない（10/1 や 1001 のように）'); t.value = md(l[f]); return; }
     l[f] = d; daysFromPeriod(l);
   }
-  else if(f === 'kb'){ const was = l.kb; l.kb = t.value; daysFromPeriod(l); if((was === '月極' && l.kb === '日極') || (was === '日極' && l.kb === '月極')) setTimeout(() => toast(l.kb + 'にした：日数を期間から入れ直した。単価も' + l.kb + 'の単価に直してね', 4500), 50); }
+  else if(f === 'retd'){
+    const v = String(t.value).trim(); const d = v ? dateIn(v) : '';
+    if(v && !d){ toast('日付が読めない（10/1 や 1001 のように）'); t.value = md(l.retd); return; }
+    l.retd = d; l.cont = d ? '' : (l.start ? '継続' : ''); if(l.sys) l.edited = true; save(); drawSites(); return;
+  }
+  else if(f === 'unit'){ l.unit = String(t.value).trim(); if(l.sys) l.edited = true; save(); return; }
+  else if(f === 'kb'){ const was = l.kb; l.kb = t.value; if(l.kb === '修理') l.unit = '式'; daysFromPeriod(l); if((was === '月極' && l.kb === '日極') || (was === '日極' && l.kb === '月極')) setTimeout(() => toast(l.kb + 'にした：日数を期間から入れ直した。単価も' + l.kb + 'の単価に直してね', 4500), 50); }
   else l[f] = num(t.value);
   if(f !== 'name') calcLine(l);
   if(l.sys) l.edited = true;
@@ -1090,18 +1131,28 @@ function bulkApply(){
   const rows = parseRows($('#bkRows').value, ls.length);
   if(!rows){ toast('行の書き方が読めない（4-24・1,3,5-8 のように）'); $('#bkRows').focus(); return; }
   const sv = $('#bkStart').value.trim(), ev = $('#bkEnd').value.trim(), kb = $('#bkKb').value;
+  const rsame = $('#bkRetSame').checked; S.opt.bkRetSame = rsame;
+  let rv = $('#bkRet').value.trim(); const rCont = /^継続$/.test(rv);
+  if(rsame && !rv) rv = ev;
+  const dr = rCont ? '' : (rv ? dateIn(rv) : '');
+  if(rv && !rCont && !dr){ toast('返却の日付が読めない'); $('#bkRet').focus(); return; }
   const ds = sv ? dateIn(sv) : '', de = ev ? dateIn(ev) : '';
   if(sv && !ds){ toast('開始の日付が読めない（10/1 や 1001 のように）'); $('#bkStart').focus(); return; }
   if(ev && !de){ toast('終了の日付が読めない'); $('#bkEnd').focus(); return; }
-  if(!ds && !de && !kb){ toast('開始・終了・区分のどれかを入れて'); $('#bkStart').focus(); return; }
+  if(!ds && !de && !kb && !dr && !rCont){ toast('開始・終了・返却・区分のどれかを入れて'); $('#bkStart').focus(); return; }
   if(ds && de && de < ds){ toast('終了が開始より前になっています'); return; }
   let n = 0, skip = 0;
   ls.forEach((l, i) => {
     if(!rows.has(i + 1)) return;
-    if(l.kb !== '日極' && l.kb !== '月極' && !kb){ skip++; return; }   /* 販売・配送などは期間なし */
+    if(l.kb !== '日極' && l.kb !== '月極' && !kb){
+      /* 販売・配送などは期間なし。返却だけは、もともと返却日のある行（返却運賃など）にも入れる */
+      if((dr || rCont) && (l.retd || l.cont)){ if(dr){ l.retd = dr; l.cont = ''; } else { l.retd = ''; l.cont = '継続'; } if(l.sys) l.edited = true; n++; } else skip++;
+      return;
+    }
     if(kb) l.kb = kb;
     if(ds) l.start = ds;
     if(de) l.end = de;
+    if(dr){ l.retd = dr; l.cont = ''; } else if(rCont){ l.retd = ''; l.cont = '継続'; } else if(rsame && l.end){ l.retd = l.end; l.cont = ''; }
     if(l.start && l.end && l.end < l.start){ skip++; return; }
     daysFromPeriod(l); calcLine(l);
     if(l.sys) l.edited = true;
@@ -1209,7 +1260,7 @@ async function takePrev(f){
     else prevData = readPrevBook(await f.arrayBuffer());
     prevName = f.name;
     const ed = Object.values(prevData.byKey).filter(e => e.edited).length;
-    $('#stPrev').textContent = '✓ ' + (prevData.label ? jdate(prevData.label) + '締め　' : '') + prevData.sheets.length + '現場・手直し ' + ed + '品';
+    $('#stPrev').textContent = '✓ ' + (prevData.label ? jdate(prevData.label) + '締め　' : '') + prevData.sheets.length + '現場・手直し ' + ed + '品' + (csvText && prevData.label && (() => { try{ return readCsv(csvText).meta.seikyuDate === prevData.label; }catch(e){ return false; } })() ? '（今月と同じ締め：Excelの手直しをそのまま取り込みます）' : '');
   }catch(e){ console.error(e); prevData = null; $('#stPrev').textContent = ''; toast('前月のファイルを読めませんでした：' + (e.message || e), 6000); }
 }
 function bindDrop(el, input, fn){
@@ -1281,7 +1332,7 @@ document.addEventListener('keydown', ev => {
 })();
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 14:48';
+const BUILD = '2026-10-23 15:01';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
