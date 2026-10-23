@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 15:27-->
+<!--BUILD:2026-10-23 15:40-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -180,6 +180,15 @@ td.rowno:hover{color:var(--brand);text-decoration:underline}
 tr.bksel td{background:color-mix(in srgb,var(--brand) 9%,transparent)}
 tr.bksel td.rowno{color:#fff;background:var(--brand);font-weight:700;border-radius:4px}
 input.e.unit{display:block;width:46px;margin:2px 0 0 auto;font-size:11px;padding:1px 3px;text-align:center;color:var(--ink2)}
+.savest{font-size:11px;opacity:.85;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.12)}
+.savest:empty{display:none}
+.savest.bad{background:#F2B544;color:#3A2A00;opacity:1}
+table.wl{width:100%;border-collapse:collapse;font-size:13px}
+table.wl th{font-size:11px;color:var(--ink3);text-align:left;font-weight:600;padding:4px 6px;border-bottom:1px solid var(--line)}
+table.wl td{padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.wl .n{text-align:right;font-variant-numeric:tabular-nums}
+table.wl tr.now td{background:var(--soft)}
+table.wl small{color:var(--ink3)}
 </style>
 
 <div class="top">
@@ -187,6 +196,7 @@ input.e.unit{display:block;width:46px;margin:2px 0 0 auto;font-size:11px;padding
   <button class="latest" id="btnLatest" type="button" title="古い画面が出るとき：キャッシュを消して最新版を取り直す（作業のデータは消えない）">↻ 最新版</button>
   <a class="latest" href="./index.html" title="web見積をひらく">web見積</a>
   <span class="who" id="who"></span>
+  <span class="savest" id="saveSt" title="作業は自動で保存されます（この端末とクラウド）"></span>
   <span class="sp"></span>
   <div class="tabs" role="tablist">
     <button data-tab="load" class="on">読み込み<kbd>1</kbd></button>
@@ -198,6 +208,11 @@ input.e.unit{display:block;width:46px;margin:2px 0 0 auto;font-size:11px;padding
 
 <div class="wrap">
   <section id="tab-load">
+    <div class="card" id="worksCard">
+      <h2>保存してある作業 <span class="n" id="worksNote">得意先・締めごとに、この端末とクラウドに自動で残ります</span></h2>
+      <div id="worksList" class="works"><div class="muted">読み込んでいます…</div></div>
+      <div class="row" style="margin-top:8px"><button class="btn sm" id="btnWorksReload" type="button">↻ クラウドを見直す</button><span class="muted" id="worksCloud"></span></div>
+    </div>
     <div class="card">
       <h2>① 今月のデータを入れる</h2>
       <div class="grid2">
@@ -219,10 +234,7 @@ input.e.unit{display:block;width:46px;margin:2px 0 0 auto;font-size:11px;padding
         前月の手直し（品名・数量・単価の書きかえ、1行を何行かに分けたもの）は、同じ伝票・同じ品が今月も続いていれば、そのまま今月にも入ります。金額は今月の日数で計算し直します。
       </details>
     </div>
-    <div class="card" id="resumeCard" hidden>
-      <h2>途中の作業があります</h2>
-      <div class="row"><span id="resumeTxt"></span><button class="btn" id="btnResume">続きから開く</button><button class="btn ghost" id="btnDrop">消す</button></div>
-    </div>
+
   </section>
 
   <section id="tab-sites" hidden>
@@ -762,20 +774,217 @@ function build(){
 }
 
 /* ====================== 保存（この端末） ====================== */
-const LSK = 'seikyuNaviWeb.v1';
+const LSK = 'seikyuNaviWeb.v1';   /* 前の版（1社だけ）の保存。はじめに作業一覧へ移す */
+/* ====================== 作業の保存：得意先・締めごとに、この端末（IndexedDB）とクラウド（web見積と同じ Firestore） ====================== */
+const workIdOf = m => (m && m.custCode ? String(m.custCode) + '-' + String(m.custBr || '0') + '_' + String(m.seikyuDate || '') : '');
+function snapshot(){
+  const net = S.sheets.filter(s => s.inKagami).reduce((a, s) => a + sheetNet(s), 0);
+  return { id: S.workId, v: 1, meta: S.meta, sheets: S.sheets.map(s => Object.assign({}, s, { prev: s.prev ? { name: s.prev.name, total: s.prev.total, fur: s.prev.fur, kouji: s.prev.kouji } : null })),
+    lines: S.lines, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
+    savedAt: new Date().toISOString(), custCode: S.meta.custCode, custName: S.meta.custName, seikyuDate: S.meta.seikyuDate, net, nLines: S.lines.length, sites: S.sheets.length };
+}
+const WK = (function(){
+  const DBN = 'seikyuNavi', ST = 'works', LKP = 'seikyuNaviWeb.w.';
+  let dbp = null;
+  function db(){
+    if(dbp) return dbp;
+    dbp = new Promise((res, rej) => { try{ const r = indexedDB.open(DBN, 1); r.onupgradeneeded = () => r.result.createObjectStore(ST); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } });
+    return dbp;
+  }
+  const tx = (mode, fn) => db().then(d => new Promise((res, rej) => { const t = d.transaction(ST, mode); const st = t.objectStore(ST); let out; const r = fn(st); if(r) r.onsuccess = () => { out = r.result; }; t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }));
+  async function put(o){ try{ await tx('readwrite', st => st.put(o, o.id)); }catch(e){ localStorage.setItem(LKP + o.id, JSON.stringify(o)); } }
+  async function get(id){ try{ const v = await tx('readonly', st => st.get(id)); if(v) return v; }catch(e){} try{ return JSON.parse(localStorage.getItem(LKP + id) || 'null'); }catch(e){ return null; } }
+  async function del(id){ try{ await tx('readwrite', st => st.delete(id)); }catch(e){} try{ localStorage.removeItem(LKP + id); }catch(e){} }
+  async function list(){
+    let out = [];
+    try{ out = await tx('readonly', st => st.getAll()) || []; }catch(e){}
+    try{ for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.indexOf(LKP) === 0){ try{ const o = JSON.parse(localStorage.getItem(k)); if(o && !out.some(x => x.id === o.id)) out.push(o); }catch(e){} } } }catch(e){}
+    return out.map(o => ({ id: o.id, custCode: o.custCode, custName: o.custName, seikyuDate: o.seikyuDate, savedAt: o.savedAt, net: o.net, nLines: o.nLines, sites: o.sites, cloudAt: o.cloudAt || '' }));
+  }
+  return { put, get, del, list };
+})();
+
+/* ---- クラウド（web見積の控えと同じ置き場。合鍵も同じものを使う） ---- */
+const CLOUD = { apiKey:'AIzaSyCSOGuykjqJvaBy5BmsfLmOiegs-vWO57E', projectId:'rentalsystem-aba1d', col:'works_mitsumori_seikyu' };
+let 雲鍵 = null;
+function 合鍵読(){ try{ return localStorage.getItem('wq.fbrt') || ''; }catch(e){ return ''; } }
+function 合鍵書(v){ try{ if(v) localStorage.setItem('wq.fbrt', v); else localStorage.removeItem('wq.fbrt'); }catch(e){} }
+async function 雲トークン(){
+  if(雲鍵 && 雲鍵.exp > Date.now() + 60000) return 雲鍵.token;
+  const rt = 合鍵読();
+  if(rt){
+    try{
+      const r0 = await fetch('https://securetoken.googleapis.com/v1/token?key=' + CLOUD.apiKey, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:'grant_type=refresh_token&refresh_token=' + encodeURIComponent(rt) });
+      if(r0.ok){ const j0 = await r0.json(); 合鍵書(j0.refresh_token || rt); 雲鍵 = { token: j0.id_token, exp: Date.now() + (Number(j0.expires_in || 3600) - 120) * 1000 }; return 雲鍵.token; }
+      合鍵書('');
+    }catch(e){ throw e; }
+  }
+  const r = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + CLOUD.apiKey, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ returnSecureToken:true }) });
+  if(!r.ok) throw new Error('signin ' + r.status);
+  const j = await r.json(); 合鍵書(j.refreshToken || ''); 雲鍵 = { token: j.idToken, exp: Date.now() + (Number(j.expiresIn || 3600) - 120) * 1000 };
+  return 雲鍵.token;
+}
+const 雲URL = p => 'https://firestore.googleapis.com/v1/projects/' + CLOUD.projectId + '/databases/(default)/documents/' + p;
+function b64of(buf){ const u = new Uint8Array(buf); let s = ''; for(let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function bufOf(b64){ const s = atob(b64); const u = new Uint8Array(s.length); for(let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+async function packJson(o){
+  const t = JSON.stringify(o);
+  if(typeof CompressionStream === 'function'){ try{ const b = await new Response(new Blob([t]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer(); return { z: b64of(b) }; }catch(e){} }
+  return { j: t };
+}
+async function unpackJson(f){
+  if(f.z){ const t = await new Response(new Blob([bufOf(f.z)]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); return JSON.parse(t); }
+  return JSON.parse(f.j || 'null');
+}
+const SUMF = ['custCode','custName','seikyuDate','savedAt','net','nLines','sites','device'];
+function devName(){ const u = navigator.userAgent; return /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'PC'; }
+async function cloudPut(o){
+  const t = await 雲トークン();
+  const pk = await packJson(o);
+  const f = {};
+  SUMF.forEach(k => { const v = k === 'device' ? devName() : o[k]; if(v == null) return; f[k] = typeof v === 'number' ? { integerValue: String(Math.round(v)) } : { stringValue: String(v) }; });
+  if(pk.z) f.z = { stringValue: pk.z }; else f.j = { stringValue: pk.j };
+  const r = await fetch(雲URL(CLOUD.col + '/' + encodeURIComponent(o.id)), { method:'PATCH', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + t }, body: JSON.stringify({ fields: f }) });
+  if(!r.ok) throw new Error('put ' + r.status);
+}
+const fv = v => v == null ? '' : ('integerValue' in v ? Number(v.integerValue) : 'stringValue' in v ? v.stringValue : '');
+async function cloudList(){
+  const t = await 雲トークン();
+  const r = await fetch(雲URL('').replace(/\/$/, '') + ':runQuery', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + t },
+    body: JSON.stringify({ structuredQuery:{ select:{ fields: SUMF.map(k => ({ fieldPath:k })) }, from:[{ collectionId: CLOUD.col }] } }) });
+  if(!r.ok) throw new Error('list ' + r.status);
+  const j = await r.json();
+  return (Array.isArray(j) ? j : []).filter(x => x && x.document).map(x => { const f = x.document.fields || {}; const o = { id: decodeURIComponent(x.document.name.split('/').pop()) }; SUMF.forEach(k => { o[k] = fv(f[k]); }); return o; });
+}
+async function cloudGet(id){
+  const t = await 雲トークン();
+  const r = await fetch(雲URL(CLOUD.col + '/' + encodeURIComponent(id)), { headers:{ 'Authorization':'Bearer ' + t } });
+  if(r.status === 404) return null;
+  if(!r.ok) throw new Error('get ' + r.status);
+  const d = await r.json(); const f = d.fields || {};
+  return unpackJson({ z: f.z && f.z.stringValue, j: f.j && f.j.stringValue });
+}
+async function cloudDel(id){
+  const t = await 雲トークン();
+  const r = await fetch(雲URL(CLOUD.col + '/' + encodeURIComponent(id)), { method:'DELETE', headers:{ 'Authorization':'Bearer ' + t } });
+  if(!r.ok && r.status !== 404) throw new Error('del ' + r.status);
+}
+
+/* ---- 自動保存：変えるたびに、この端末へすぐ（0.4秒まとめ）。クラウドへは少しまとめて（6秒） ---- */
+let saveT = 0, cloudT = 0, cloudBusy = false, lastCloud = '', cloudErr = '';
+const PENDK = 'seikyuNaviWeb.pending';
+const pendList = () => { try{ return JSON.parse(localStorage.getItem(PENDK) || '[]'); }catch(e){ return []; } };
+const pendSet = a => { try{ localStorage.setItem(PENDK, JSON.stringify(a)); }catch(e){} };
+function showSaveSt(t, bad){ const e = $('#saveSt'); if(!e) return; e.textContent = t; e.classList.toggle('bad', !!bad); }
 function save(){
   setTimeout(updChkBadge, 0);
-  try{ localStorage.setItem(LSK, JSON.stringify({ meta: S.meta, sheets: S.sheets.map(s => Object.assign({}, s, { prev: s.prev ? { name: s.prev.name, total: s.prev.total, fur: s.prev.fur, kouji: s.prev.kouji } : null })), lines: S.lines, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', t: Date.now() })); }catch(e){}
+  if(!S.built || !S.meta) return;
+  if(!S.workId) S.workId = workIdOf(S.meta);
+  clearTimeout(saveT);
+  saveT = setTimeout(saveNow, 400);
+  showSaveSt('保存中…');
 }
-function loadSaved(){ try{ return JSON.parse(localStorage.getItem(LSK) || 'null'); }catch(e){ return null; } }
+async function saveNow(){
+  clearTimeout(saveT);
+  if(!S.built || !S.workId) return;
+  const o = snapshot();
+  try{ await WK.put(o); }catch(e){ showSaveSt('この端末に保存できなかった（容量）', true); return; }
+  const p = pendList(); if(p.indexOf(o.id) < 0){ p.push(o.id); pendSet(p); }
+  showSaveSt('この端末に保存 ✓' + (lastCloud ? '　クラウド ' + lastCloud : '　クラウドへ送ります…'));
+  clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 6000);
+}
+async function pushCloud(){
+  if(cloudBusy){ clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 3000); return; }
+  const ids = pendList(); if(!ids.length) return;
+  cloudBusy = true;
+  try{
+    for(const id of ids){
+      const o = await WK.get(id); if(!o){ pendSet(pendList().filter(x => x !== id)); continue; }
+      await cloudPut(o);
+      o.cloudAt = o.savedAt; await WK.put(o);
+      if(cloudCache){ setTimeout(() => { if(S.tab === 'load') drawWorks(); }, 0); cloudCache = cloudCache.filter(c => c.id !== o.id); cloudCache.push({ id: o.id, custCode: o.custCode, custName: o.custName, seikyuDate: o.seikyuDate, savedAt: o.savedAt, net: o.net, nLines: o.nLines, sites: o.sites, device: devName() }); }
+      pendSet(pendList().filter(x => x !== id));
+    }
+    lastCloud = '✓ ' + new Date().toLocaleTimeString('ja-JP').replace(/:\d\d$/, ''); cloudErr = '';
+    showSaveSt('この端末に保存 ✓　クラウド ' + lastCloud);
+  }catch(e){
+    cloudErr = String(e.message || e);
+    showSaveSt('この端末に保存 ✓　クラウドに送れていない（つながったら送ります）', true);
+    if(/ 40[13]/.test(cloudErr)) showSaveSt('この端末に保存 ✓　クラウドに置けない（権限：' + cloudErr + '）', true);
+    clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 60000);
+  }finally{ cloudBusy = false; }
+}
+window.addEventListener('online', () => { clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 1000); });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden'){ if(saveT){ saveNow(); } } });
+window.addEventListener('pagehide', () => { if(saveT) saveNow(); });
+
+/* ---- 作業を開く ---- */
+function openWork(o){
+  S.workId = o.id; S.meta = o.meta; S.sheets = o.sheets; S.lines = o.lines; S.seq = o.seq || 1000; S.opt = Object.assign(S.opt, o.opt || {});
+  S.cur = o.cur || (S.sheets[0] && S.sheets[0].id); S.prev = o.prevLabel ? { label: o.prevLabel, byKey:{}, continuing:new Set() } : null; S.sameMonth = !!o.sameMonth;
+  S.built = true; S.bulkRows = ''; S.bulkSel = null;
+  setTab('sites'); setTimeout(askNoBill, 400);
+  showSaveSt('この端末に保存 ✓' + (o.cloudAt ? '　クラウド ✓' : ''));
+}
+async function openWorkId(id, cloudMeta){
+  let loc = await WK.get(id), o = loc;
+  if(cloudMeta && (!loc || String(cloudMeta.savedAt) > String(loc.savedAt || ''))){
+    toast('クラウドから読んでいます…');
+    try{ const c = await cloudGet(id); if(c){ c.cloudAt = c.savedAt; o = c; await WK.put(c); } }catch(e){ if(!loc){ toast('クラウドから読めなかった：' + (e.message || e), 5000); return; } toast('クラウドに届かないので、この端末の分で開きます', 4000); }
+  }
+  if(!o){ toast('作業が見つからない'); return; }
+  openWork(o);
+}
+let cloudCache = null;
+async function drawWorks(reload){
+  const L = $('#worksList'); if(!L) return;
+  let loc = []; try{ loc = await WK.list(); }catch(e){}
+  const render = () => {
+    const m = {};
+    loc.forEach(w => { m[w.id] = { id: w.id, loc: w, cl: null }; });
+    (cloudCache || []).forEach(w => { (m[w.id] = m[w.id] || { id: w.id, loc: null }).cl = w; });
+    const rows = Object.values(m).map(x => { const w = (x.cl && (!x.loc || String(x.cl.savedAt) > String(x.loc.savedAt || ''))) ? x.cl : x.loc; return Object.assign({}, x, { w }); })
+      .sort((a, b) => String(b.w.seikyuDate || '').localeCompare(String(a.w.seikyuDate || '')) || String(b.w.savedAt || '').localeCompare(String(a.w.savedAt || '')));
+    if(!rows.length){ L.innerHTML = '<div class="muted">まだありません。CSVを入れて「現場ごとに分ける」を押すと、ここに残ります。</div>'; return; }
+    if(cloudCache) $('#worksCloud').textContent = 'クラウド：' + cloudCache.length + ' 件';
+    L.innerHTML = '<table class="wl"><thead><tr><th>得意先</th><th>締め</th><th class="n">税抜（鑑）</th><th class="n">現場・行</th><th>最後に保存</th><th>置き場</th><th></th></tr></thead><tbody>' + rows.map(x => {
+      const w = x.w, t = w.savedAt ? new Date(w.savedAt) : null;
+      const locSent = x.loc && x.loc.cloudAt && String(x.loc.cloudAt) >= String(x.loc.savedAt || '');
+      const where = x.loc && (locSent || (x.cl && String(x.cl.savedAt) >= String(x.loc.savedAt || ''))) ? '端末・クラウド' : x.loc && pendList().indexOf(x.id) >= 0 ? '端末・<span style="color:var(--warn)">クラウドへ送る前</span>' : x.loc ? '端末だけ' : 'クラウド（' + esc(x.cl.device || 'ほかの端末') + '）';
+      const isNow = S.built && S.workId === x.id;
+      return '<tr' + (isNow ? ' class="now"' : '') + '><td><b>' + esc(w.custName || '') + '</b><small> ' + esc(w.custCode || '') + '</small></td><td>' + (w.seikyuDate ? jdate(w.seikyuDate) : '') + '</td><td class="n">' + yen(w.net || 0) + '</td><td class="n">' + (w.sites || 0) + '・' + (w.nLines || 0) + '</td><td>' + (t ? t.toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '') + '</td><td class="sub">' + where + '</td>' +
+        '<td style="white-space:nowrap">' + (isNow ? '<span class="tag ok">いま開いている</span> ' : '<button class="btn sm primary" data-wopen="' + esc(x.id) + '">開く</button> ') + '<button class="btn sm ghost" data-wdel="' + esc(x.id) + '" title="この作業を消す">消す</button></td></tr>';
+    }).join('') + '</tbody></table>';
+    L.onclick = async ev => {
+      const o = ev.target.closest('[data-wopen]'); const d = ev.target.closest('[data-wdel]');
+      if(o){ const id = o.dataset.wopen; if(S.built && S.workId && S.workId !== id) await saveNow(); openWorkId(id, (cloudCache || []).find(c => c.id === id)); }
+      if(d){
+        const id = d.dataset.wdel; const r = m[id];
+        const v = await askDialog('作業を消す', esc((r.loc || r.cl).custName || '') + '　' + jdate((r.loc || r.cl).seikyuDate || '') + '締め の作業を消しますか？', [{ t:'この端末とクラウドから消す', v:'all', k:'Y' }, { t:'この端末だけ消す', v:'loc', k:'L' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+        if(!v) return;
+        await WK.del(id); pendSet(pendList().filter(x => x !== id));
+        if(v === 'all'){ try{ await cloudDel(id); cloudCache = (cloudCache || []).filter(c => c.id !== id); }catch(e){ toast('クラウドから消せなかった：' + (e.message || e), 5000); } }
+        if(S.workId === id){ S.built = false; S.workId = ''; }
+        toast('消した'); drawWorks();
+      }
+    };
+  };
+  render();
+  if(reload || !cloudCache){
+    $('#worksCloud').textContent = 'クラウドを見ています…';
+    try{ cloudCache = await cloudList(); $('#worksCloud').textContent = 'クラウド：' + cloudCache.length + ' 件（' + new Date().toLocaleTimeString('ja-JP').replace(/:\d\d$/, '') + '）'; }
+    catch(e){ $('#worksCloud').textContent = 'クラウドを見られなかった（' + (e.message || e) + '）。この端末の分だけ出しています'; }
+    render();
+  }
+}
 
 /* ====================== 画面 ====================== */
 function setTab(t){
-  if(t !== 'load' && !S.built){ toast('先にCSVを入れて「現場ごとに分ける」を押して'); return; }
+  if(t !== 'load' && !S.built){ toast('先にCSVを入れて「現場ごとに分ける」を押すか、保存してある作業を開いて'); return; }
   S.tab = t;
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   ['load','sites','check','paper'].forEach(k => { $('#tab-' + k).hidden = k !== t; });
-  if(t === 'sites') drawSites(); if(t === 'check') drawChecks(); if(t === 'paper') drawPaper();
+  if(t === 'sites') drawSites(); if(t === 'check') drawChecks(); if(t === 'paper') drawPaper(); if(t === 'load') drawWorks();
   window.scrollTo(0, 0);
 }
 function drawHead(){
@@ -1284,10 +1493,23 @@ function bindDrop(el, input, fn){
 /* ====================== はじめ ====================== */
 bindDrop($('#dropCsv'), $('#fCsv'), takeCsv);
 bindDrop($('#dropPrev'), $('#fPrev'), takePrev);
-$('#btnBuild').addEventListener('click', () => {
-  if(S.built && !confirm('いまの作業を、CSVから作り直します（直したところは消えます）。よいですか？')) return;
+$('#btnBuild').addEventListener('click', async () => {
+  let D0 = null; try{ D0 = readCsv(csvText); }catch(e){}
+  const id = D0 ? workIdOf(D0.meta) : '';
+  if(id){
+    if(S.built && S.workId && S.workId !== id) await saveNow();
+    const loc = await WK.get(id), cl = (cloudCache || []).find(c => c.id === id);
+    if(loc || cl){
+      const w = (cl && (!loc || String(cl.savedAt) > String(loc.savedAt || ''))) ? cl : loc;
+      const v = await askDialog('この得意先・締めの作業が、もう保存してあります',
+        esc(D0.meta.custName) + '　' + jdate(D0.meta.seikyuDate) + '締め（最後に保存 ' + (w.savedAt ? new Date(w.savedAt).toLocaleString('ja-JP') : '') + '・税抜 ' + yen(w.net || 0) + '）<br>続きを開くか、CSVから作り直すか選んでください。作り直すと、その作業の手直しは消えます。',
+        [{ t:'続きを開く（おすすめ）', v:'open', primary:true, k:'O' }, { t:'CSVから作り直す', v:'re', k:'R' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+      if(!v) return;
+      if(v === 'open'){ openWorkId(id, cl); return; }
+    }
+  }
   const cr = document.querySelector('input[name="carry"]:checked'); S.opt.carry = cr ? cr.value : 'simple';
-  try{ build(); toast('現場ごとに分けた' + (S.prev ? '（前月の手直しを引き継ぎ）' : '')); setTab('sites'); setTimeout(askNoBill, 400); }catch(e){ console.error(e); toast('作れませんでした：' + (e.message || e), 6000); }
+  try{ build(); S.workId = id || workIdOf(S.meta); save(); toast('現場ごとに分けた' + (S.prev ? '（前月の手直しを引き継ぎ）' : '')); setTab('sites'); setTimeout(askNoBill, 400); }catch(e){ console.error(e); toast('作れませんでした：' + (e.message || e), 6000); }
 });
 $$('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $('#siteList').addEventListener('click', onSiteClick);
@@ -1332,18 +1554,27 @@ document.addEventListener('keydown', ev => {
     if(j !== i){ S.cur = S.sheets[j].id; save(); drawSites(); } ev.preventDefault();
   }
 });
-(function(){
-  const sv = loadSaved();
-  if(sv && sv.meta){
-    $('#resumeCard').hidden = false;
-    $('#resumeTxt').textContent = sv.meta.custName + '　' + jdate(sv.meta.seikyuDate) + '締め（' + new Date(sv.t).toLocaleString('ja-JP') + ' まで作業）';
-    $('#btnResume').onclick = () => { S.meta = sv.meta; S.sheets = sv.sheets; S.lines = sv.lines; S.seq = sv.seq || 1000; S.opt = Object.assign(S.opt, sv.opt || {}); S.cur = sv.cur || (S.sheets[0] && S.sheets[0].id); S.prev = sv.prevLabel ? { label: sv.prevLabel, byKey:{}, continuing:new Set() } : null; S.built = true; setTab('sites'); setTimeout(askNoBill, 400); };
-    $('#btnDrop').onclick = () => { try{ localStorage.removeItem(LSK); }catch(e){} $('#resumeCard').hidden = true; };
-  }
+(async function(){
+  /* 前の版の保存（1社だけ）を作業一覧へ移す */
+  try{
+    const old = JSON.parse(localStorage.getItem(LSK) || 'null');
+    if(old && old.meta){
+      const id = workIdOf(old.meta);
+      if(id && !(await WK.get(id))){
+        const net = (old.sheets || []).filter(s => s.inKagami).reduce((a, s) => a + (old.lines || []).filter(l => l.sheet === s.id && !l.nb).reduce((x, l) => x + num(l.la) + num(l.sa) + num(l.ba), 0), 0);
+        await WK.put(Object.assign({}, old, { id, v:1, savedAt: new Date(old.t || Date.now()).toISOString(), custCode: old.meta.custCode, custName: old.meta.custName, seikyuDate: old.meta.seikyuDate, net, nLines: (old.lines || []).length, sites: (old.sheets || []).length }));
+        const p = pendList(); if(p.indexOf(id) < 0){ p.push(id); pendSet(p); }
+      }
+      localStorage.removeItem(LSK);
+    }
+  }catch(e){}
+  drawWorks(true);
+  if(pendList().length) cloudT = setTimeout(pushCloud, 4000);
 })();
+$('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 15:27';
+const BUILD = '2026-10-23 15:40';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -1352,7 +1583,7 @@ function 上がっている版(){
 }
 /* 古い画面が出つづけるとき用：保存してあるページのコピー（Service Worker とキャッシュ）を消して取り直す。作業のデータは消さない */
 async function 強制で入れかえ(){
-  try{ save(); }catch(e){}
+  try{ await saveNow(); }catch(e){}
   toast('キャッシュを消して、最新版を取り直します…');
   try{ const rs = await navigator.serviceWorker.getRegistrations(); for(const r of rs){ try{ await r.unregister(); }catch(e){} } }catch(e){}
   try{ const ks = await caches.keys(); for(const k of ks){ try{ await caches.delete(k); }catch(e){} } }catch(e){}
