@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-23 14:42-->
+<!--BUILD:2026-10-23 14:48-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -171,6 +171,14 @@ tr.nbrow input.e{text-decoration:line-through}
 .tabs .cnt.ng{background:#E25B4B;color:#fff}
 .tabs .cnt.ok{background:#5DBB82;color:#fff}
 .per input.e{text-align:center;padding-left:2px;padding-right:2px}
+.bulk{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0 6px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px;background:var(--soft);font-size:12px}
+.bulk label{display:inline-flex;align-items:center;gap:4px;color:var(--ink2)}
+.bulk input,.bulk select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.bulk input.bkd{width:64px;text-align:center}
+td.rowno{cursor:pointer;user-select:none}
+td.rowno:hover{color:var(--brand);text-decoration:underline}
+tr.bksel td{background:color-mix(in srgb,var(--brand) 9%,transparent)}
+tr.bksel td.rowno{color:#fff;background:var(--brand);font-weight:700;border-radius:4px}
 </style>
 
 <div class="top">
@@ -782,6 +790,12 @@ function drawSite(){
     '<button class="btn primary" id="btnSitePv" type="button" title="この現場の請求書を、印刷と同じ形で見る">プレビュー<kbd>V</kbd></button></div>' +
     '<div class="tot"><span class="muted">今回の税抜</span><b>' + yen(net) + '</b><span class="muted">消費税</span><b>' + yen(tax(net)) + '</b><span class="muted">システム（CSV）</span><span>' + yen(sys) + '</span><span class="muted">差</span><span>' + (net - sys ? (net - sys > 0 ? '+' : '') + yen(net - sys) : '0') + '</span></div>' +
     prevBox +
+    '<div class="bulk" id="bulkBar"><b>まとめて変える<kbd>M</kbd></b>' +
+      '<label>行 <input id="bkRows" placeholder="例 4-24（空なら全部）" value="' + esc(S.bulkRows || '') + '" style="width:150px" title="4-24・1,3,5-8 のように。左の番号を押しても選べる（Shift で範囲）"></label>' +
+      '<label>開始 <input id="bkStart" class="bkd" inputmode="decimal" placeholder="月/日"></label>' +
+      '<label>終了 <input id="bkEnd" class="bkd" inputmode="decimal" placeholder="月/日"></label>' +
+      '<label>区分 <select id="bkKb"><option value="">変えない</option><option>日極</option><option>月極</option></select></label>' +
+      '<button class="btn primary sm" id="bkGo" type="button">変える</button><span class="muted" id="bkInfo"></span></div>' +
     '<div style="overflow:auto"><table class="ln"><thead><tr><th>#</th><th>商品名／伝票・管理番号</th><th>貸出〜終了</th><th>区分</th><th class="n">数量</th><th class="n">日数<br>ｻﾎﾟｰﾄ</th><th class="n">賃貸単価<br>ｻﾎﾟｰﾄ単価</th><th class="n">基本料・販売<br>単価</th><th class="n">金額</th><th></th></tr></thead><tbody>' +
     ls.map((l, i) => lineRow(l, i, others)).join('') + '</tbody></table></div>' +
     '<div class="row" style="margin-top:10px"><button class="btn" id="addLine">＋ 行を足す（手入力）</button><button class="btn" id="addAdj">＋ 調整の行（値引き・端数）</button></div></div>';
@@ -792,7 +806,7 @@ function lineRow(l, i, others){
     + (l.sugg ? '<div class="why" style="color:var(--warn)">前月はこの行を ' + (l.sugg.n > 1 ? l.sugg.n + '行に分けて' : '別の品にして') + '「' + esc(l.sugg.names.slice(0, 3).join('・')) + (l.sugg.n > 3 ? ' ほか' : '') + '」で請求（今月の日数で ' + yen(l.sugg.amt) + '）　<button class="btn sm" data-act="usesugg">今月も同じにする</button></div>' : '');
   const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
   const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : '') + '>';
-  return '<tr class="' + cls + '" data-id="' + l.id + '"><td class="sub">' + (i + 1) + '</td>' +
+  return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押すと「まとめて変える」の行に入る（Shift で範囲）">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 ' + esc(denOf(l) || '—') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
       (l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : (isNbCand(l) && !l.nbDec ? '<div class="why" style="color:var(--warn)">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　<button class="btn sm" data-act="nb">出さない</button> <button class="btn sm" data-act="nbkeep">出す</button></div>' : '')) +
       (isLeaseUp(l) && !l.nb ? (() => { const u = luInfo(l); return '<div class="why" style="color:' + (l.luDec ? 'var(--ink3)' : 'var(--warn)') + '">リースアップ（月極で貸している購入品）　' + u.months + ' か月目・これまでの売上のめやす ' + yen(u.cum) + (l.luDec ? '　→ 請求書に出す' : '　<button class="btn sm" data-act="lukeep">出す</button> <button class="btn sm" data-act="nb">出さない</button>') + '</div>'; })() : '') + '</td>' +
@@ -852,7 +866,7 @@ function onLineInput(ev){
   if(ev.type === 'change'){ const pos = t.dataset.f; drawSites(); const n = $('tr[data-id="' + l.id + '"] [data-f="' + pos + '"]'); if(n && document.activeElement === document.body) {} }
 }
 function onSiteClick(ev){
-  const sb = ev.target.closest('.site'); if(sb){ S.cur = sb.dataset.id; save(); drawSites(); return; }
+  const sb = ev.target.closest('.site'); if(sb){ if(S.cur !== sb.dataset.id){ S.bulkRows = ''; S.bulkSel = null; bulkLast = 0; } S.cur = sb.dataset.id; save(); drawSites(); return; }
   const ap = ev.target.closest('[data-addprev]');
   if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '' }, p); delete n.key; n.retd = ''; n.cont = String(p.ret || ''); calcLine(n); if(lineAmt(n) !== p.la + p.sa + p.ba){ n.la = p.la; n.sa = p.sa; n.ba = p.ba; } S.lines.push(n); save(); drawSites(); toast('前月の行を足した'); return; }
   const b = ev.target.closest('[data-act]'); if(!b || b.tagName === 'SELECT') return;
@@ -1038,6 +1052,65 @@ function doPrint(html){
 }
 
 
+
+/* ====================== まとめて変える（期間・区分） ====================== */
+function parseRows(v, n){
+  v = String(v || '').normalize('NFKC').replace(/[〜～~]/g, '-').trim();
+  const out = new Set();
+  if(!v || v === '全部'){ for(let i = 1; i <= n; i++) out.add(i); return out; }
+  for(const p of v.split(/[,、\s]+/)){
+    if(!p) continue;
+    const a = /^(\d+)-(\d+)$/.exec(p), b = /^(\d+)$/.exec(p);
+    if(a){ let x = +a[1], y = +a[2]; if(x > y) [x, y] = [y, x]; for(let i = x; i <= y; i++) if(i >= 1 && i <= n) out.add(i); }
+    else if(b){ const i = +b[1]; if(i >= 1 && i <= n) out.add(i); }
+    else return null;
+  }
+  return out;
+}
+function rowsText(set){
+  const a = Array.from(set).sort((x, y) => x - y), out = [];
+  for(let i = 0; i < a.length; i++){ let j = i; while(j + 1 < a.length && a[j + 1] === a[j] + 1) j++; out.push(j > i ? a[i] + '-' + a[j] : String(a[i])); i = j; }
+  return out.join(',');
+}
+let bulkLast = 0;
+function bulkPick(no, shift){
+  const sh = sheetById(S.cur); const n = linesOf(sh).length;
+  const cur = parseRows(S.bulkRows || '', n);
+  const set = (S.bulkRows && cur) ? cur : new Set();
+  if(shift && bulkLast){ const a = Math.min(bulkLast, no), b = Math.max(bulkLast, no); for(let i = a; i <= b; i++) set.add(i); }
+  else if(set.has(no)) set.delete(no); else set.add(no);
+  bulkLast = no;
+  S.bulkRows = rowsText(set); S.bulkSel = set;
+  $('#bkRows').value = S.bulkRows;
+  $$('#siteBody tr[data-id]').forEach((tr, i) => tr.classList.toggle('bksel', set.has(i + 1)));
+  $('#bkInfo').textContent = set.size ? set.size + ' 行をえらんだ' : '';
+}
+function bulkApply(){
+  const sh = sheetById(S.cur); const ls = linesOf(sh);
+  const rows = parseRows($('#bkRows').value, ls.length);
+  if(!rows){ toast('行の書き方が読めない（4-24・1,3,5-8 のように）'); $('#bkRows').focus(); return; }
+  const sv = $('#bkStart').value.trim(), ev = $('#bkEnd').value.trim(), kb = $('#bkKb').value;
+  const ds = sv ? dateIn(sv) : '', de = ev ? dateIn(ev) : '';
+  if(sv && !ds){ toast('開始の日付が読めない（10/1 や 1001 のように）'); $('#bkStart').focus(); return; }
+  if(ev && !de){ toast('終了の日付が読めない'); $('#bkEnd').focus(); return; }
+  if(!ds && !de && !kb){ toast('開始・終了・区分のどれかを入れて'); $('#bkStart').focus(); return; }
+  if(ds && de && de < ds){ toast('終了が開始より前になっています'); return; }
+  let n = 0, skip = 0;
+  ls.forEach((l, i) => {
+    if(!rows.has(i + 1)) return;
+    if(l.kb !== '日極' && l.kb !== '月極' && !kb){ skip++; return; }   /* 販売・配送などは期間なし */
+    if(kb) l.kb = kb;
+    if(ds) l.start = ds;
+    if(de) l.end = de;
+    if(l.start && l.end && l.end < l.start){ skip++; return; }
+    daysFromPeriod(l); calcLine(l);
+    if(l.sys) l.edited = true;
+    n++;
+  });
+  S.bulkRows = $('#bkRows').value.trim(); S.bulkSel = null;
+  save(); drawSites();
+  toast(n + ' 行を変えた' + (skip ? '（販売・配送など期間のない行 ' + skip + ' 行はそのまま）' : '') + (kb ? '。単価も' + kb + 'の単価か確かめて' : ''), 4500);
+}
 /* ====================== 現場を見ながらプレビュー ====================== */
 function sitePaperHtml(){
   const sh = sheetById(S.cur); if(!sh) return '';
@@ -1156,9 +1229,29 @@ $('#btnBuild').addEventListener('click', () => {
 });
 $$('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $('#siteList').addEventListener('click', onSiteClick);
-$('#siteBody').addEventListener('click', ev => { if(ev.target.id === 'addLine') return addManual(false); if(ev.target.id === 'addAdj') return addManual(true); if(ev.target.closest('#btnSitePv')) return sitePreview(); onSiteClick(ev); });
+$('#siteBody').addEventListener('click', ev => {
+  const rn = ev.target.closest('.rowno');
+  if(rn){ bulkPick(+rn.dataset.no, ev.shiftKey); return; }
+  if(ev.target.id === 'bkGo') return bulkApply();
+  if(ev.target.id === 'addLine') return addManual(false); if(ev.target.id === 'addAdj') return addManual(true); if(ev.target.closest('#btnSitePv')) return sitePreview(); onSiteClick(ev); });
 $('#siteBody').addEventListener('change', onSiteChange);
-$('#siteBody').addEventListener('keydown', ev => { if(ev.key === 'Enter' && ev.target.matches('input')){ ev.preventDefault(); ev.target.blur(); } });
+$('#siteBody').addEventListener('keydown', ev => {
+  const t = ev.target;
+  if(t.closest('#bulkBar')){ if(ev.key === 'Enter'){ ev.preventDefault(); bulkApply(); } return; }
+  if(!t.matches('input.e')){ if(ev.key === 'Enter' && t.matches('input')){ ev.preventDefault(); t.blur(); } return; }
+  if(ev.key === 'ArrowDown' || ev.key === 'ArrowUp' || ev.key === 'Enter'){
+    /* ↓↑：となりの明細の同じ欄へ（Enter は ↓ と同じ。Shift+Enter は ↑） */
+    const up = ev.key === 'ArrowUp' || (ev.key === 'Enter' && ev.shiftKey);
+    const tr = t.closest('tr[data-id]'); const f = t.dataset.f;
+    const rows = $$('#siteBody tr[data-id]'); const i = rows.indexOf(tr);
+    let j = i, nx = null;
+    while(true){ j += up ? -1 : 1; if(j < 0 || j >= rows.length) break; nx = rows[j].querySelector('[data-f="' + f + '"]'); if(nx) break; }
+    ev.preventDefault();
+    const nid = nx ? rows[j].dataset.id : null;
+    t.blur();
+    if(nid) setTimeout(() => { const n = $('#siteBody tr[data-id="' + nid + '"] [data-f="' + f + '"]'); if(n){ n.focus(); if(n.select) n.select(); } }, 0);
+  }
+});
 $('#pvOpts').addEventListener('change', ev => { const k = ev.target.dataset.o; if(k){ S.opt[k] = ev.target.checked; save(); drawPaper(); } });
 $('#btnPrint').addEventListener('click', doPrint);
 $('#btnExport').addEventListener('click', exportCarry);
@@ -1171,6 +1264,7 @@ document.addEventListener('keydown', ev => {
   if(ev.key === 'Enter' && S.tab === 'load' && !$('#btnBuild').disabled){ $('#btnBuild').click(); ev.preventDefault(); return; }
   if((ev.key === 'p' || ev.key === 'P') && S.tab === 'paper'){ doPrint(); ev.preventDefault(); return; }
   if((ev.key === 'v' || ev.key === 'V') && S.tab === 'sites'){ sitePreview(); ev.preventDefault(); return; }
+  if((ev.key === 'm' || ev.key === 'M') && S.tab === 'sites'){ const r = $('#bkRows'); if(r){ r.focus(); r.select(); r.scrollIntoView({ block:'center' }); } ev.preventDefault(); return; }
   if(S.tab === 'sites' && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp')){
     const i = S.sheets.findIndex(s => s.id === S.cur); const j = Math.max(0, Math.min(S.sheets.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
     if(j !== i){ S.cur = S.sheets[j].id; save(); drawSites(); } ev.preventDefault();
@@ -1187,7 +1281,7 @@ document.addEventListener('keydown', ev => {
 })();
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-23 14:42';
+const BUILD = '2026-10-23 14:48';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
