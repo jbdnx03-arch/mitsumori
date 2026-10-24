@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 09:59-->
+<!--BUILD:2026-10-24 10:03-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2310,7 +2310,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 09:59';
+const BUILD = '2026-10-24 10:03';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -2467,6 +2467,8 @@ table.xsk input{width:100%;padding:4px 6px;border:1px solid var(--line);border-r
 .dlg .xcc input{width:100%}
 .dlg:has(table.xsk){max-width:760px}
 .xnow{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:-2px 0 10px;font-size:13px;line-height:1.7}
+
+.tabs .xnew{background:#fff!important;color:var(--brand2)!important;font-weight:700;border:2px solid #F2B544!important}
 </style>
 <script>
 /* ====================================================================
@@ -3655,8 +3657,8 @@ drawWorks = async function(reload){
 };
 (function(){
   const t = $('.top'); if(!t || $('#btnCloseWork')) return;
-  const b = document.createElement('button'); b.className = 'latest'; b.id = 'btnCloseWork'; b.type = 'button'; b.textContent = '＋ 別の請求書'; b.title = 'いまの作業を保存して閉じ、別の得意先のCSVを取り込む';
-  const ref = t.querySelector('a.latest'); if(ref) ref.insertAdjacentElement('afterend', b); else t.appendChild(b);
+  const b = document.createElement('button'); b.className = 'hktop xnew'; b.id = 'btnCloseWork'; b.type = 'button'; b.textContent = '＋ 別の請求書'; b.title = 'いまの作業を保存して閉じ、別の得意先のCSVを取り込む';
+  const tabs = t.querySelector('.tabs'), ref = $('#btnUndo'); if(tabs && ref) tabs.insertBefore(b, ref); else t.appendChild(b);
   b.onclick = closeWork;
 })();
 
