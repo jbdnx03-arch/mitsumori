@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 08:00-->
+<!--BUILD:2026-10-24 09:22-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2305,7 +2305,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 08:00';
+const BUILD = '2026-10-24 09:22';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -2608,17 +2608,43 @@ async function updateFromCsv(x){
   const byKey = {}; oldLines.forEach(l => { if(l.key && !l.dup && !l.manual) (byKey[l.key] = byKey[l.key] || []).push(l); });
   /* 今の行と前の行を1対1で合わせる（同じキーが何本かあれば、CSVの中身が同じもの → 同じ並び） */
   const used = new Set(), sysSig = x => x && x.sys ? [num(x.sys.qty), num(x.sys.la) + num(x.sys.sa) + num(x.sys.ba), String(x.sys.name || '')].join('|') : '';
-  const oldOf = l => { const c = (l.key && byKey[l.key] || []).filter(o => !used.has(o)); const o = c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx) || c.find(o => sysSig(o) === sysSig(l)) || c[0]; if(o) used.add(o); return o; };
+  const oldOf = l => { const c = (l.key && byKey[l.key] || []).filter(o => !used.has(o)); const o = c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx) || c.find(o => sysSig(o) === sysSig(l)) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name)) || c[0]; if(o) used.add(o); return o; };
   const pair = new Map(); S.lines.filter(l => l.key && l.sys && !l.dup && !l.manual).forEach(l => { const o = oldOf(l); if(o) pair.set(l, o); });
   pair.forEach((o, l) => { ['nbDec','luDec','suggDec','memo','pxDec','rule'].forEach(k => { if(o[k] != null && l[k] == null) l[k] = o[k]; }); if(o.nb && !l.nb && o.nbDec){ l.nb = true; } });
+  /* 手で直した行：直した欄だけ前のまま、直していない欄（期間・日数など）は新しいCSVの値にして計算し直す */
+  const F = ['name','qty','lu','su','bu','kb','start','end','days','sdays'];
+  pair.forEach((o, l) => {
+    if(!o.sys || !(o.edited || o.carried) || l.dup) return;
+    const hasDup = S.lines.some(x => x !== l && x.dup && x.key === l.key && x.sheet === l.sheet); if(hasDup) return;   /* 分けた行はそのまま */
+    const nsys = l.sys; let ch = 0;
+    F.forEach(f => { const was = o[f] == null ? '' : String(o[f]), base = o.sys[f] == null ? '' : String(o.sys[f]);
+      if(was !== base){ l[f] = o[f]; ch++; } else if(nsys[f] != null){ l[f] = nsys[f]; } });
+    if(o.unit) l.unit = o.unit;
+    const t = Object.assign({}, o); calcLine(t);
+    if(lineAmt(t) !== lineAmt(o)){ l.la = o.la; l.sa = o.sa; l.ba = o.ba; } else calcLine(l);
+    l.edited = true; if(ch) l.carried = '今月の手直しを残した（直した欄だけ前のまま・ほかは新しいCSV）';
+  });
+  /* 前の作業で移した現場・並べ替えた順番をそのまま */
+  const oldName = id => ((w.sheets || []).find(s => s.id === id) || {}).name;
+  pair.forEach((o, l) => { const nm = oldName(o.sheet); const t = S.sheets.find(s => s.name === nm); if(t && t.id !== l.sheet){ S.lines.filter(x => x === l || (x.dup && x.key === l.key && x.sheet === l.sheet)).forEach(x => { x.sheet = t.id; }); } });
+  const rank = new Map(); const oi = new Map(oldLines.map((l, i) => [l, i]));
+  pair.forEach((o, l) => rank.set(l, oi.get(o)));
+  const oldMan = oldLines.filter(l => l.manual);
+  S.lines.filter(l => l.manual).forEach(l => { const o = oldMan.find(x => !x._r && x.name === l.name && num(x.qty) === num(l.qty) && num(x.ba) === num(l.ba) && num(x.la) === num(l.la)); if(o){ o._r = 1; rank.set(l, oi.get(o)); } });
+  oldMan.forEach(x => { delete x._r; });
+  const reord = [];
+  S.sheets.forEach(sh => { const ls = S.lines.filter(l => l.sheet === sh.id); let last = -1; const r2 = ls.map((l, i) => { const r = rank.has(l) ? rank.get(l) : last + 0.001 * (i + 1); if(rank.has(l)) last = r; return { l, r }; });
+    r2.sort((a, b) => a.r - b.r); r2.forEach(x => reord.push(x.l)); });
+  S.lines.filter(l => !reord.includes(l)).forEach(l => reord.push(l));
+  S.lines = reord;
   S.lines.forEach(l => { if(l.carried === 'Excelで手で足した行をそのまま取り込み') l.carried = ''; if(/^Excelでは請求書に出していなかった行/.test(l.carried || '')) l.carried = '前に「出さない」にしていた行'; if(/^Excelの手直しをそのまま取り込み/.test(l.carried || '')) l.carried = (l.carried || '').replace(/^Excelの手直しをそのまま取り込み（同じ締め）/, '今月の手直しをそのまま残した'); });
   /* ほんとうの前月を戻して照らし直す */
   S.prevPack = w.prevPack || null; S.relinkVer = 0;
   if(S.prevPack){ const PP = unpackPrev(S.prevPack); if(PP) relinkPrev(PP); }
   else { S.prev = null; S.sameMonth = false; S.lines.forEach(l => { const o = l.key && byKey[l.key] && byKey[l.key][0]; if(o && o.pv && !l.pv) l.pv = o.pv; }); }
   /* CSVの差 */
-  const newKeys = new Set(S.lines.filter(l => l.key && l.sys).map(l => l.key)), oldKeys = new Set(oldLines.filter(l => l.key && l.sys).map(l => l.key));
-  const add = S.lines.filter(l => l.key && l.sys && !oldKeys.has(l.key) && !l.dup), gone = oldLines.filter(l => l.key && l.sys && !newKeys.has(l.key) && !l.dup);
+  /* 1対1で合わせた結果から：合う前の行がない＝増えた、合う今の行がない＝消えた */
+  const add = S.lines.filter(l => l.key && l.sys && !l.dup && !l.manual && !pair.has(l)), gone = oldLines.filter(l => l.key && l.sys && !l.dup && !l.manual && !used.has(l));
   const chg = Array.from(pair.keys()).filter(l => { const o = pair.get(l); return o.sys && (num(o.sys.qty) !== num(l.sys.qty) || num(o.sys.la) + num(o.sys.sa) + num(o.sys.ba) !== num(l.sys.la) + num(l.sys.sa) + num(l.sys.ba)); });
   E().csvLog = (E().csvLog || []).concat([{ at: nowIso(), add: add.length, gone: gone.length, chg: chg.length, net: S.sheets.filter(s => s.inKagami).reduce((a, s) => a + sheetNet(s), 0) }]).slice(-20);
   save(); setTab('sites');
