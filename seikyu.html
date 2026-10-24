@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 09:46-->
+<!--BUILD:2026-10-24 09:54-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -981,7 +981,7 @@ function suggOf(l, e, sh, how){
     if(num(v.qty) !== num(s0.qty != null ? s0.qty : l.qty)) d.push('数量を ' + num(s0.qty != null ? s0.qty : l.qty) + ' → ' + num(v.qty));
     if(num(v.lu) !== num(s0.lu)) d.push('単価を ' + yen(s0.lu) + ' → ' + yen(v.lu));
     if(num(v.su) !== num(s0.su)) d.push('ｻﾎﾟｰﾄ単価を ' + yen(s0.su) + ' → ' + yen(v.su));
-    if(num(v.bu) !== num(s0.bu)) d.push('基本料・販売単価を ' + yen(s0.bu) + ' → ' + yen(v.bu));
+    if(num(v.bu) !== num(s0.bu) && !contRental(l)) d.push('基本料・販売単価を ' + yen(s0.bu) + ' → ' + yen(v.bu));
     if(v.kb && s0.kb && v.kb !== s0.kb) d.push('区分を ' + s0.kb + ' → ' + v.kb);
   }
   return { n: vers.length, names: vers.map(x => x.name), amt: tmp.reduce((a, x) => a + lineAmt(x), 0), vers, diff: d.join('・') || '金額を手で直して', how: how || '' };
@@ -995,6 +995,8 @@ function applySugg(l){
   const sh = sheetById(l.sheet); const ix = S.lines.indexOf(l); if(!l.sugg || !l.sugg.vers || ix < 0) return 0;
   const ns = applyVers(l, { vers: l.sugg.vers }, sh); S.lines.splice(ix, 1, ...ns); return ns.length;
 }
+/* 日極・月極で、貸出日が今回の請求期間より前（前から続いている）＝基本料を取らない品 */
+function contRental(l){ return (l.kb === '日極' || l.kb === '月極') && !!l.kashi && !!l.start && String(l.kashi) < String(l.start); }
 function applyVers(l, e, sh, exact){
   const out = [];
   e.vers.forEach((v, i) => {
@@ -1010,6 +1012,8 @@ function applyVers(l, e, sh, exact){
       out.push(n); return;
     }
     if(!num(l.sys.sdays) && num(v.sdays) && num(v.su)) n.sdays = l.days;
+    /* 基本料は貸し始めの1回だけ：前の期間から続いて借りている品に、前月の基本料を写さない（今月のCSVのとおり） */
+    if(contRental(n)){ n.bu = num(l.sys && l.sys.bu); }
     calcLine(n);
     n.carried = '前月の手直しを引き継ぎ' + (e.vers.length > 1 ? '（1行を' + e.vers.length + '行に分けていた）' : '') + '。CSVは「' + l.sys.name + '」' + (l.sys.qty !== n.qty ? ' 数量' + l.sys.qty : '') + ' 金額' + yen(lineAmt(l.sys));
     n.sheet = sh.id; n.sugg = null;
@@ -1615,7 +1619,7 @@ function onSiteClick(ev){
   }
   if(a === 'usepv'){
     const v = l.pv; if(!v) return;
-    l.qty = v.qty; if(v.unit) l.unit = v.unit; if(v.lu) l.lu = v.lu; if(v.su) l.su = v.su; if(v.bu) l.bu = v.bu; calcLine(l); l.edited = true; l.carried = '前月にあわせた（前月は 数量 ' + v.qty + '・' + yen(v.amt) + '）';
+    l.qty = v.qty; if(v.unit) l.unit = v.unit; if(v.lu) l.lu = v.lu; if(v.su) l.su = v.su; if(v.bu && !contRental(l)) l.bu = v.bu; calcLine(l); l.edited = true; l.carried = '前月にあわせた（前月は 数量 ' + v.qty + '・' + yen(v.amt) + '）';
     save(); drawSites(); toast('前月にあわせた'); return;
   }
   if(a === 'up' || a === 'down'){
@@ -2105,7 +2109,7 @@ function pvDiff(l){
   if(num(v.qty) !== num(l.qty)) d.push('数量 ' + v.qty + (v.unit || '') + '（今月 ' + num(l.qty) + '）');
   if(v.lu && l.lu && v.lu !== num(l.lu)) d.push('単価 ' + yen(v.lu) + '（今月 ' + yen(l.lu) + '）');
   if(v.su && l.su && v.su !== num(l.su)) d.push('ｻﾎﾟｰﾄ単価 ' + yen(v.su) + '（今月 ' + yen(l.su) + '）');
-  if(v.bu && l.bu && v.bu !== num(l.bu)) d.push('基本料・販売単価 ' + yen(v.bu) + '（今月 ' + yen(l.bu) + '）');
+  if(v.bu && l.bu && v.bu !== num(l.bu) && !contRental(l)) d.push('基本料・販売単価 ' + yen(v.bu) + '（今月 ' + yen(l.bu) + '）');
   return d.join('・');
 }
 function pvHtml(l){
@@ -2306,7 +2310,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 09:46';
+const BUILD = '2026-10-24 09:54';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -2500,6 +2504,7 @@ snapshot = function(){
   const o = _snapshot();
   o.ext = S.ext || {};
   o.devId = devId();
+  if(S.csvRaw) o.csvRaw = S.csvRaw;   /* もらったCSVをそのまま作業に残す（あとで元の値をいつでも見られる） */
   const c = (() => { try{ return checks().filter(x => x.lv === 'warn' && !chkDone(x)).length; }catch(e){ return 0; } })();
   o.nChk = c; o.nSeen = S.sheets.filter(s => s.inKagami && seenOk(s)).length; o.nKg = S.sheets.filter(s => s.inKagami).length;
   return o;
@@ -2510,8 +2515,16 @@ const _openWork = openWork;
 openWork = function(o){
   S.ext = o.ext || {};
   S.cloudBase = o.savedAt || '';
+  S.csvRaw = o.csvRaw || '';
   _openWork(o);
+  /* 残してあるCSVから、行ごとのCSVの値（返却日・単位など）を足りない分だけ入れ直す */
+  if(S.csvRaw){ try{ const D = readCsv(S.csvRaw); const byIx = {}; D.lines.forEach(x => { byIx[x.csvIx] = x; });
+    S.lines.forEach(l => { if(!l.sys || l.csvIx == null) return; const x = byIx[l.csvIx]; if(!x || x.key !== l.key) return; Object.keys(x.sys).forEach(k => { if(!(k in l.sys)) l.sys[k] = x.sys[k]; }); }); }catch(e){} }
   if(S.meta && !S.ext.card){ const c = cardLoad(S.meta.custCode); if(c) S.ext.card = c; }
+  /* 前の版の不具合：前から続いている品に、前月の基本料まで写していた → CSVのとおりにもどす */
+  let fixed = [];
+  S.lines.forEach(l => { if(l.sys && contRental(l) && /前月の手直しを引き継ぎ/.test(l.carried || '') && num(l.bu) !== num(l.sys.bu)){ l.bu = num(l.sys.bu); calcLine(l); fixed.push(l.name); } });
+  if(fixed.length && !RO()){ setTimeout(() => { save(); if(S.tab === 'sites') drawSites(); askDialog('基本料を外しました', '前から続いて借りている品に、<b>前月の基本料</b>まで写していました（前の版の不具合です）。CSVのとおりにもどしました：<ul>' + fixed.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>', [{ t:'わかった', v:1, primary:true, k:'Y' }]); }, 700); }
   logInit();
   setTimeout(lockBanner, 50);
 };
@@ -2520,6 +2533,7 @@ build = function(){
   const keepExt = window.__keepExt || null;
   _build();
   S.ext = keepExt || {};
+  S.csvRaw = csvText || '';
   if(!S.ext.card){ const c = window.__prevCard || cardLoad(S.meta.custCode); if(c) S.ext.card = JSON.parse(JSON.stringify(c)); }
   window.__prevCard = null;
   S.cloudBase = '';
@@ -2843,6 +2857,9 @@ checks = function(){
 function retThisMonth(l){ const m = (S.meta.seikyuDate || '').slice(0, 7); return l.retd && String(l.retd).slice(0, 7) === m; }
 function extraChecks(){
   const out = [];
+  /* 基本料：前から続いて借りている品（貸出日が請求期間より前）に基本料が入っている＝二重取り */
+  S.lines.forEach(l => { if(l.nb || !num(l.ba) || !contRental(l)) return; const sysBa = l.sys ? num(l.sys.ba) : 0; if(num(l.ba) === sysBa && sysBa) return;
+    out.unshift({ lv:'warn', t:'続いている品に基本料が入っている：' + l.name, s: sheetById(l.sheet).name + '　貸出 ' + md2(l.kashi) + '・今回の期間は ' + md2(l.start) + 'から。基本料 ' + yen(l.ba) + ' は貸し始めの月だけのはず（CSVは ' + yen(sysBa) + '）', id: l.id, sh: l.sheet }); });
   /* N18：今月返却した品があるのに、返却運賃の行がない現場 */
   S.sheets.forEach(sh => {
     if(!sh.inKagami) return;
