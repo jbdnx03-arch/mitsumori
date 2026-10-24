@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 09:22-->
+<!--BUILD:2026-10-24 09:38-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -765,7 +765,7 @@ function readCsv(text){
     });
   });
   lines.forEach(l => { if(l.kb === '修理' && l.unit !== '式') l.unit = '式';   /* 修理の単位は「式」 */
-    l.sys = { name: l.name, qty: l.qty, lu: l.lu, su: l.su, bu: l.bu, la: l.la, sa: l.sa, ba: l.ba, kb: l.kb, days: l.days, sdays: l.sdays, kashi: l.kashi, start: l.start, end: l.end }; l.key = keyOf(l.den, l.shohin, l.kanri, l.kashi); });
+    l.sys = { name: l.name, qty: l.qty, lu: l.lu, su: l.su, bu: l.bu, la: l.la, sa: l.sa, ba: l.ba, kb: l.kb, days: l.days, sdays: l.sdays, kashi: l.kashi, start: l.start, end: l.end, retd: l.retd, unit: l.unit }; l.key = keyOf(l.den, l.shohin, l.kanri, l.kashi); });
   return { meta, sites, lines };
 }
 function keyOf(den, shohin, kanri, kashi){ return [String(den || '').trim(), String(shohin || '').trim(), String(kanri || '').trim(), kashi || ''].join('|'); }
@@ -2305,7 +2305,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 09:22';
+const BUILD = '2026-10-24 09:38';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -2370,7 +2370,7 @@ setTimeout(() => 版をそっとみる(true), 3000);
 .xbar .btn.warn{background:var(--warnbg);color:var(--warn);border-color:var(--warn)}
 .xleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--ink3);margin:8px 2px 0}
 .xleg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px;border:1px solid var(--line)}
-.xleg .c-sys{background:var(--surface)} .xleg .c-hand{background:var(--handbg)} .xleg .c-man{background:var(--warnbg)} .xleg .c-nb{background:#ddd;opacity:.6} .xleg .c-rule{background:#E6F0FF}
+.xleg .c-sys{background:var(--surface)} .xleg .c-hand{background:var(--surface);box-shadow:inset 3px 0 0 var(--hand)} .xleg .c-chg{background:#FFF176;border-color:#E0C400} .xleg .c-man{background:var(--warnbg)} .xleg .c-nb{background:#ddd;opacity:.6} .xleg .c-rule{background:#E6F0FF}
 table.ln tr.rulerow td{background:#E6F0FF}
 .tag.rule{background:#E6F0FF;color:#2F5597}
 .xmemo{color:var(--ink2)!important}
@@ -2446,6 +2446,13 @@ body.readonly #btnBuild,body.readonly #worksCard,body.readonly .xbar [data-x="un
   .xsearch .xf{margin-left:0;display:flex}
   .xsearch input{max-width:none}
 }
+
+/* 手で変えた欄：黄色のマーカー（エクセルと同じ）。手直しの行は左の線だけ */
+table.ln tr.hand td{background:transparent}
+table.ln tr.hand td:first-child{box-shadow:inset 3px 0 0 var(--hand)}
+table.ln input.e.chg,table.ln select.chg{background:#FFF176!important;border-color:#E0C400!important;color:#000}
+table.ln tr.hand .why{color:var(--hand)}
+@media (prefers-color-scheme:dark){table.ln input.e.chg,table.ln select.chg{background:#6B5F00!important;color:#fff}}
 </style>
 <script>
 /* ====================================================================
@@ -2987,13 +2994,15 @@ drawSite = function(){
   head.appendChild(bar);
   /* 凡例（N5） */
   const tb = $('#siteBody table.ln');
-  if(tb && !$('#siteBody .xleg')){ const lg = document.createElement('div'); lg.className = 'xleg'; lg.innerHTML = '<span><i class="c-sys"></i>システムどおり</span><span><i class="c-hand"></i>手直し・引き継ぎ</span><span><i class="c-man"></i>手で足した行</span><span><i class="c-nb"></i>請求書に出さない</span><span><i class="c-rule"></i>決まりごと</span><span class="muted">金額を押すと計算のしかた</span>'; tb.parentNode.insertBefore(lg, tb); }
+  if(tb && !$('#siteBody .xleg')){ const lg = document.createElement('div'); lg.className = 'xleg'; lg.innerHTML = '<span><i class="c-sys"></i>システムどおり</span><span><i class="c-chg"></i>手で変えた欄（CSVとちがう）</span><span><i class="c-hand"></i>手直しした行（左の線）</span><span><i class="c-man"></i>手で足した行</span><span><i class="c-nb"></i>請求書に出さない</span><span><i class="c-rule"></i>決まりごと</span><span class="muted">金額を押すと計算のしかた</span>'; tb.parentNode.insertBefore(lg, tb); }
   /* 行ごとのメモ・決まり・計算 */
   $$('#siteBody tr[data-id]').forEach(tr => {
     const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
     const td = tr.children[1];
     if(l.memo || l.rule){ const d = document.createElement('div'); d.className = 'why xmemo'; d.innerHTML = (l.rule ? '<span class="tag rule">決まり：' + esc(l.rule) + '</span> ' : '') + (l.memo ? 'メモ：' + esc(l.memo) : ''); td.appendChild(d); }
     if(l.rule) tr.classList.add('rulerow');
+    /* 手で変えた欄だけ黄色のマーカー（CSVの値とちがう欄）。行全体の色はやめて、左の線だけ */
+    markRow(tr, l);
     const amt = tr.children[8]; if(amt){ amt.classList.add('xcalc'); amt.title = '押すと計算のしかた'; }
     const bt = tr.querySelector('.lnbtn'); if(bt){ const b = document.createElement('button'); b.dataset.x = 'lmemo'; b.title = 'メモ（社内）・理由・決まりごと'; b.textContent = '✎'; bt.insertBefore(b, bt.firstChild); }
     tr.draggable = false;
@@ -3046,6 +3055,19 @@ $('#siteBody').addEventListener('click', async ev => {
 }, true));
 function lockBanner(){}
 
+/* 手で変えた欄に黄色のマーカー */
+function markRow(tr, l){
+  if(!l || !l.sys || l.manual) return;
+  const D = new Set(['kashi','start','end','retd']), N = new Set(['qty','lu','su','bu','days','sdays']);
+  tr.querySelectorAll('[data-f]').forEach(el => {
+    const f = el.dataset.f; if(!(f in l.sys)) return;
+    const a = l[f], b = l.sys[f]; if(b === undefined){ el.classList.remove('chg'); return; }
+    const diff = N.has(f) ? num(a) !== num(b) : D.has(f) ? String(a || '') !== String(b || '') : String(a == null ? '' : a).trim() !== String(b == null ? '' : b).trim();
+    el.classList.toggle('chg', diff);
+    el.title = diff ? 'CSVは ' + (D.has(f) ? (b ? md2(b) : '空（継続）') : N.has(f) ? yen(b) : (b || '空')) + '（手で変えた）' : '';
+  });
+}
+['change','input'].forEach(t => $('#siteBody').addEventListener(t, ev => { const tr = ev.target.closest && ev.target.closest('tr[data-id]'); if(!tr) return; setTimeout(() => { const l = S.lines.find(x => x.id === tr.dataset.id); const tr2 = $('tr[data-id="' + tr.dataset.id + '"]'); if(l && tr2) markRow(tr2, l); }, 0); }));
 /* N10：金額の計算を日本語で */
 function calcText(l){
   const q = num(l.qty), p = [];
@@ -3433,6 +3455,14 @@ function verNotes(){
 setTimeout(() => { if(!S.built) verNotes(); }, 1500);
 multiCsv();
 window.seikyuExt.CHANGES = CHANGES;
+})();
+/* 日付・数の欄は、選んだらすぐ打ちこめるように中身を全部選ぶ（品名は途中を直すことが多いので選ばない） */
+(function(){
+  const sel = '#siteBody input.e:not([data-f="name"]), #bulkBar input, #shTarget, #shKouji';
+  let just = null;
+  document.addEventListener('focusin', ev => { const t = ev.target; if(!t.matches || !t.matches(sel)) return; just = t; const v0 = t.value; try{ t.select(); }catch(e){} setTimeout(() => { if(t.value === v0 && document.activeElement === t){ try{ t.select(); }catch(e){} } }, 0); });
+  document.addEventListener('mouseup', ev => { if(just && ev.target === just){ ev.preventDefault(); try{ just.select(); }catch(e){} } just = null; }, true);
+  document.addEventListener('touchend', ev => { if(just && ev.target === just){ setTimeout(() => { try{ just.select(); }catch(e){} just = null; }, 0); } }, true);
 })();
 
 </script>
