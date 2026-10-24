@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 09:54-->
+<!--BUILD:2026-10-24 09:59-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2310,7 +2310,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 09:54';
+const BUILD = '2026-10-24 09:59';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -2466,6 +2466,7 @@ table.xsk td{padding:2px 3px}
 table.xsk input{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--surface);color:var(--ink)}
 .dlg .xcc input{width:100%}
 .dlg:has(table.xsk){max-width:760px}
+.xnow{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:-2px 0 10px;font-size:13px;line-height:1.7}
 </style>
 <script>
 /* ====================================================================
@@ -2790,6 +2791,7 @@ const LF = ['name','qty','unit','kb','lu','su','bu','days','sdays','start','end'
 let lastMap = null;
 function lineMap(){ const m = {}; S.lines.forEach(l => { m[l.id] = { sh: l.sheet, v: LF.map(f => l[f] == null ? '' : String(l[f])), name: l.name }; }); return m; }
 function logInit(){ lastMap = lineMap(); }
+window.seikyuExt.logInit = logInit;
 const FN = { name:'品名', qty:'数量', unit:'単位', kb:'区分', lu:'単価', su:'ｻﾎﾟｰﾄ単価', bu:'基本料・販売単価', days:'日数', sdays:'ｻﾎﾟｰﾄ日数', start:'開始', end:'終了', retd:'返却', kashi:'貸出', nb:'出さない' };
 function logDiff(){
   if(!lastMap || !S.built || RO()) return;
@@ -3624,6 +3626,39 @@ document.addEventListener('focusin', ev => {
   if(!('retd' in l.sys) && !l.edited && !l.carried) l.sys.retd = l.retd || '';
   if(!('unit' in l.sys) && !l.edited && !l.carried) l.sys.unit = l.unit || '';
 }, true);
+/* ------------------------------------------------------------------
+   いまの作業を閉じて、別の請求書を取り込む
+   ------------------------------------------------------------------ */
+async function closeWork(){
+  if(S.built){ try{ await saveNow(); }catch(e){} }
+  const nm = S.meta ? S.meta.custName : '';
+  Object.assign(S, { meta:null, sheets:[], lines:[], prev:null, cur:null, built:false, workId:'', status:'draft', printedAt:'', trash:[], prevPack:null, relinkVer:0, ext:{}, csvRaw:'', sameMonth:false });
+  csvText = null; csvName = ''; prevData = null; prevName = '';
+  undoReset(); try{ seikyuExt.logInit(); }catch(e){}
+  $('#stCsv') && ($('#stCsv').textContent = ''); $('#stPrev') && ($('#stPrev').textContent = '');
+  const bb = $('#btnBuild'); if(bb) bb.disabled = true; const bm = $('#buildMsg'); if(bm) bm.textContent = 'CSVを入れると押せます。前月は無くても作れます。';
+  $('#who').textContent = ''; showSaveSt('');
+  const cnt = document.querySelector('.tabs button[data-tab="check"] .cnt'); if(cnt) cnt.remove();
+  setTab('load'); window.scrollTo(0, 0);
+  toast((nm ? nm + ' の作業は保存して閉じた。' : '') + '新しいCSVを入れて', 4000);
+}
+window.seikyuExt.closeWork = closeWork;
+const _drawWorks2 = drawWorks;
+drawWorks = async function(reload){
+  await _drawWorks2(reload);
+  let d = $('#xNowBar');
+  if(S.built && S.meta){
+    if(!d){ d = document.createElement('div'); d.id = 'xNowBar'; d.className = 'xnow'; const h = [...document.querySelectorAll('#tab-load .card h2')].find(x => /今月のデータを入れる/.test(x.textContent)); if(h) h.insertAdjacentElement('afterend', d); }
+    d.innerHTML = 'いま <b>' + esc(S.meta.custName) + '（' + jdate(S.meta.seikyuDate) + '締め）</b> を開いています（保存ずみ）。<br>別の請求書は、下にそのままCSVを入れれば新しい作業になります。　<button class="btn sm" id="xCloseWork">この作業を閉じる</button>';
+    $('#xCloseWork').onclick = closeWork;
+  }else if(d) d.remove();
+};
+(function(){
+  const t = $('.top'); if(!t || $('#btnCloseWork')) return;
+  const b = document.createElement('button'); b.className = 'latest'; b.id = 'btnCloseWork'; b.type = 'button'; b.textContent = '＋ 別の請求書'; b.title = 'いまの作業を保存して閉じ、別の得意先のCSVを取り込む';
+  const ref = t.querySelector('a.latest'); if(ref) ref.insertAdjacentElement('afterend', b); else t.appendChild(b);
+  b.onclick = closeWork;
+})();
 
 </script>
 
