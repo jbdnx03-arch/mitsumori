@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-24 20:25-->
+<!--BUILD:2026-10-27 07:57-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -398,7 +398,7 @@ table.wl small{color:var(--ink3)}
 .xp.port{width:210mm;height:297mm}
 .xo{position:absolute;overflow:hidden;box-sizing:border-box}
 .xin{position:relative}
-.xf,.xl{position:absolute;display:block}
+.xp .xf,.xp .xl,#print .xf,#print .xl{position:absolute;display:block}
 .xl{box-sizing:content-box;height:0;width:0}
 .xt{position:absolute;display:flex;box-sizing:border-box;white-space:nowrap;line-height:1.1;padding:0 2px}
 .xt>b{font-weight:inherit;display:block;flex:1 1 auto;min-width:0;text-align:left;white-space:pre;overflow:visible}
@@ -746,6 +746,11 @@ function readCsv(text){
   const miss = need.filter(k => H.indexOf(k) < 0);
   if(miss.length) throw new Error('請求明細のCSVではないようです（' + miss.join('・') + ' の列がない）');
   const recs = rows.slice(1).map(r => { const o = {}; H.forEach((h, i) => { o[h] = (r[i] || '').trim(); }); return o; });
+  /* 絶対ダメ：別の得意先・別の締めが混ざったCSVは読まない */
+  const custs = Array.from(new Set(recs.map(r => (r['請求先コード'] || '') + '-' + (r['請求先枝番'] || '0')).filter(c => c[0] !== '-')));
+  if(custs.length > 1) throw new Error('このCSVには ' + custs.length + ' 社分（' + custs.slice(0, 4).join('・') + '）が混ざっています。1社ずつのCSVを入れて（2社分をまとめて取り込むときは「CSVまとめて取り込み」）');
+  const days = Array.from(new Set(recs.map(r => iso(r['請求日'])).filter(Boolean)));
+  if(days.length > 1) throw new Error('このCSVには ちがう締め（' + days.map(jdate).join('・') + '）が混ざっています。システムから出し直して');
   const top = recs.find(r => r['現場コード'] === '0') || recs[0];
   const meta = {
     company: top['会社名'], brZip: top['営業店郵便番号'], brAddr: [top['営業店住所_1'], top['営業店住所_2']].filter(Boolean).join(' '), brTel: top['営業店電話番号'], brFax: top['営業店FAX番号'],
@@ -788,6 +793,7 @@ function readPrevBook(buf){
     const H = {}; for(let c = 14; c < 70; c++){ const a = XLSX.utils.encode_col(c); const v = cell(cp, a, 12); if(v) H[a] = String(v); }
     const by = n => Object.keys(H).find(a => H[a] === n);
     const cS = by('採番'), cDen = by('貸出伝用番号'), cRet = by('返却伝票番号'), cSh = by('商品番号'), cKan = by('管理番号'), cNm = by('商品名'), cKa = Object.keys(H).filter(a => H[a] === '貸出日').pop(), cSite = by('現場コード'), cDate = by('請求日');
+    const cCust = by('請求先コード');
     const cLa = by('リース料'), cSa = by('サポート料'), cBa = by('基本料'), cLu = by('リース単価'), cSu = by('サポート料単価'), cBu = by('基本料単価'), cQ = by('数量'), cD = by('請求日数'), cSd = by('サポート日数'), cKb = by('契約区分名');
     const R = XLSX.utils.decode_range(cp['!ref']);
     for(let r = 13; r <= R.e.r + 1; r++){
@@ -798,6 +804,7 @@ function readPrevBook(buf){
       o.key = keyOf(o.den, o.shohin, o.kanri, o.kashi);
       sys[String(s)] = o; P.sysByKey[o.key] = o;
       if(!P.label && cDate) P.label = iso(cell(cp, cDate, r));
+      if(!P.cust && cCust && cell(cp, cCust, r) != null) P.cust = String(cell(cp, cCust, r)).trim();
     }
   }
   /* 工事番号（請求書表紙：C列のシート名 → F列） */
@@ -881,11 +888,13 @@ function finishPrev(P){
 /* 前月のデータを作業の中に入れておく（開き直しても、前月のファイルをもう一度入れなくていい） */
 function packPrev(P){
   if(!P) return null;
-  return JSON.parse(JSON.stringify({ label: P.label || '', fromJson: !!P.fromJson, kouji: P.kouji || {}, sheets: P.sheets.map(sh => ({ name: sh.name, code: sh.code, kouji: sh.kouji, total: sh.total, fur: sh.fur || [], inKagami: sh.inKagami, lines: sh.lines || [], title: sh.title || '' })) }));
+  let ex = []; try{ ex = typeof prevExcluded === 'function' ? prevExcluded(P) : (P.excluded || []); }catch(e){ ex = P.excluded || []; }
+  return JSON.parse(JSON.stringify({ label: P.label || '', cust: P.cust || '', excluded: ex, fromJson: !!P.fromJson, kouji: P.kouji || {}, sheets: P.sheets.map(sh => ({ name: sh.name, code: sh.code, kouji: sh.kouji, total: sh.total, fur: sh.fur || [], inKagami: sh.inKagami, lines: sh.lines || [], title: sh.title || '' })) }));
 }
 function unpackPrev(pk){
   if(!pk || !pk.sheets) return null;
-  const P = { label: pk.label || '', fromJson: !!pk.fromJson, kouji: pk.kouji || {}, codeSheet: {}, sysByKey: {}, sheets: JSON.parse(JSON.stringify(pk.sheets)) };
+  const P = { label: pk.label || '', cust: pk.cust || '', fromJson: !!pk.fromJson, kouji: pk.kouji || {}, codeSheet: {}, sysByKey: {}, sheets: JSON.parse(JSON.stringify(pk.sheets)) };
+  if(Array.isArray(pk.excluded)) P.excluded = JSON.parse(JSON.stringify(pk.excluded));
   P.sheets.forEach(sh => { if(sh.code && !P.codeSheet[sh.code]) P.codeSheet[sh.code] = sh.name; (sh.lines || []).forEach(L => { if(L.key && L.sys) P.sysByKey[L.key] = L.sys; }); });
   return finishPrev(P);
 }
@@ -1037,6 +1046,7 @@ function applyVers(l, e, sh, exact){
     /* 基本料は貸し始めの1回だけ：前の期間から続いて借りている品に、前月の基本料を写さない（今月のCSVのとおり） */
     if(contRental(n)){ n.bu = num(l.sys && l.sys.bu); }
     calcLine(n);
+    if(e.sys) n.cf = { shohin: e.sys.shohin || '', kanri: e.sys.kanri || '', name: e.sys.name || '' };
     n.carried = '前月の手直しを引き継ぎ' + (e.vers.length > 1 ? '（1行を' + e.vers.length + '行に分けていた）' : '') + '。CSVは「' + l.sys.name + '」' + (l.sys.qty !== n.qty ? ' 数量' + l.sys.qty : '') + ' 金額' + yen(lineAmt(l.sys));
     n.sheet = sh.id; n.sugg = null;
     out.push(n);
@@ -1139,8 +1149,10 @@ function useTitle(sh, ps){
   if(!sh.csvSite) sh.csvSite = sh.siteName;
   sh.siteName = t; return true;
 }
+function prevCustNg(P, code){ return !!(P && P.cust && code && String(P.cust).split('-')[0] !== String(code).split('-')[0]); }
 function build(){
   const D = readCsv(csvText);
+  if(prevCustNg(prevData, D.meta.custCode)) throw new Error('前月のファイルは別の得意先（' + prevData.cust + '）のものです。' + D.meta.custName + '（' + D.meta.custCode + '）の前月のファイルを入れ直して');
   S.meta = D.meta; S.sheets = []; S.lines = []; S.prev = prevData; S.built = true; S.trash = []; undoReset();
   S.prevPack = prevData ? packPrev(prevData) : null; S.relinkVer = RELINK_VER;
   const P = prevData;
@@ -1726,8 +1738,8 @@ function onSiteClick(ev){
   if(a === 'nb'){ l.nb = !l.nb; l.nbDec = true; toast(l.nb ? '請求書に出さないにした（行は残る）' : '請求書に出すにもどした'); }
   if(a === 'nbkeep'){ l.nb = false; l.nbDec = true; toast('請求書に出す'); }
   if(a === 'lukeep'){ l.nb = false; l.luDec = true; toast('リースアップの品：請求書に出す'); }
-  if(a === 'keep'){ l.nb = false; l.nbDec = true; if(isLeaseUp(l)) l.luDec = true; toast('請求書に出す'); }
-  if(a === 'nboff'){ l.nb = true; l.nbDec = true; if(isLeaseUp(l)) l.luDec = true; toast('請求書に出さないにした（行は残る）'); }
+  if(a === 'keep'){ l.nb = false; l.nbDec = true; l.pxDec = true; if(isLeaseUp(l)) l.luDec = true; toast('請求書に出す'); }
+  if(a === 'nboff'){ l.nb = true; l.nbDec = true; l.pxDec = true; if(isLeaseUp(l)) l.luDec = true; toast('請求書に出さないにした（行は残る）'); }
   if(a === 'nb' && isLeaseUp(l)) l.luDec = true;
   if(a === 'revert'){ Object.assign(l, { name: l.sys.name, qty: l.sys.qty, lu: l.sys.lu, su: l.sys.su, bu: l.sys.bu, la: l.sys.la, sa: l.sys.sa, ba: l.sys.ba, kb: l.sys.kb, days: l.sys.days, sdays: l.sys.sdays, carried: '', edited: false }); toast('CSVのとおりに戻した'); }
   save(); drawSites();
@@ -2232,6 +2244,11 @@ function lineDecHtml(l){
     const dec = l.nbDec || l.nb;
     return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
   }
+  if(!l.nb && window.seikyuExt && seikyuExt.pxCand && seikyuExt.pxCand(l)) return '<div class="why" style="color:var(--ng)"><b>先月は請求書に出していなかった品</b>（伝票が変わっても同じ品）　出すか決めていない　' + seg(false, false) + '</div>';
+  if(window.seikyuExt && seikyuExt.saleCand && (seikyuExt.saleCand(l) || l.saleAsk)){
+    const dec = l.nbDec || l.nb;
+    return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">今月はじめて出てきた販売の品　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
+  }
   return l.nb ? '<div class="why" style="color:var(--ng)">請求書に出さない　<button class="btn sm" data-act="nb">出すにもどす</button></div>' : '';
 }
 function updChkBadge(){
@@ -2265,6 +2282,7 @@ async function takePrev(f){
     const ed = (prevData.all || Object.values(prevData.byKey)).filter(e => e.edited).length;
     $('#stPrev').textContent = '✓ ' + (prevData.label ? jdate(prevData.label) + '締め　' : '') + prevData.sheets.length + '現場・手直し ' + ed + '品' + (csvText && prevData.label && (() => { try{ return readCsv(csvText).meta.seikyuDate === prevData.label; }catch(e){ return false; } })() ? '（今月と同じ締め：Excelの手直しをそのまま取り込みます）' : '');
     /* 作業を開いているときは「今の作業に照らし直す」かを聞く（作り直さないので、今月の手直しは消えない） */
+    if(S.built && S.meta && prevCustNg(prevData, S.meta.custCode)){ const c = prevData.cust; prevData = null; $('#stPrev').textContent = ''; toast('このファイルは別の得意先（' + c + '）の前月です。いま開いている ' + S.meta.custName + ' には使えない', 8000); return; }
     if(S.built && S.meta && prevData.label && prevData.label < (S.meta.seikyuDate || '')){
       const v = await askDialog('今の作業に前月を照らし直す？',
         '<b>' + esc(S.meta.custName) + '　' + jdate(S.meta.seikyuDate) + '締め</b> を開いています。<br>この前月のファイル（' + esc(f.name) + '）で、<b>今の作業のまま</b>照らし直せます。今月の手直しは消えません。<ul><li>前月に手で直していた行（数量・単価など）を候補に出す</li><li>行ごとに前月の数量・単価とくらべる</li><li>前月に手で足した行を、前月と同じ場所に並べ直す</li></ul>',
@@ -2415,7 +2433,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-24 20:25';
+const BUILD = '2026-10-27 07:57';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -2580,6 +2598,461 @@ table.ln tr.headrow input.hd{font-weight:700;font-size:15px;width:min(340px,70vw
 table.ln tr.headrow input.hd:focus{background:var(--surface);border-color:var(--line)}
 table.ln tr.ovlrow td:first-child{box-shadow:inset 3px 0 0 #2F5597}
 @media (prefers-color-scheme:dark){table.ln tr.headrow td{background:#1E2A40}}
+.tag.xnever{background:#B3412E!important;color:#fff!important;font-weight:700}
+/* 追加2 */
+.xinvno{position:absolute;right:14mm;top:5mm;font-size:8pt;color:#000;z-index:3}
+.pp.xcover{font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;font-size:11pt;padding:20mm 22mm}
+.xcover .xcv-d{text-align:right}.xcover .xcv-to{font-size:14pt;margin:8mm 0 4mm;border-bottom:.6pt solid #000;display:inline-block;padding-bottom:1mm}.xcover .xcv-to span{font-size:12pt}
+.xcover .xcv-me{text-align:right;margin:2mm 0 10mm;line-height:1.6}.xcover h1{text-align:center;font-size:17pt;letter-spacing:.2em;margin:6mm 0 8mm}
+.xcover p{line-height:1.9}.xcover .xcv-ki{text-align:center;margin:8mm 0 4mm}.xcv-t{width:80%;margin:0 auto;border-collapse:collapse}.xcv-t td{border-bottom:.4pt solid #000;padding:2.5mm 3mm}
+.pp.xlabel{padding:30mm 25mm}.xlb-box{border:1pt solid #000;padding:12mm 14mm;width:140mm;font-family:"Hiragino Mincho ProN","Yu Mincho",serif}
+.xlb-zip{font-size:14pt}.xlb-addr{font-size:14pt;margin:3mm 0 8mm}.xlb-name{font-size:20pt}.xlb-to{font-size:16pt;margin-top:3mm}.xlb-in{display:inline-block;margin-top:10mm;border:1.2pt solid #c00;color:#c00;padding:1.5mm 4mm;font-size:13pt;letter-spacing:.2em}
+.xlb-from{margin-top:12mm;font-size:9pt}
+table.xinq{border-collapse:collapse;width:100%;font-size:11px}table.xinq th,table.xinq td{border:1px solid var(--line);padding:3px 4px;text-align:left}
+.pp.xinqp table.xinq th,.pp.xinqp table.xinq td{border:.5pt solid #000;font-size:9pt}.pp.xinqp h2,.pp.xrep h2{font-size:15pt;margin:0 0 4mm}.xinq-n{font-size:8.5pt;margin-top:4mm}
+.pp.xrep{font-family:"Hiragino Sans","Noto Sans JP",sans-serif}.xrep-t{width:100%;border-collapse:collapse;font-size:9pt}.xrep-t th,.xrep-t td{border:.5pt solid #000;padding:1.6mm 2mm}.xrep-t td.n{text-align:right}.xrep-t tr.tot td{font-weight:700;background:#eee}
+table.xcal{border-collapse:collapse;width:100%;table-layout:fixed;font-size:11px}table.xcal th,table.xcal td{border:1px solid var(--line);vertical-align:top;padding:2px;height:54px}table.xcal td.off{background:var(--soft)}table.xcal td.today{outline:2px solid var(--brand)}
+table.xcal td span{display:block;font-size:10px;border-radius:4px;padding:0 2px;margin-top:1px}table.xcal .due{background:var(--warnbg);color:var(--warn)}table.xcal .ng{background:var(--ngbg);color:var(--ng)}table.xcal .ok{background:var(--okbg);color:var(--ok)}table.xcal .pay{background:#E8EEF8;color:#2F5597}
+.xsteps{margin-bottom:8px}.xsteps details{background:var(--soft);border-radius:10px;padding:6px 10px}.xsteps ol{margin:6px 0 0 18px;padding:0}.xsteps li{margin:2px 0}
+.xtype h4{margin:12px 0 4px}.xtype ul{margin:2px 0 4px 18px;padding:0;font-size:12.5px}
+
+/* ==================================================================
+   請求ナビ Web：見た目（デザイン）。紙（.pp／.xp／#print）には触らない
+   ================================================================== */
+:root{
+  --bg:#EEF2F7;--surface:#FFFFFF;--ink:#13202B;--ink2:#3E5262;--ink3:#7A8C9B;--line:#E1E8F0;
+  --brand:#0E7C86;--brand2:#0B4F6C;--soft:#E6F4F6;
+  --warn:#B45309;--warnbg:#FFF4E0;--ng:#C0392B;--ngbg:#FDEBE8;--ok:#1E8E5A;--okbg:#E4F6EC;--hand:#6D3FC4;--handbg:#F1EBFC;
+  --acc:#0E7C86;--acc2:#19A7B5;--acc-soft:#E6F4F6;
+  --c-load:#2F6FED;--c-sites:#0E7C86;--c-check:#D97706;--c-paper:#7C3AED;
+  --grad-top:linear-gradient(100deg,#0B2545 0%,#0B4F6C 48%,#0E7C86 100%);
+  --shadow:0 1px 2px rgba(16,33,52,.06),0 8px 24px -12px rgba(16,33,52,.18);
+  --shadow2:0 2px 6px rgba(16,33,52,.08),0 18px 40px -18px rgba(16,33,52,.28);
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0C1420;--surface:#141F2E;--ink:#E6EEF6;--ink2:#B6C4D2;--ink3:#7F91A3;--line:#243447;
+  --brand:#2EB8C4;--brand2:#7DD3DC;--soft:#13303A;
+  --warn:#F0A63C;--warnbg:#332411;--ng:#F08A7A;--ngbg:#3A1E1A;--ok:#5CD39A;--okbg:#14301F;--hand:#C7A6F5;--handbg:#2A1F3D;
+  --acc:#2EB8C4;--acc2:#5CD3DC;--acc-soft:#13303A;
+  --c-load:#6EA0FF;--c-sites:#2EB8C4;--c-check:#F5B14C;--c-paper:#B38CFF;
+  --grad-top:linear-gradient(100deg,#071428 0%,#0B2E45 48%,#0E5A66 100%);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);
+  --shadow2:0 2px 6px rgba(0,0,0,.35),0 18px 40px -18px rgba(0,0,0,.6);
+}}
+:root[data-theme="dark"]{
+  --bg:#0C1420;--surface:#141F2E;--ink:#E6EEF6;--ink2:#B6C4D2;--ink3:#7F91A3;--line:#243447;
+  --brand:#2EB8C4;--brand2:#7DD3DC;--soft:#13303A;
+  --warn:#F0A63C;--warnbg:#332411;--ng:#F08A7A;--ngbg:#3A1E1A;--ok:#5CD39A;--okbg:#14301F;--hand:#C7A6F5;--handbg:#2A1F3D;
+  --acc:#2EB8C4;--acc2:#5CD3DC;--acc-soft:#13303A;
+  --c-load:#6EA0FF;--c-sites:#2EB8C4;--c-check:#F5B14C;--c-paper:#B38CFF;
+  --grad-top:linear-gradient(100deg,#071428 0%,#0B2E45 48%,#0E5A66 100%);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5);
+  --shadow2:0 2px 6px rgba(0,0,0,.35),0 18px 40px -18px rgba(0,0,0,.6);
+}
+/* いま開いているタブの色 */
+body[data-tab="load"]{--acc:var(--c-load);--acc2:#5B8DF7;--acc-soft:color-mix(in srgb,var(--c-load) 11%,var(--surface))}
+body[data-tab="sites"]{--acc:var(--c-sites);--acc2:#19A7B5;--acc-soft:color-mix(in srgb,var(--c-sites) 11%,var(--surface))}
+body[data-tab="check"]{--acc:var(--c-check);--acc2:#F59E0B;--acc-soft:color-mix(in srgb,var(--c-check) 11%,var(--surface))}
+body[data-tab="paper"]{--acc:var(--c-paper);--acc2:#A070F5;--acc-soft:color-mix(in srgb,var(--c-paper) 11%,var(--surface))}
+
+body{background:var(--bg);background-image:radial-gradient(1200px 500px at 10% -10%,color-mix(in srgb,var(--acc) 14%,transparent),transparent 60%),radial-gradient(900px 400px at 100% 0%,color-mix(in srgb,var(--c-paper) 9%,transparent),transparent 60%);background-attachment:fixed;font-feature-settings:"palt";letter-spacing:.01em;transition:background-color .3s}
+.wrap{padding:18px 20px 60px}
+
+/* ---- 上の帯 ---- */
+.top{background:var(--grad-top);box-shadow:0 2px 0 rgba(255,255,255,.06) inset,0 6px 24px -8px rgba(5,20,40,.55);padding:10px 20px;gap:10px 14px;backdrop-filter:saturate(1.2)}
+.top h1{font-size:17px;letter-spacing:.08em;font-weight:800;display:flex;align-items:center;gap:8px}
+.top h1::before{content:"";width:26px;height:26px;border-radius:8px;background:conic-gradient(from 210deg,#19A7B5,#5B8DF7,#A070F5,#F59E0B,#19A7B5);box-shadow:0 2px 8px rgba(0,0,0,.35);flex:0 0 auto}
+.top h1 small{opacity:.7;letter-spacing:0;font-weight:500}
+.top .who{font-weight:600;letter-spacing:.02em;opacity:.95;background:rgba(255,255,255,.08);padding:4px 10px;border-radius:999px}
+.top .latest{border-color:rgba(255,255,255,.28);border-radius:999px;background:rgba(255,255,255,.07);font-weight:600;transition:background .15s,transform .15s}
+.top .latest:hover{background:rgba(255,255,255,.18);transform:translateY(-1px)}
+.savest{background:rgba(255,255,255,.1);font-weight:600;letter-spacing:.02em}
+.savest::before{content:"●";font-size:8px;margin-right:5px;color:#5CD39A;vertical-align:1px}
+.savest.bad::before{color:#3A2A00}
+.tabs{gap:6px;background:rgba(0,0,0,.18);padding:4px;border-radius:14px}
+.tabs button{background:transparent;color:rgba(255,255,255,.85);border-radius:10px;padding:7px 14px;font-weight:600;transition:background .15s,color .15s,transform .15s;position:relative}
+.tabs button:hover{background:rgba(255,255,255,.12);color:#fff}
+.tabs button.on{background:#fff;color:var(--brand2);font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.tabs button[data-tab="load"].on{color:var(--c-load)}
+.tabs button[data-tab="sites"].on{color:var(--c-sites)}
+.tabs button[data-tab="check"].on{color:var(--c-check)}
+.tabs button[data-tab="paper"].on{color:var(--c-paper)}
+.tabs .hktop{background:rgba(255,255,255,.08);border-radius:10px;font-weight:600}
+.tabs .hktop:hover{background:rgba(255,255,255,.16)}
+.tabs .pvtop{background:linear-gradient(135deg,#FFC24B,#F59E0B);color:#2A1A00;border-radius:10px;box-shadow:0 2px 10px rgba(245,158,11,.4);font-weight:800}
+.tabs .pvtop:hover{filter:brightness(1.05);transform:translateY(-1px)}
+.tabs .xnew{background:linear-gradient(135deg,#fff,#E6F4F6)!important;color:#0B4F6C!important;border:0!important;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.tabs .cnt{background:#F59E0B;color:#2A1A00;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.tabs .cnt.ng{background:#E5484D}
+.tabs .cnt.ok{background:#30A46C}
+kbd{border-color:currentColor;opacity:.55;border-radius:5px;font-size:9.5px}
+
+/* ---- カード ---- */
+.card{border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;position:relative}
+.card h2{font-size:14.5px;font-weight:800;letter-spacing:.02em}
+.card h2::before{content:"";width:4px;height:16px;border-radius:2px;background:linear-gradient(180deg,var(--acc),var(--acc2));flex:0 0 auto}
+.card h2 .n{font-weight:500}
+.muted{color:var(--ink3)}
+.btn{border-radius:10px;font-weight:600;transition:background .15s,border-color .15s,transform .12s,box-shadow .15s;border-color:var(--line);background:var(--surface)}
+.btn:hover:not(:disabled){border-color:color-mix(in srgb,var(--acc) 45%,var(--line));background:color-mix(in srgb,var(--acc) 6%,var(--surface));transform:translateY(-1px)}
+.btn:active:not(:disabled){transform:translateY(0)}
+.btn.primary{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;box-shadow:0 4px 14px -4px color-mix(in srgb,var(--acc) 70%,transparent);font-weight:800;letter-spacing:.02em}
+.btn.primary:hover:not(:disabled){filter:brightness(1.06);background:linear-gradient(135deg,var(--acc),var(--acc2))}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--ink2)}
+.btn.sm{border-radius:8px;font-weight:600}
+.xbar .btn.on{box-shadow:0 0 0 2px color-mix(in srgb,var(--ok) 25%,transparent)}
+.drop{border:2px dashed color-mix(in srgb,var(--acc) 45%,var(--line));border-radius:var(--r);background:linear-gradient(180deg,var(--surface),color-mix(in srgb,var(--acc) 4%,var(--surface)));transition:border-color .15s,background .15s,transform .15s;padding:22px 18px}
+.drop:hover,.drop.on{border-color:var(--acc);background:var(--acc-soft);transform:translateY(-1px)}
+.drop b{font-size:15.5px;font-weight:800}
+.drop b::before{content:"⤓";display:inline-block;margin-right:8px;color:var(--acc);font-weight:900}
+.drop .st{color:var(--ok)}
+#carryOpt label{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 8px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+#carryOpt label:has(input:checked){border-color:var(--acc);background:var(--acc-soft);color:var(--ink);font-weight:600}
+details.help summary{cursor:pointer;color:var(--acc);font-weight:600}
+
+/* ---- 数字のタイル ---- */
+.kpis{gap:12px}
+.kpi{border:0;border-radius:var(--r);box-shadow:var(--shadow);padding:14px 16px;position:relative;overflow:hidden;background:var(--surface)}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--c-load),#5B8DF7)}
+.kpi:nth-child(2)::before{background:linear-gradient(180deg,var(--c-sites),#19A7B5)}
+.kpi:nth-child(3)::before{background:linear-gradient(180deg,var(--c-check),#F59E0B)}
+.kpi:nth-child(4)::before{background:linear-gradient(180deg,var(--c-paper),#A070F5)}
+.kpi .k{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:10.5px;color:var(--ink3)}
+.kpi .v{font-size:24px;font-weight:900;letter-spacing:-.01em;margin-top:4px}
+.kpi.ok{background:linear-gradient(135deg,var(--okbg),var(--surface))}.kpi.ok::before{background:linear-gradient(180deg,var(--ok),#5CD39A)}.kpi.ok .v{color:var(--ok)}
+.kpi.ng{background:linear-gradient(135deg,var(--ngbg),var(--surface))}.kpi.ng::before{background:linear-gradient(180deg,var(--ng),#F08A7A)}.kpi.ng .v{color:var(--ng)}
+
+/* ---- 現場の一覧 ---- */
+.sites{padding:8px;top:76px}
+.site{border-radius:12px;padding:9px 12px 9px 16px;position:relative;transition:background .12s,transform .12s;margin-bottom:3px}
+.site::before{content:"";position:absolute;left:6px;top:13px;width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 20%,transparent)}
+.site:has(.tag.hand)::before{background:var(--hand);box-shadow:0 0 0 3px color-mix(in srgb,var(--hand) 20%,transparent)}
+.site:has(.tag.new)::before{background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 20%,transparent)}
+.site:has(.tag.ng)::before{background:var(--ink3);box-shadow:none}
+.site:hover{background:var(--acc-soft);transform:translateX(2px)}
+.site.on{background:linear-gradient(90deg,var(--acc-soft),var(--surface));border-color:color-mix(in srgb,var(--acc) 40%,transparent);box-shadow:0 2px 10px -4px color-mix(in srgb,var(--acc) 40%,transparent)}
+.site.on .t span:first-child{color:var(--acc)}
+.site .t span:last-child{font-weight:800}
+.tag{font-weight:700;letter-spacing:.02em;padding:2px 8px}
+.tag.hand{background:var(--handbg);color:var(--hand)}.tag.new{background:var(--warnbg);color:var(--warn)}.tag.ng{background:var(--ngbg);color:var(--ng)}.tag.ok{background:var(--okbg);color:var(--ok)}
+.tag.pr{background:#E8EEF8;color:#2F5597}.tag.rule{background:#E6F0FF;color:#2F5597}
+
+/* ---- 現場の明細 ---- */
+.shead{border-radius:var(--r) var(--r) 0 0;background:linear-gradient(180deg,var(--surface),color-mix(in srgb,var(--acc) 3%,var(--surface)));border-bottom:1px solid var(--line)}
+.sh .nm input{font-weight:900;letter-spacing:-.01em}
+.sh .nm input:focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 15%,transparent)}
+.fld input{border-radius:8px}
+.fld input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 15%,transparent)}
+.tot b{font-weight:900}
+.bulk{background:color-mix(in srgb,var(--acc) 5%,var(--surface));border:1px dashed color-mix(in srgb,var(--acc) 35%,var(--line));border-radius:12px}
+.bulk b{color:var(--acc)}
+table.ln{border-radius:10px;overflow:hidden}
+table.ln th{background:color-mix(in srgb,var(--acc) 7%,var(--surface));color:var(--ink2);font-weight:700;letter-spacing:.03em;padding:7px 6px;border-bottom:2px solid color-mix(in srgb,var(--acc) 25%,var(--line))}
+table.ln td{padding:6px 5px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+table.ln tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--ink) 2%,transparent)}
+table.ln tbody tr:hover td{background:color-mix(in srgb,var(--acc) 6%,transparent)}
+table.ln td.rowno{color:var(--ink3);font-weight:700;font-size:11px}
+table.ln td:nth-child(9){font-weight:900}
+table.ln input.e:focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 15%,transparent)}
+table.ln tr.man td{background:var(--warnbg)!important}
+table.ln tr.hand td:first-child{box-shadow:inset 3px 0 0 var(--hand)}
+table.ln tr.ovlrow td:first-child{box-shadow:inset 3px 0 0 #2F5597}
+table.ln tr.headrow td{background:linear-gradient(90deg,color-mix(in srgb,#2F5597 12%,var(--surface)),var(--surface))!important;border-top:2px solid #2F5597}
+table.ln tr.rulerow td{background:#E6F0FF!important}
+table.ln .why{font-weight:600}
+.lnbtn button{border-radius:6px}
+.lnbtn button:hover{background:var(--acc-soft);color:var(--acc)}
+.seg2 .btn.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.seg2 .btn.on.ng{background:var(--ng);border-color:var(--ng)}
+.prev{border-radius:12px;background:color-mix(in srgb,var(--acc) 4%,var(--surface));border-color:color-mix(in srgb,var(--acc) 30%,var(--line))}
+.prev.trash{background:var(--ngbg);border-color:color-mix(in srgb,var(--ng) 40%,transparent)}
+.xleg{padding:6px 10px;background:color-mix(in srgb,var(--ink) 3%,transparent);border-radius:8px}
+.xsearch{border-radius:var(--r)}
+.xsearch input{border-radius:10px;padding:9px 12px}
+.xsearch input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 15%,transparent)}
+.xsearch .xf .btn.on{background:var(--acc);border-color:var(--acc)}
+
+/* ---- チェック ---- */
+.chk li{padding:10px 12px;border:0;border-bottom:1px solid var(--line);border-left:4px solid var(--line);margin:0 0 4px;border-radius:0 10px 10px 0;background:var(--surface);transition:background .12s}
+.chk li:hover{background:color-mix(in srgb,var(--acc) 5%,var(--surface))}
+.chk li:has(.tag.ng){border-left-color:var(--ng)}
+.chk li:has(.tag.xnever){border-left-color:#C0392B;background:linear-gradient(90deg,var(--ngbg),var(--surface) 40%)}
+.chk li:has(.tag.pr){border-left-color:#2F5597}
+.chk li:not(:has(.tag.ng)):not(:has(.tag.pr)) .tag{background:var(--warnbg);color:var(--warn)}
+.chk li:not(:has(.tag.ng)):not(:has(.tag.pr)){border-left-color:var(--warn)}
+.chk li.chk-sep{background:transparent;border:0;padding:12px 4px 4px;font-weight:800;color:var(--ink2);letter-spacing:.04em}
+.chk li.chk-focus{background:linear-gradient(90deg,var(--warnbg),var(--surface));border-left-color:var(--warn);border-radius:10px}
+.chk .tag{padding:3px 9px;font-size:11px}
+.tag.xnever{background:#C0392B!important;color:#fff!important;box-shadow:0 2px 6px rgba(192,57,43,.4)}
+.xsteps details{background:linear-gradient(135deg,var(--acc-soft),var(--surface));border:1px solid color-mix(in srgb,var(--acc) 25%,var(--line));border-radius:12px;padding:8px 12px}
+.xsteps summary{cursor:pointer}
+.xsteps li label{cursor:pointer}
+.xsteps li:has(input:checked) label{color:var(--ink3);text-decoration:line-through}
+
+/* ---- 印刷・PDF ---- */
+.pvopts label{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 8px;font-size:12.5px}
+.pvopts label:has(input:checked){border-color:var(--acc);background:var(--acc-soft);font-weight:600}
+.pv{background:linear-gradient(180deg,#C9D3DE,#B9C5D2);border-radius:var(--r);padding:20px}
+@media (prefers-color-scheme:dark){.pv{background:linear-gradient(180deg,#1C2838,#131C28)}}
+.pv .pp,.pv .xp{box-shadow:0 10px 30px -10px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.2)}
+.xpaper{border-radius:12px;background:color-mix(in srgb,var(--acc) 5%,var(--surface));border:1px solid color-mix(in srgb,var(--acc) 20%,var(--line))}
+.xpaper code{background:var(--surface);border:1px solid var(--line);border-radius:6px}
+table.xfin td:first-child{font-weight:600}
+
+/* ---- 作業のカード ---- */
+.wc{border-radius:var(--r);box-shadow:var(--shadow);border-color:color-mix(in srgb,var(--line) 70%,transparent);padding:12px 14px;transition:transform .12s,box-shadow .12s}
+.wc:hover{transform:translateY(-1px);box-shadow:var(--shadow2)}
+.wc.now{border-color:var(--acc);background:linear-gradient(135deg,var(--acc-soft),var(--surface))}
+.wc1 b{font-size:15px;font-weight:800}
+.wc1 .amt{font-size:16px;font-weight:900}
+.wcs .up{color:var(--warn)}.wcs .dn{color:var(--ng)}.wcs .eq{color:var(--ok);font-weight:700}
+.xcc input,.xcc select{border-radius:8px}
+.xcc input:focus,.xcc select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 15%,transparent)}
+.xnow{border-radius:12px;background:linear-gradient(135deg,var(--acc-soft),var(--surface));border-color:color-mix(in srgb,var(--acc) 25%,var(--line))}
+.xboard{border-radius:var(--r);box-shadow:var(--shadow);border-color:color-mix(in srgb,var(--line) 70%,transparent)}
+.hk-filt button.on{background:var(--acc);border-color:var(--acc)}
+.hk-filt input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 15%,transparent)}
+table.xlog th{letter-spacing:.03em;text-transform:uppercase;font-size:10.5px}
+table.xlog tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
+
+/* ---- プレビュー・ダイアログ・パネル・トースト ---- */
+.spv-bar{background:var(--grad-top);box-shadow:0 6px 24px -8px rgba(5,20,40,.55)}
+.spv-bar .btn{border-radius:10px;font-weight:600}
+.spv-bar .btn.primary{background:linear-gradient(135deg,#FFC24B,#F59E0B);color:#2A1A00;border:0}
+.spvsw .btn.on{background:#fff!important;color:var(--brand2)!important}
+.dlg{border-radius:18px;box-shadow:var(--shadow2),0 0 0 1px color-mix(in srgb,var(--ink) 6%,transparent);padding:20px 22px;animation:dlgin .18s ease-out}
+@keyframes dlgin{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.dlg h3{font-size:17px;font-weight:800;padding-bottom:10px;border-bottom:2px solid color-mix(in srgb,var(--acc) 25%,var(--line));margin-bottom:12px}
+.dlg h3::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,var(--acc),var(--acc2));margin-right:8px;vertical-align:0}
+.dlg-f .btn{border-radius:10px}
+.dlg-veil{background:rgba(8,20,36,.5);backdrop-filter:blur(3px)}
+.ckl li{border-radius:8px}.ckl label:hover{background:color-mix(in srgb,var(--acc) 5%,transparent)}
+.ckh a{color:var(--acc)}
+.xpanel{box-shadow:-12px 0 40px rgba(5,20,40,.25);border-left:1px solid var(--line)}
+.xp-h{background:linear-gradient(90deg,var(--acc-soft),var(--surface));font-size:15px}
+.xp-h b::before{content:"";display:inline-block;width:4px;height:14px;border-radius:2px;background:linear-gradient(180deg,var(--acc),var(--acc2));margin-right:8px;vertical-align:-2px}
+.toast{background:linear-gradient(135deg,#13202B,#0B4F6C);border-radius:12px;box-shadow:0 10px 30px -8px rgba(0,0,0,.5);font-weight:600;letter-spacing:.01em;border:1px solid rgba(255,255,255,.1)}
+.xconf{background:linear-gradient(90deg,#FFF3CD,#FFE8A8);border-top:2px solid #F59E0B}
+.xmode{background:linear-gradient(90deg,#2F5597,#2F6FED)}
+.xleg i{border-radius:4px}
+.empty{font-weight:600}
+::selection{background:color-mix(in srgb,var(--acc) 30%,transparent)}
+*:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+/* スマホ */
+@media (max-width:760px){
+  .wrap{padding:12px 12px 50px}
+  .top{padding:8px 12px 0}
+  .tabs{border-radius:12px;padding:3px;margin:0 -12px;padding-left:10px;padding-right:10px}
+  .card{padding:12px 14px;border-radius:12px}
+  .kpi{padding:10px 12px}.kpi .v{font-size:19px}
+  .site{padding:8px 10px 8px 16px}
+  .drop{padding:16px 12px}
+}
+@media print{body{background:#fff!important;background-image:none!important}}
+
+/* ==================================================================
+   深掘り：細部の仕上げ
+   ================================================================== */
+html{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink3) 45%,transparent) transparent}
+*::-webkit-scrollbar{width:9px;height:9px}*::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink3) 40%,transparent);border-radius:9px;border:2px solid transparent;background-clip:padding-box}*::-webkit-scrollbar-track{background:transparent}
+input[type=checkbox],input[type=radio]{accent-color:var(--acc);width:16px;height:16px}
+.fld input[type=checkbox]{width:16px}
+select{border-radius:8px}
+/* 画面の切りかえをふわっと */
+#tab-load,#tab-sites,#tab-check,#tab-paper{animation:secin .22s ease-out}
+@keyframes secin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* 上の帯：下にうっすら光の線 */
+.top::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)}
+.top{position:sticky}
+.tabs .cnt{animation:badgepop .35s ease-out}
+@keyframes badgepop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+/* トースト：下からすっと */
+.toast{animation:toastin .22s ease-out}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+/* 読み込み中の骨組み */
+.works .muted:only-child{position:relative;color:transparent!important;min-height:86px;border-radius:12px;background:linear-gradient(90deg,color-mix(in srgb,var(--ink) 5%,transparent) 25%,color-mix(in srgb,var(--ink) 10%,transparent) 37%,color-mix(in srgb,var(--ink) 5%,transparent) 63%);background-size:400% 100%;animation:shimmer 1.3s linear infinite}
+@keyframes shimmer{from{background-position:100% 0}to{background-position:0 0}}
+/* 作業のカード：状態の色の帯 */
+.wc{position:relative;overflow:hidden;padding-left:18px}
+.wc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--c-load),#5B8DF7)}
+.wc:has(.tag.pr)::before{background:linear-gradient(180deg,var(--c-paper),#A070F5)}
+.wc:has(.wc1 .tag.ok)::before{background:linear-gradient(180deg,var(--ok),#5CD39A)}
+.wc1 .amt{font-size:17px}
+.wc4 .btn.primary{padding:5px 14px}
+/* 現場の一覧：金額の棒（いちばん大きい現場を100%） */
+.site{overflow:hidden}
+.site::after{content:"";position:absolute;left:16px;right:12px;bottom:3px;height:3px;border-radius:2px;background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.site .bar{position:absolute;left:16px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--acc),var(--acc2));width:calc((100% - 28px) * var(--pct,0));z-index:1;transition:width .4s ease-out}
+.site{padding-bottom:12px}
+.sites .muted{font-weight:700;color:var(--ink2);letter-spacing:.03em;padding:6px 8px 8px}
+.sites .muted kbd{opacity:.5}
+/* 見た進み具合の帯 */
+.xprog{height:4px;border-radius:2px;background:color-mix(in srgb,var(--ink) 7%,transparent);margin:0 8px 8px;overflow:hidden}
+.xprog i{display:block;height:100%;background:linear-gradient(90deg,var(--ok),#5CD39A);width:var(--pct,0);transition:width .4s}
+/* 明細：行の道具はなぞったときだけ（PCだけ） */
+@media (hover:hover){
+  table.ln .lnbtn{opacity:.25;transition:opacity .12s}
+  table.ln tr:hover .lnbtn,table.ln tr:focus-within .lnbtn{opacity:1}
+}
+table.ln td:nth-child(2) input.e{font-weight:700;font-size:13px}
+table.ln td:nth-child(9){font-size:13.5px;letter-spacing:-.01em}
+table.ln td:nth-child(9) .sub{font-weight:500}
+table.ln select[data-f="kb"]{border-radius:999px;padding:2px 6px;font-weight:600;background:color-mix(in srgb,var(--acc) 6%,var(--surface));border-color:color-mix(in srgb,var(--acc) 25%,var(--line))}
+table.ln .per{display:inline-flex;align-items:center;gap:1px}
+table.ln .why{line-height:1.45}
+table.ln .sub{line-height:1.4}
+table.ln tr.headrow td{padding:9px 6px}
+table.ln tr.headrow input.hd{font-size:15.5px;letter-spacing:.02em}
+.seg2 .btn{font-weight:700}
+.seg2 .btn:not(.on){background:var(--surface);color:var(--ink2)}
+/* 現場の見出し：すりガラス */
+.shead{backdrop-filter:blur(8px);background:color-mix(in srgb,var(--surface) 88%,transparent)}
+.shead .tot b{font-size:15px;letter-spacing:-.01em}
+.shead .tot .muted{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+.xbar{gap:6px}
+.xbar .btn{border-radius:999px;padding:5px 12px;font-size:12px}
+/* チェック：残りなしの表示 */
+.chk li:has(.tag.ok):only-child,.chk li:has(.tag.ok):first-child:not(:has(+ li)){border-left-color:var(--ok);background:linear-gradient(90deg,var(--okbg),var(--surface) 60%);padding:18px 14px;font-weight:700}
+.chk li:has(.tag.ok) .tag.ok{font-size:12px;padding:4px 12px}
+.chk li .tx{line-height:1.5}
+.chk li .tx small{color:var(--ink2)}
+.chk .chk-b .btn{border-radius:999px}
+.chk li:has(.tag.xnever) .chk-b .btn{border-color:color-mix(in srgb,var(--ng) 40%,var(--line))}
+.chk li.chk-focus{border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-left-width:4px}
+/* 印刷・PDF：紙の前の帯 */
+.pv{position:relative}
+.pv::before{content:"プレビュー";position:absolute;left:14px;top:-9px;background:var(--acc);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+#tab-paper .card .row .btn.primary{padding:9px 18px;font-size:14px}
+/* ダイアログの中の一覧 */
+.dlg-b ul.ckl li label{padding:8px 6px;border-radius:8px}
+.dlg-b ul.ckl li.off label{opacity:.55}
+.dlg-f .btn.primary{padding:9px 18px}
+/* 右のパネル */
+.xpanel{width:min(560px,100vw)}
+.xp-b{line-height:1.6}
+.xp-b h4{margin:14px 0 6px;font-size:13px;letter-spacing:.04em;color:var(--acc);text-transform:uppercase}
+/* 控え */
+.hk-g .hk-gh b{font-size:15px}
+.hk-tools .btn,.hk-filt button{border-radius:999px}
+/* 得意先カード・型 */
+.xcc label{font-weight:600;letter-spacing:.03em}
+.xcc input,.xcc select{padding:8px 10px}
+/* 空のとき */
+.empty{padding:48px 20px}
+.empty::before{content:"";display:block;width:56px;height:56px;margin:0 auto 10px;border-radius:16px;background:linear-gradient(135deg,var(--acc-soft),var(--surface));border:1px dashed color-mix(in srgb,var(--acc) 40%,transparent)}
+
+/* ---- 動き ---- */
+.toast.out{animation:toastout .18s ease-in forwards}
+@keyframes toastout{to{opacity:0;transform:translate(-50%,10px)}}
+.savest.tick::before{animation:tick .5s ease-out}
+@keyframes tick{0%{transform:scale(1)}40%{transform:scale(1.8)}100%{transform:scale(1)}}
+.savest::before{display:inline-block}
+#siteList .site{opacity:0;transform:translateX(-6px)}
+#siteList .site.in{animation:sitein .28s ease-out forwards}
+@keyframes sitein{to{opacity:1;transform:none}}
+#siteBody > .card{animation:bodyin .22s ease-out}
+@keyframes bodyin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.amt-pop{animation:amtpop .5s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes amtpop{0%{transform:scale(1)}35%{transform:scale(1.18);color:var(--acc)}100%{transform:scale(1)}}
+.btn,.tabs button,.site{position:relative;overflow:hidden}
+.ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.18;transform:scale(0);animation:ripple .5s ease-out forwards;pointer-events:none}
+@keyframes ripple{to{transform:scale(1);opacity:0}}
+.drop .st:not(:empty){animation:pop .35s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+.kpi{transition:transform .15s,box-shadow .15s}
+.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow2)}
+.xpanel:not([hidden]){animation:panelin .24s cubic-bezier(.2,.8,.2,1)}
+@keyframes panelin{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.spv:not([hidden]){animation:veilin .2s ease-out}
+@keyframes veilin{from{opacity:0}to{opacity:1}}
+.spv-body .xp,.spv-body .pp{animation:pagein .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes pagein{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.dlg-veil{animation:veilin .18s ease-out}
+.tag.xnever{animation:glow 1.4s ease-in-out 2}
+@keyframes glow{0%,100%{box-shadow:0 2px 6px rgba(192,57,43,.4)}50%{box-shadow:0 0 0 6px rgba(192,57,43,.18)}}
+.tabs button.on{animation:tabin .22s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes tabin{from{transform:scale(.94)}to{transform:scale(1)}}
+.chk li{animation:chkin .25s ease-out both}
+.chk li:nth-child(2){animation-delay:.03s}.chk li:nth-child(3){animation-delay:.06s}.chk li:nth-child(4){animation-delay:.09s}.chk li:nth-child(5){animation-delay:.12s}.chk li:nth-child(n+6){animation-delay:.15s}
+@keyframes chkin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.22s}
+.wc{animation:bodyin .22s ease-out both}
+.wc:nth-child(2){animation-delay:.05s}.wc:nth-child(3){animation-delay:.1s}.wc:nth-child(n+4){animation-delay:.15s}
+.xprog i{transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.site .bar{transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.lnbtn button{transition:transform .12s,background .12s,color .12s}
+.lnbtn button:hover{transform:scale(1.15)}
+.seg2 .btn.on{animation:tabin .2s ease-out}
+
+/* ---- 動き 2 ---- */
+.top .xtheme{font-weight:700}
+body.dragging .drop{border-color:var(--acc);background:var(--acc-soft);animation:dropglow 1s ease-in-out infinite}
+@keyframes dropglow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 35%,transparent)}50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--acc) 0%,transparent)}}
+.tag.ok.draw,.btn.on.draw{animation:drawck .45s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes drawck{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+.xspark{position:fixed;inset:0;pointer-events:none;z-index:95}
+.xspark i{position:absolute;width:8px;height:8px;border-radius:2px;animation:spark 1.1s cubic-bezier(.2,.8,.3,1) forwards;opacity:0}
+@keyframes spark{0%{transform:translate(0,0) rotate(0) scale(.6);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(260deg) scale(0);opacity:0}}
+.kpi.zero{animation:zeroin .7s ease-out}
+.kpi.zero .v::after{content:" ✓";color:var(--ok);display:inline-block;animation:drawck .5s .2s cubic-bezier(.2,.9,.3,1.3) both}
+@keyframes zeroin{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 50%,transparent)}100%{box-shadow:0 0 0 16px transparent}}
+.dlg.shake{animation:shake .45s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
+.spv-body.fl .xp,.spv-body.fl .pp{animation:flipl .3s cubic-bezier(.2,.8,.2,1)}
+.spv-body.fr .xp,.spv-body.fr .pp{animation:flipr .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes flipl{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:none}}
+@keyframes flipr{from{opacity:0;transform:translateX(-60px)}to{opacity:1;transform:none}}
+table.ln tr.spot td{animation:spot 1.6s ease-out}
+@keyframes spot{0%{box-shadow:inset 0 0 0 2px var(--warn);background:var(--warnbg)}70%{box-shadow:inset 0 0 0 2px var(--warn);background:var(--warnbg)}100%{box-shadow:none}}
+table.ln td.focus{background:color-mix(in srgb,var(--acc) 8%,var(--surface))!important;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 35%,transparent)}
+.btn.done{background:linear-gradient(135deg,var(--ok),#5CD39A)!important;border-color:transparent!important;color:#fff!important;animation:drawck .4s cubic-bezier(.2,.9,.3,1.3)}
+.toast.ok{background:linear-gradient(135deg,#0F3D2E,#1E8E5A)}
+.toast.warn{background:linear-gradient(135deg,#4A1C14,#B45309)}
+.toast.ok::before{content:"✓";margin-right:8px;font-weight:900}
+.toast.warn::before{content:"!";margin-right:8px;font-weight:900;display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:50%;background:rgba(255,255,255,.2)}
+tr.dropto td{border-top:3px solid var(--acc)!important;animation:dropline .6s ease-in-out infinite alternate}
+@keyframes dropline{from{border-top-color:var(--acc)}to{border-top-color:var(--acc2)}}
+.rowno:active{cursor:grabbing}
+tr[draggable] .rowno:active,.rowno[draggable=true]:active{transform:scale(1.15)}
+::view-transition-group(*){animation-duration:.26s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+
+/* ---- 動き 3 ---- */
+body.nomotion *,body.nomotion *::before,body.nomotion *::after{animation:none!important;transition:none!important}
+body.nomotion #siteList .site{opacity:1;transform:none}
+body[data-dir="r"] #tab-load,body[data-dir="r"] #tab-sites,body[data-dir="r"] #tab-check,body[data-dir="r"] #tab-paper{animation:secr .24s cubic-bezier(.2,.8,.2,1)}
+body[data-dir="l"] #tab-load,body[data-dir="l"] #tab-sites,body[data-dir="l"] #tab-check,body[data-dir="l"] #tab-paper{animation:secl .24s cubic-bezier(.2,.8,.2,1)}
+@keyframes secr{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+@keyframes secl{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+.top{transition:box-shadow .25s}
+body.scrolled .top{box-shadow:0 2px 0 rgba(255,255,255,.06) inset,0 10px 30px -6px rgba(5,20,40,.6)}
+.xup{position:fixed;right:18px;bottom:22px;width:44px;height:44px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-size:18px;font-weight:900;box-shadow:0 8px 20px -6px color-mix(in srgb,var(--acc) 70%,transparent);cursor:pointer;z-index:40;opacity:0;transform:translateY(16px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s}
+.xup.show{opacity:1;transform:none;pointer-events:auto}
+.xup:hover{transform:translateY(-2px)}
+@media print{.xup{display:none}}
+.xring{display:inline-block;width:18px;height:18px;vertical-align:-4px;margin-right:6px}
+.xring svg{width:18px;height:18px;transform:rotate(-90deg)}
+.xring circle{fill:none;stroke-width:3}
+.xring .bg{stroke:color-mix(in srgb,var(--ink) 10%,transparent)}
+.xring .fg{stroke:var(--ok);stroke-dasharray:50.27;stroke-dashoffset:50.27;stroke-linecap:round;transition:stroke-dashoffset .6s cubic-bezier(.2,.8,.2,1)}
+.xring.full .fg{stroke:var(--ok);filter:drop-shadow(0 0 3px color-mix(in srgb,var(--ok) 60%,transparent))}
+.kpi .xline{position:absolute;right:12px;bottom:8px;width:120px;height:30px;opacity:.9}
+.kpi .xline polyline{fill:none;stroke:var(--c-sites);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:400;stroke-dashoffset:400;animation:draw 1.1s .2s cubic-bezier(.2,.8,.2,1) forwards}
+.kpi .xline circle{fill:var(--c-sites);opacity:0;animation:drawck .4s 1.1s cubic-bezier(.2,.9,.3,1.3) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.kpi:nth-child(2){padding-right:140px}
+@media (max-width:760px){.kpi .xline{display:none}.kpi:nth-child(2){padding-right:12px}}
+.toast .xtoastbtn{margin-left:12px;border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:999px;padding:4px 12px;font-weight:800;cursor:pointer;animation:drawck .35s .15s cubic-bezier(.2,.9,.3,1.3) both}
+.toast .xtoastbtn:hover{background:rgba(255,255,255,.25)}
+.top .xtheme.spin{animation:spin .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes spin{from{transform:rotate(-180deg) scale(.8)}to{transform:none}}
+.drop:not(:has(.st:not(:empty))) b::before{animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
+.drop b::before{display:inline-block}
+.wc.now .tag.ok{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 35%,transparent)}50%{box-shadow:0 0 0 5px transparent}}
 </style>
 <script>
 /* ====================================================================
@@ -2848,11 +3321,25 @@ async function askPrevExcluded(){
   ls.forEach(l => { l.pxDec = true; if(on.has(l.id)){ l.nb = true; l.nbDec = true; l.luDec = true; n++; } });
   save(); if(S.tab === 'sites') drawSites(); toast(n + ' 件を前月どおり出さないにした');
 }
+async function askNewSales(){
+  const ls = S.lines.filter(saleCand); if(!ls.length) return;
+  ls.forEach(l => { l.saleAsk = true; });
+  const list = ckList(ls, l => esc((sheetById(l.sheet) || {}).name || '') + '：' + esc(l.name) + '（' + esc(l.shohin || '') + '・' + yen(lineAmt(l)) + '）', false);
+  const v = await askDialog('今月はじめて出てきた販売の品', '先月はなかった<b>販売の品</b>が <b>' + ls.length + ' 件</b>あります。<br><b>チェックした品は請求書に出しません</b>（チェックなしは出す）。' + list,
+    [{ t:'決めた', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
+  if(v !== 'ok'){ toast('あとで決める：チェックに「絶対ダメ」で出しておきます'); return; }
+  const on = new Set(askDialog.checked || []); let n = 0;
+  ls.forEach(l => { l.nbDec = true; if(on.has(l.id)){ l.nb = true; n++; } });
+  save(); if(S.tab === 'sites') drawSites(); toast('販売の品：' + (ls.length - n) + ' 件を出す・' + n + ' 件は出さない');
+}
 const _askNoBill = askNoBill;
 askNoBill = async function(){
   if(RO()) return;
   if(S._justBuilt){ S._justBuilt = false; await askCarried(); }
+  /* リースアップの品：先月も請求していた品は、先月と同じく出す（聞くのは新しく出てきた品だけ） */
+  let nlu = 0; S.lines.forEach(l => { if(isLeaseUp(l) && !l.luDec && !l.nb && l.pv && !l.pv.fuzzy){ l.luDec = true; l.luAuto = true; nlu++; } }); if(nlu) save();
   await askPrevExcluded();
+  await askNewSales();
   await _askNoBill();
   verNotes();
 };
@@ -2968,12 +3455,42 @@ const _checks = checks;
 checks = function(){
   let out = _checks();
   try{ out = out.concat(extraChecks()); }catch(e){ console.error(e); }
-  out = out.filter(x => !muted(x));
+  out.forEach(x => { if(x.lv === 'warn' && NEVER_RE.test(String(x.t))) x.never = true; });
+  out = out.filter(x => x.never || !muted(x));
+  out.sort((a, b) => (b.never ? 1 : 0) - (a.never ? 1 : 0));
   return out;
 };
 function retThisMonth(l){ const m = (S.meta.seikyuDate || '').slice(0, 7); return l.retd && String(l.retd).slice(0, 7) === m; }
+/* 「絶対ダメ」：前に起きて、二度と出してはいけないミス。直すか「このままでいい」と決めるまで、印刷・PDFに進めない */
+const NEVER_RE = /^(続いている品に基本料|数量がCSVより多い|同じ行を \d+ 回足している|同じ管理番号を2か所で請求|出すか決めていない販売の品|出すか決めていないリースアップ|前月は手で数量を|先月出さなかった品|今月はじめて出てきた販売の品|手直しが別の品に|サポート日数が請求日数と合わない|修理の単位が|前月と同じ重ねた行がない)/;
+function pxList(){ const P = S.prev; if(!P || S.sameMonth) return []; if(P._exc) return P._exc; try{ P._exc = prevExcluded(P) || []; }catch(e){ P._exc = []; } return P._exc; }
+function pxCand(l){ if(!l || l.nb || l.pxDec || !l.sys || l.manual || l.dup || l.pv || !lineAmt(l)) return false;   /* 前月の請求した行とつながる品・0円の行は対象外 */ const ex = pxList(); return !!(ex.length && matchExcluded(ex, l)); }
+const dnm = s => normNm(s).replace(/[0-9０-９\/／～〜~\-ー]/g, '');
+function saleCand(l){
+  if(!l || l.kb !== '販売' || l.manual || l.dup || l.nb || l.nbDec || isNbCand(l) || !lineAmt(l)) return false;
+  const P = S.prev; if(!P || S.sameMonth) return false;
+  if(l.pv) return false;   /* 前月も請求していた */
+  const site = String(l.site || ''), n = dnm(l.name);
+  return !(P.all || []).some(e => { const nm = (e.sys && e.sys.name) || (e.vers[0] && e.vers[0].name) || ''; const ps = (P.sheets || []).find(x => x.name === e.sheet); const sc = e.sys && e.sys.site ? String(e.sys.site) : ps ? String(ps.code) : ''; return sc === site && dnm(nm) === n; });
+}
+window.seikyuExt.pxCand = pxCand; window.seikyuExt.saleCand = saleCand;
 function extraChecks(){
   const out = [];
+  const shn = l => (sheetById(l.sheet) || {}).name || '';
+  /* 絶対ダメ：先月「出さない」にした品が、今月は出ている（伝票が変わっても品で見る） */
+  S.lines.filter(pxCand).forEach(l => out.unshift({ lv:'warn', t:'先月出さなかった品が今月出ている：' + l.name, s: shn(l) + '　先月は請求書に出していません（' + yen(lineAmt(l)) + '）。行の「出す／出さない」で決めて', id: l.id, sh: l.sheet }));
+  /* 絶対ダメ：今月はじめて出てきた販売の品を、聞かずに出す */
+  S.lines.filter(saleCand).forEach(l => { l.saleAsk = true; out.unshift({ lv:'warn', t:'今月はじめて出てきた販売の品：' + l.name, s: shn(l) + '　' + yen(lineAmt(l)) + '・先月はなかった販売の品。出すか決めて', id: l.id, sh: l.sheet }); });
+  /* 絶対ダメ：前月の手直しが、別の品に付いている */
+  S.lines.forEach(l => { if(l.nb || !l.cf || !l.cf.shohin || !l.shohin) return; if(String(l.cf.shohin).trim() !== String(l.shohin).trim()) out.unshift({ lv:'warn', t:'手直しが別の品に付いている：' + l.name, s: shn(l) + '　前月の「' + l.cf.name + '（' + l.cf.shohin + '）」の手直しが、今月「' + l.name + '（' + l.shohin + '）」に付いています。↺ でCSVにもどして', id: l.id, sh: l.sheet }); });
+  /* 絶対ダメ：請求日数を変えたのに、サポート日数がそのまま */
+  S.lines.forEach(l => { if(l.nb || !l.sys || !num(l.su)) return; const dd = num(l.days) - num(l.sys.days); if(dd && num(l.sdays) === num(l.sys.sdays) && num(l.sdays)) out.unshift({ lv:'warn', t:'サポート日数が請求日数と合わない：' + l.name, s: shn(l) + '　請求日数を ' + num(l.sys.days) + ' → ' + num(l.days) + ' にしたのに、サポート日数は ' + num(l.sdays) + ' のまま', id: l.id, sh: l.sheet }); });
+  /* 絶対ダメ：修理の単位は「式」 */
+  S.lines.forEach(l => { if(!l.nb && l.kb === '修理' && String(l.unit || '') !== '式') out.unshift({ lv:'warn', t:'修理の単位が「式」でない：' + l.name, s: shn(l) + '　単位が「' + (l.unit || '空') + '」', id: l.id, sh: l.sheet }); });
+  /* 絶対ダメ：前月は重ねて出していた行（Yours の三軒茶屋分など）が、今月はない */
+  S.sheets.forEach(sh => { if(!sh.prev || S.sameMonth) return; let lay = []; try{ lay = prevLayoutOf(sh.prev.lines || []).filter(p => p.ovl); }catch(e){} if(!lay.length) return;
+    const have = linesOf(sh).filter(l => l.ovl).length, T = (S.trash || []).filter(t => t.line && t.line.sheet === sh.id && t.line.ovl).length;
+    if(have + T < lay.length) out.unshift({ lv:'warn', t:'前月と同じ重ねた行がない：' + sh.name, s: '前月は ' + lay.length + ' 行を重ねて出していた（' + (lay[0].hd || '') + '）。今月は ' + have + ' 行。「前月を照らし直す」で入る', sh: sh.id }); });
   /* 基本料：前から続いて借りている品（貸出日が請求期間より前）に基本料が入っている＝二重取り */
   S.lines.forEach(l => { if(l.nb || !num(l.ba) || !contRental(l)) return; const sysBa = l.sys ? num(l.sys.ba) : 0; if(num(l.ba) === sysBa && sysBa) return;
     out.unshift({ lv:'warn', t:'続いている品に基本料が入っている：' + l.name, s: sheetById(l.sheet).name + '　貸出 ' + md2(l.kashi) + '・今回の期間は ' + md2(l.start) + 'から。基本料 ' + yen(l.ba) + ' は貸し始めの月だけのはず（CSVは ' + yen(sysBa) + '）', id: l.id, sh: l.sheet }); });
@@ -3021,10 +3538,10 @@ const _drawChecks = drawChecks;
 drawChecks = function(){
   drawHead();
   const c = checks(); window.__chk = c;
-  const todo = c.filter(x => !chkDone(x) && x.lv !== 'sales').sort((a, b) => (a.lv === 'warn' ? 0 : 1) - (b.lv === 'warn' ? 0 : 1)), done = c.filter(x => chkDone(x) && x.lv !== 'sales'), sal = c.filter(x => x.lv === 'sales');
+  const todo = c.filter(x => !chkDone(x) && x.lv !== 'sales').sort((a, b) => (a.never ? 0 : a.lv === 'warn' ? 1 : 2) - (b.never ? 0 : b.lv === 'warn' ? 1 : 2)), done = c.filter(x => chkDone(x) && x.lv !== 'sales'), sal = c.filter(x => x.lv === 'sales');
   const li = (x, i) => { const d = (E().chk || {})[chkKey(x)];
-    return '<li data-i="' + i + '"' + (x.sh ? ' style="cursor:pointer"' : '') + '><span class="lv"><span class="tag ' + (x.lv === 'warn' ? 'ng' : x.lv === 'sales' ? 'pr' : '') + '">' + (x.lv === 'warn' ? '要確認' : x.lv === 'sales' ? '営業' : '気になる') + '</span></span><span class="tx">' + esc(x.t) + '<small>' + esc(x.s || '') + (d ? '<br><b>' + (d.st === 'fix' ? '直した' : 'このままでいい') + (d.why ? '：' + esc(d.why) : '') + '</b>（' + hm(d.at) + '）' : '') + '</small></span>' +
-      '<span class="chk-b">' + (d ? '<button class="btn sm ghost" data-cu="' + i + '">もどす</button>' : '<button class="btn sm" data-cf="' + i + '" title="直した">直した</button><button class="btn sm" data-ck="' + i + '" title="このままでいい（理由を残す）">このままでいい</button><button class="btn sm ghost" data-cm="' + i + '" title="この種類を、この得意先では今後出さない">今後出さない</button>') + '</span></li>'; };
+    return '<li data-i="' + i + '"' + (x.sh ? ' style="cursor:pointer"' : '') + '><span class="lv"><span class="tag ' + (x.never ? 'ng xnever' : x.lv === 'warn' ? 'ng' : x.lv === 'sales' ? 'pr' : '') + '">' + (x.never ? '絶対ダメ' : x.lv === 'warn' ? '要確認' : x.lv === 'sales' ? '営業' : '気になる') + '</span></span><span class="tx">' + esc(x.t) + '<small>' + esc(x.s || '') + (d ? '<br><b>' + (d.st === 'fix' ? '直した' : 'このままでいい') + (d.why ? '：' + esc(d.why) : '') + '</b>（' + hm(d.at) + '）' : '') + '</small></span>' +
+      '<span class="chk-b">' + (d ? '<button class="btn sm ghost" data-cu="' + i + '">もどす</button>' : (x.never ? '<span class="muted">直すと消える</span><button class="btn sm" data-ck="' + i + '" title="確かめた上で、このままでいい（理由を残す）">このままでいい</button>' : '<button class="btn sm" data-cf="' + i + '" title="直した">直した</button><button class="btn sm" data-ck="' + i + '" title="このままでいい（理由を残す）">このままでいい</button><button class="btn sm ghost" data-cm="' + i + '" title="この種類を、この得意先では今後出さない">今後出さない</button>')) + '</span></li>'; };
   const idx = x => c.indexOf(x);
   $('#chkList').innerHTML =
     focusHtml() +
@@ -3332,6 +3849,22 @@ function issueDiff(a, b){
 const _doPrint = doPrint;
 doPrint = async function(html, opt){
   const all = typeof html !== 'string';
+  if(S.built && !RO()){
+    let nv = checks().filter(x => x.never && !chkDone(x));
+    if(!all && typeof pvAll !== 'undefined' && !pvAll) nv = nv.filter(x => !x.sh || x.sh === S.cur);
+    if(nv.length){
+      const items = nv.map((x, i) => ({ id: 'nv' + i, x }));
+      const v = await askDialog('絶対ダメ が ' + nv.length + ' 件残っています',
+        '前に起きて「二度と出してはいけない」ミスと同じ形のものがあります。<b>直すか、1件ずつ確かめてチェックを入れないと</b>' + (opt && opt.pdf ? 'PDFにできません' : '印刷できません') + '。' +
+        ckList(items, o => '<b>' + esc(o.x.t) + '</b><br><small>' + esc(o.x.s || '') + '</small>', false),
+        [{ t:'直しに行く', v:'go', primary:true, k:'G' }, { t:'チェックした分は確かめた（このまま出す）', v:'ok', k:'Y' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+      if(v === 'go'){ const x = nv[0]; if(typeof closeSitePv === 'function') closeSitePv(); if(x.sh || x.id) jumpTo(x); else setTab('check'); return; }
+      if(v !== 'ok') return;
+      const on = new Set(askDialog.checked || []);
+      if(on.size < items.length){ toast('まだ ' + (items.length - on.size) + ' 件にチェックがない。全部確かめてから', 6000); return; }
+      const e = E(); e.chk = e.chk || {}; nv.forEach(x => { e.chk[chkKey(x)] = { st:'ok', why:'印刷の前に確かめた', at: nowIso() }; }); save();
+    }
+  }
   if(all && S.built){
     const T = totals(), c = checks(), w = c.filter(x => x.lv === 'warn' && !chkDone(x)), ks = S.sheets.filter(s => s.inKagami), seen = ks.filter(seenOk).length, sk = S.meta.custCode === '3057';
     const iss = E().issued || [], last = iss[iss.length - 1], cur = issueSnap(), df = last ? issueDiff(last, cur) : [];
@@ -3581,6 +4114,8 @@ function keyHelp(){
 })();
 /* 版の変更点（N44） */
 const CHANGES = [
+  ['2026-10-26 22:00', '提案 N56・N58〜N95：照合表／インボイスの点検／紙の仕上がりの点検／請求書番号（入れるかは選ぶ）／出したものの台帳（探せる・書き換えがわかる）／作業する人の名前／記録をCSVで／毎日の控え（30日）／送付の記録／送付状・宛名ラベル／前回分の未入金／問い合わせの答えと記録／締めレポート・日程表・速報・請求漏れ・全得意先の残り・入金予定表・手間の通信簿（控え）／締めの手順／前月との差の内訳／あるべき金額との突き合わせ／CSVの取り違え／新しい版で変わった行／得意先の型／先方の形式で書き出す／絶対ダメを足せる／本物のPDFとくらべる／単価の改定日／システムの順にもどす／Gmailで下書き／来月への申し送り／Excel版から移す／クラウドの暗号化（合言葉）／初めての得意先は全部見てから／休みの日'],
+  ['2026-10-26 20:03', '「絶対ダメ」：前に起きたミスと同じ形は、直すか確かめるまで印刷・PDFに進めない／別の得意先の前月・2社分のCSVは読まない'],
   ['2026-10-24 08:05', '提案 N1〜N54：CSVで今月を更新（手直しを残す）／先月のWeb版から自動で前月／要確認の消し込み・次へ（N）・重点チェック・今後出さない／見た印と進み具合／前月の明細を横に・前月の残り／行メモ・決まりごと・得意先カード／変更の記録（L）／印刷前の最終確認・訂正版の記録・送付済ロック／PDF名・送付メール・請求のポイント／二重請求・単価・見積とのちがい／営業向け（長く借りている・季節品・引き上げ漏れ）／請求残高一覧表・Excel版とくらべる・Excelで書き出す／CSVまとめて取り込み／貸出状況照会／見るだけのリンク・練習モード・確認モード／キーの一覧（?）'],
   ['2026-10-24 07:39', '照らし直すと、二重に足した「前月に手で足した行」を1つにする'],
   ['2026-10-24 07:21', '前月のデータを作業の中に保存（開き直しても前月ファイル不要）'],
@@ -3598,6 +4133,8 @@ function verNotes(){
 setTimeout(() => { if(!S.built) verNotes(); }, 1500);
 multiCsv();
 window.seikyuExt.CHANGES = CHANGES;
+/* 追加2（ext2*.js）から使う中身 */
+Object.assign(window, { E, nowIso, hm, card, cardSave, cardLoad, chkDone, chkKey, RO, FN, openPanel, ymAdd, applyRules, seenOk, allWorksMeta, loadWork, jumpTo, prevExcluded, matchExcluded, extraChecks, seenToggle });
 })();
 /* 日付・数の欄は、選んだらすぐ打ちこめるように中身を全部選ぶ（品名は途中を直すことが多いので選ばない） */
 (function(){
@@ -3833,6 +4370,1009 @@ async function pdfHand(blob, fn, n){
   if(v === 'share'){ try{ await navigator.share({ files: [file], title: fn }); }catch(e){ if(e && e.name !== 'AbortError') toast('共有できなかった：「PDFを開く」から保存して', 6000); } }
   setTimeout(() => URL.revokeObjectURL(url), 300000);
 }
+
+/* ==================================================================
+   請求ナビ Web：追加2（N56・N58〜N95）
+   ================================================================== */
+const X2 = {};
+X2.ls = (k, v) => { try{ if(v === undefined) return localStorage.getItem(k); if(v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){ return null; } };
+X2.who = () => X2.ls('seikyuNaviWeb.who') || '';
+X2.isoOf = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+X2.csv = rows => '﻿' + rows.map(r => r.map(c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+X2.dl = (name, data, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: type || 'text/plain' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); };
+X2.ymj = ym => ym ? (+ym.slice(0, 4)) + '年' + (+ym.slice(5, 7)) + '月' : '';
+X2.sha = async s => { try{ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }catch(e){ return ''; } };
+/* 印刷・PDFの「絶対ダメ」チェックを通さずに、そのまま印刷する（送付状・宛名ラベル・回答の1枚など） */
+X2.printRaw = (html, title) => { const P = $('#print'); P.innerHTML = html; const t = document.title; if(title) document.title = title; setTimeout(() => { window.print(); setTimeout(() => { document.title = t; }, 500); }, 100); };
+
+/* ---------------- N94：休みの日（土日・祝日・会社の年末年始） ---------------- */
+X2.HOL = new Set([
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06','2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23','2026-10-12','2026-11-03','2026-11-23',
+  '2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-21','2027-03-22','2027-04-29','2027-05-03','2027-05-04','2027-05-05','2027-07-19','2027-08-11','2027-09-20','2027-09-23','2027-10-11','2027-11-03','2027-11-23',
+  '2028-01-01','2028-01-10','2028-02-11','2028-02-23','2028-03-20','2028-04-29','2028-05-03','2028-05-04','2028-05-05','2028-07-17','2028-08-11','2028-09-18','2028-09-22','2028-10-09','2028-11-03','2028-11-23'
+]);
+X2.offExtra = () => String(X2.ls('seikyuNaviWeb.offDays') || '12-29,12-30,12-31,01-02,01-03').split(/[,、\s]+/).filter(Boolean);
+X2.isOff = iso => { if(!iso) return false; const d = new Date(iso + 'T00:00:00'), w = d.getDay(); return w === 0 || w === 6 || X2.HOL.has(iso) || X2.offExtra().indexOf(iso.slice(5)) >= 0; };
+X2.prevBiz = iso => { if(!iso) return ''; const d = new Date(iso + 'T00:00:00'); let n = 0; while(X2.isOff(X2.isoOf(d)) && n++ < 15) d.setDate(d.getDate() - 1); return X2.isoOf(d); };
+/* 送付の期限：得意先カードの「送付の期限」から日にちを読む（「翌月5日」「5日」→ 締めの翌月の5日、「当月末」「末」→ 締めの月末、「3営業日」→ 締めから3営業日） */
+X2.dueOf = (seikyuDate, txt) => {
+  txt = String(txt || '').normalize('NFKC'); if(!seikyuDate || !txt) return null;
+  const y = +seikyuDate.slice(0, 4), m = +seikyuDate.slice(5, 7);
+  let raw = '';
+  const bd = /(\d+)\s*営業日/.exec(txt);
+  if(bd){ const d = new Date(seikyuDate + 'T00:00:00'); let k = +bd[1]; while(k > 0){ d.setDate(d.getDate() + 1); if(!X2.isOff(X2.isoOf(d))) k--; } return { raw: X2.isoOf(d), adj: X2.isoOf(d), moved: false }; }
+  const same = /当月/.test(txt), mm = m - 1 + (same ? 0 : 1), last = new Date(y, mm + 1, 0).getDate();
+  if(/末/.test(txt) && !/\d/.test(txt)) raw = X2.isoOf(new Date(y, mm, last));
+  else { const dd = /(\d+)\s*日/.exec(txt) || /(\d+)/.exec(txt); if(!dd) return null; raw = X2.isoOf(new Date(y, mm, Math.min(+dd[1], last))); }
+  const adj = X2.prevBiz(raw); return { raw, adj, moved: adj !== raw };
+};
+
+/* ---------------- 保存の中身に足す（一覧・ボードで使う数） ---------------- */
+['nNever','nEdit','nFix','payDate','nbAmt','nebAmt','sentAt','sentHow','kuri'].forEach(k => { if(SUMF.indexOf(k) < 0) SUMF.push(k); });
+const _x2snap = snapshot;
+snapshot = function(){
+  const o = _x2snap();
+  try{
+    const c = checks(); o.nNever = c.filter(x => x.never && !chkDone(x)).length;
+    o.nEdit = S.lines.filter(l => l.edited || l.carried || l.manual).length;
+    o.nFix = (E().issued || []).filter(x => x.fix).length;
+    o.payDate = S.meta.payDate || '';
+    o.nbAmt = S.lines.filter(l => l.nb).reduce((a, l) => a + lineAmt(l), 0);
+    o.nebAmt = S.lines.filter(l => !l.nb && lineAmt(l) < 0).reduce((a, l) => a + lineAmt(l), 0);
+    const sn = E().sent; o.sentAt = sn ? sn.date : ''; o.sentHow = sn ? sn.how : '';
+    o.kuri = num(S.meta.kurikoshi);
+    o.ext.buildVer = BUILD;
+  }catch(e){}
+  return o;
+};
+/* N64：作業する人の名前（端末ごと）。変更の記録・出したものの台帳に残す */
+const _x2save = save;
+save = function(){
+  const lg = (E().log = E().log || []), n0 = lg.length, last = lg[n0 - 1], lastTo = last && last.to;
+  _x2save();
+  const w = X2.who(); if(!w) return;
+  for(let i = Math.max(0, n0 - 1); i < lg.length; i++){ if(i === n0 - 1 && lg[i].to === lastTo) continue; lg[i].who = w; }
+};
+async function x2AskWho(force){
+  if(X2.who() && !force) return X2.who();
+  window.__rnote = X2.who();
+  const v = await askDialog('作業する人の名前', 'この端末で作業する人の名前を入れて。変更の記録・出したものの台帳に残ります（端末ごとに1回）。<p><input id="rnote" style="width:100%" placeholder="例：阿久津" value="' + esc(X2.who()) + '"></p>', [{ t:'残す', v:'ok', primary:true }, { t:'あとで', v:null, ghost:true }]);
+  if(v === 'ok' && window.__rnote){ X2.ls('seikyuNaviWeb.who', String(window.__rnote).trim()); toast('作業する人：' + X2.who()); }
+  return X2.who();
+}
+
+/* ---------------- 過去の月（同じ得意先）：いつもの幅・初めての得意先・通信簿 ---------------- */
+async function x2Hist(){
+  if(!S.meta) return [];
+  const rows = await allWorksMeta();
+  const h = rows.filter(x => x.w && String(x.w.custCode) === String(S.meta.custCode) && String(x.w.custBr || '0') === String(S.meta.custBr || '0') && String(x.w.seikyuDate || '') < String(S.meta.seikyuDate || ''))
+    .map(x => ({ id: x.id, d: x.w.seikyuDate, net: num(x.w.net) })).sort((a, b) => a.d.localeCompare(b.d));
+  S._hist = h; S._histFor = S.workId; return h;
+}
+const _x2open = openWork;
+openWork = function(o){
+  /* N77：新しい版で開いたとき、開く前と金額が変わった行 */
+  const before = new Map((o.lines || []).map(l => [l.id, { amt: lineAmt(l), name: l.name, sh: l.sheet }])), ver0 = (o.ext && o.ext.buildVer) || '';
+  _x2open(o);
+  S._hist = null;
+  setTimeout(() => { x2Hist().then(() => { if(S.tab === 'check') drawChecks(); updChkBadge(); }).catch(() => {}); }, 300);
+  if(RO() || !ver0 || ver0 === BUILD) return;
+  const ch = [];
+  S.lines.forEach(l => { const b = before.get(l.id); if(!b){ ch.push({ name: l.name, sh: l.sheet, from: null, to: lineAmt(l) }); return; } if(b.amt !== lineAmt(l)) ch.push({ name: l.name, sh: l.sheet, from: b.amt, to: lineAmt(l) }); before.delete(l.id); });
+  before.forEach(b => ch.push({ name: b.name, sh: b.sh, from: b.amt, to: null }));
+  if(ch.length) setTimeout(() => askDialog('新しい版で開いたら、金額が変わった行があります', '前に保存した版（' + esc(ver0) + '）とくらべて <b>' + ch.length + ' 行</b>の金額が変わりました（新しい版の直し・自動の照らし直しのため）。<ul>' +
+    ch.slice(0, 30).map(c => '<li>' + esc((sheetById(c.sh) || {}).name || '') + '：' + esc(c.name) + '　' + (c.from == null ? '新しく ' + yen(c.to) : c.to == null ? yen(c.from) + ' → 消えた' : yen(c.from) + ' → ' + yen(c.to)) + '</li>').join('') + '</ul>おかしければ「変更の記録」か ↶元に戻す で戻せます。',
+    [{ t:'わかった', v:1, primary:true, k:'Y' }]), 900);
+};
+const _x2build = build;
+build = function(){ _x2build(); S._hist = null; setTimeout(() => { x2Hist().catch(() => {}); }, 300); if(window.__csvFp) E().csvFp = window.__csvFp; };
+
+/* ---------------- N76：CSVの指紋（同じCSV・前より古いCSV） ---------------- */
+const _x2takeCsv = takeCsv;
+takeCsv = async function(f){
+  await _x2takeCsv(f);
+  if(!csvText) return;
+  let D; try{ D = readCsv(csvText); }catch(e){ return; }
+  const fp = { name: f.name, size: f.size, lm: f.lastModified || 0, rows: D.lines.length, sum: D.lines.reduce((a, l) => a + lineAmt(l), 0), at: nowIso() };
+  window.__csvFp = fp;
+  if(!S.built || !S.meta || workIdOf(D.meta) !== S.workId) return;
+  const old = E().csvFp;
+  if(S.csvRaw && S.csvRaw === csvText){ toast('いま開いている作業と同じCSVです（変わったところはありません）', 6000); return; }
+  if(old && old.lm && fp.lm && fp.lm < old.lm) askDialog('前に入れたCSVより古いファイルです', '<b>' + esc(f.name) + '</b>（' + new Date(fp.lm).toLocaleString('ja-JP') + '）は、前に入れた <b>' + esc(old.name) + '</b>（' + new Date(old.lm).toLocaleString('ja-JP') + '）より古いファイルです。<br>取り違えていないか確かめて。', [{ t:'わかった', v:1, primary:true }]);
+};
+
+/* ---------------- チェックに足す ---------------- */
+X2.neverRules = () => { let g = []; try{ g = JSON.parse(X2.ls('seikyuNaviWeb.never') || '[]'); }catch(e){} return g.concat((S.meta ? (card().never || []) : [])); };
+X2.ruleMatch = (r, l) => {
+  const nn = s => String(s || '').normalize('NFKC').replace(/\s/g, '').toUpperCase();
+  if(r.name && nn(l.name).indexOf(nn(r.name)) < 0) return false;
+  if(r.shohin && nn(l.shohin) !== nn(r.shohin)) return false;
+  if(r.kb && l.kb !== r.kb) return false;
+  if(r.site && String(r.site) !== String((sheetById(l.sheet) || {}).code || l.site)) return false;
+  return !!(r.name || r.shohin || r.kb);
+};
+function x2Recon(){
+  /* N56：照合表（CSVの合計＝CSVの明細の合計、CSVの行がぜんぶ作業にある、鑑＝明細の合計） */
+  const out = { rows: [], ng: [] };
+  let D = null; if(S.csvRaw){ if(X2._rcRaw === S.csvRaw) D = X2._rcD; else { try{ D = readCsv(S.csvRaw); }catch(e){} X2._rcRaw = S.csvRaw; X2._rcD = D; } }
+  const inWork = S.lines.filter(l => l.sys && !l.dup && !l.manual), trash = (S.trash || []).map(t => t.line).filter(l => l && l.sys && !l.dup && !l.manual);
+  const ks = S.sheets.filter(s => s.inKagami), kg = ks.reduce((a, s) => a + sheetNet(s), 0), det = ks.reduce((a, s) => a + billOf(s).reduce((b, l) => b + lineAmt(l), 0), 0);
+  if(D){
+    const csvSum = D.lines.reduce((a, l) => a + lineAmt(l), 0), siteSum = Object.values(D.sites).reduce((a, s) => a + num(s.sysNet), 0);
+    out.rows.push(['CSVの「当月御買上額」', yen(D.meta.sysNet)], ['CSVの明細の合計（' + D.lines.length + ' 行）', yen(csvSum)], ['作業に入っているCSVの行', (inWork.length + trash.length) + ' 行（うち消した行 ' + trash.length + '）']);
+    if(num(D.meta.sysNet) && num(D.meta.sysNet) !== csvSum && siteSum !== csvSum) out.ng.push('CSVの「当月御買上額」' + yen(D.meta.sysNet) + ' と、CSVの明細の合計 ' + yen(csvSum) + ' が合わない（CSVが途中で切れている・別のCSVかも）');
+    if(inWork.length + trash.length < D.lines.length) out.ng.push('CSVの ' + D.lines.length + ' 行のうち ' + (D.lines.length - inWork.length - trash.length) + ' 行が作業に入っていない');
+  }
+  out.rows.push(['鑑の税抜合計', yen(kg)], ['現場ごとの明細の合計', yen(det)], ['印刷する紙の合計', yen(kg)]);
+  if(kg !== det) out.ng.push('鑑の合計 ' + yen(kg) + ' と明細の合計 ' + yen(det) + ' が合わない');
+  return out;
+}
+const _x2checks = checks;
+checks = function(){
+  let out = _x2checks();
+  const add = [];
+  const shn = l => (sheetById(l.sheet) || {}).name || '';
+  try{
+    /* N56：照合が合わない */
+    x2Recon().ng.forEach(t => add.push({ lv:'warn', never:true, t:'照合が合わない：' + t, s:'印刷・PDFの前に原因を確かめて（「印刷・PDF」の照合表）' }));
+    /* N59・N60：インボイスの要件（登録番号の形と番号の検査・消費税の端数はシステムと同じ「現場ごとに切り捨て」） */
+    if(S.meta){
+      const inv = String(meVals(S.meta).inv || '').normalize('NFKC').trim();
+      if(!X2.invOk(inv)) add.push({ lv:'warn', never:true, t:'インボイスの登録番号がおかしい：' + (inv || '空'), s:'「T」＋13けた（法人番号）で、検査の数字が合うこと。設定の登録番号を確かめて' });
+      const T = totals();
+      if(num(S.meta.sysTax) && T.net === num(S.meta.sysNet) && T.tax !== num(S.meta.sysTax)) add.push({ lv:'warn', never:true, t:'消費税がシステムとちがう：' + yen(T.tax), s:'税抜はシステムと同じ ' + yen(T.net) + ' なのに、消費税はシステム ' + yen(S.meta.sysTax) + '・Web ' + yen(T.tax) + '（端数の扱い）' });
+    }
+    /* N81：自分で決めた「絶対ダメ」 */
+    X2.neverRules().forEach(r => {
+      S.lines.forEach(l => { if(l.nb || l.head || !X2.ruleMatch(r, l)) return;
+        let hit = false, why = '';
+        if(r.cond === 'billed'){ hit = true; why = '請求書に出ている'; }
+        if(r.cond === 'qty' && num(l.qty) !== num(r.val)){ hit = true; why = '数量が ' + num(l.qty) + '（決まりは ' + r.val + '）'; }
+        if(r.cond === 'lu' && num(l.lu) !== num(r.val)){ hit = true; why = '単価が ' + yen(l.lu) + '（決まりは ' + yen(r.val) + '）'; }
+        if(r.cond === 'kb' && l.kb !== r.val){ hit = true; why = '区分が ' + l.kb + '（決まりは ' + r.val + '）'; }
+        if(r.cond === 'unit' && String(l.unit || '') !== String(r.val)){ hit = true; why = '単位が「' + (l.unit || '空') + '」（決まりは「' + r.val + '」）'; }
+        if(hit) add.push({ lv:'warn', never:true, t:'決めた絶対ダメ：' + (r.note || r.name || r.shohin) + '：' + l.name, s: shn(l) + '　' + why, id: l.id, sh: l.sheet });
+      });
+    });
+    /* N93：初めての得意先の月は、全部の現場を一度見るまで出さない */
+    if(S._hist && !S._hist.length && !S.prev && S.meta) S.sheets.filter(s => s.inKagami && !seenOk(s)).forEach(s => add.push({ lv:'warn', never:true, t:'初めての得意先：まだ見ていない現場：' + s.name, s:'初めての月は全部の現場を一度見て「見た」を押して（' + yen(sheetNet(s)) + '）', sh: s.id }));
+    /* N58：いつもの幅を超えた増減 */
+    const h = S._hist || [];
+    if(h.length && S.meta){
+      const now = totals().net, vs = h.slice(-6).map(x => x.net).filter(v => v > 0);
+      if(vs.length){ const avg = vs.reduce((a, b) => a + b, 0) / vs.length, sd = Math.sqrt(vs.reduce((a, b) => a + (b - avg) * (b - avg), 0) / vs.length);
+        const w = vs.length >= 3 ? Math.max(2 * sd, avg * 0.3) : avg * 0.5;
+        if(Math.abs(now - avg) > w) add.push({ lv:'info', t:'いつもの幅を超えている：' + S.meta.custName, s:'今月 ' + yen(now) + '・これまで ' + vs.length + ' か月の平均 ' + yen(Math.round(avg)) + '（ふつうは ±' + yen(Math.round(w)) + '）。大きく' + (now > avg ? '増えた' : '減った') + 'わけを確かめて' }); }
+    }
+    /* N69：前回分の未入金（繰越） */
+    if(S.meta && num(S.meta.kurikoshi) > 0) add.push({ lv:'info', t:'前回分の未入金（繰越）があります：' + yen(S.meta.kurikoshi), s:'前回御請求 ' + yen(S.meta.prevBill) + '・御入金 ' + yen(S.meta.nyukin) + (num(S.meta.nebiki) ? '・値引 ' + yen(S.meta.nebiki) : '') + '。請求書の「繰越額」に出ます' });
+    /* N70：先月 問い合わせのあった品 */
+    (card().inq || []).forEach(q => { if(!q.name) return; const ls = S.lines.filter(l => !l.nb && normNm(l.name) === normNm(q.name) && (!q.site || String((sheetById(l.sheet) || {}).code) === String(q.site)));
+      if(ls.length) add.push({ lv:'info', t:'前に問い合わせのあった品：' + q.name, s: q.date + '「' + (q.q || '') + '」→「' + (q.a || '') + '」。今月も同じ扱いか確かめて', id: ls[0].id, sh: ls[0].sheet }); });
+    /* N75：あるべき金額と合わない（自分の計算と合わない・理由なしにCSVとちがう） */
+    S.lines.forEach(l => {
+      if(l.nb || l.head || !l.sys) return;
+      if(l.edited || l.carried){ const t = Object.assign({}, l); calcLine(t); if(lineAmt(t) !== lineAmt(l) && !(t.kb === '一式' || t.kb === '配送' || t.kb === '訂正')) add.push({ lv:'warn', t:'金額が計算と合わない：' + l.name, s: shn(l) + '　いま ' + yen(lineAmt(l)) + '・数量×単価×日数で計算すると ' + yen(lineAmt(t)) + '。金額を押すと計算が見られる', id: l.id, sh: l.sheet }); }
+      else if(!l.manual && !l.rule && !l.dup){ const f = ['qty','lu','su','bu'].find(k => l.sys[k] != null && num(l[k]) !== num(l.sys[k])); if(f) add.push({ lv:'warn', t:'理由なくCSVとちがう：' + l.name, s: shn(l) + '　' + (FN[f] || f) + ' が CSV ' + l.sys[f] + ' → いま ' + l[f] + '（手直しの印がない）', id: l.id, sh: l.sheet }); }
+    });
+    /* N86：単価の改定日をまたいでいる */
+    (card().priceChg || []).forEach(pc => { S.lines.forEach(l => { if(l.nb || l.head || !pc.from || !l.start || !l.end) return; if(!(normNm(l.name) === normNm(pc.name) || (pc.name && normNm(l.name).indexOf(normNm(pc.name)) >= 0))) return;
+      if(l.start < pc.from && l.end >= pc.from && num(l.lu) !== num(pc.lu)) add.push({ lv:'warn', t:'単価の改定日をまたいでいる：' + l.name, s: shn(l) + '　' + md2(pc.from) + 'から ' + yen(pc.lu) + '（いま ' + yen(l.lu) + '・期間 ' + md2(l.start) + '〜' + md2(l.end) + '）。得意先の型の「単価の改定」で分けられる', id: l.id, sh: l.sheet });
+      else if(l.start >= pc.from && num(l.lu) !== num(pc.lu) && !l.edited) add.push({ lv:'info', t:'改定後の単価になっていない：' + l.name, s: shn(l) + '　' + md2(pc.from) + 'から ' + yen(pc.lu) + '（いま ' + yen(l.lu) + '）', id: l.id, sh: l.sheet }); }); });
+  }catch(e){ console.error(e); }
+  out = add.filter(x => x.never).concat(out).concat(add.filter(x => !x.never));
+  out.sort((a, b) => (b.never ? 1 : 0) - (a.never ? 1 : 0));
+  return out;
+};
+/* ダイアログを閉じる直前に、中の入力の値を控える（閉じたあとで読むため） */
+X2.dvals = {};
+X2.snapDlg = () => { const D = document.querySelector('.dlg'); if(!D) return; const o = {}; D.querySelectorAll('input[id],select[id],textarea[id]').forEach(e => { o[e.id] = e.type === 'checkbox' ? e.checked : e.value; }); X2.dvals = o; };
+document.addEventListener('click', ev => { if(ev.target.closest('.dlg [data-i]')) X2.snapDlg(); }, true);
+document.addEventListener('keydown', () => { if(document.querySelector('.dlg')) X2.snapDlg(); }, true);
+X2.dv = (id, def) => (id in X2.dvals ? X2.dvals[id] : def);
+
+/* 登録番号（T＋法人番号13けた）の検査の数字 */
+X2.invOk = v => { const m = /^T(\d)(\d{12})$/.exec(String(v || '')); if(!m) return false; const d = m[2].split('').reverse().map(Number); const sum = d.reduce((a, x, i) => a + x * (i % 2 === 0 ? 1 : 2), 0); return 9 - (sum % 9) === +m[1]; };
+
+/* ==================================================================
+   追加2-b：印刷・PDFのまわり（N56・N61・N62・N63・N68・N79・N85・N89・N90）
+   ================================================================== */
+/* N61：請求書番号（例 2610-8233-0、訂正版は -2） */
+function x2InvNo(){ if(!S.meta) return ''; const n = (E().ledger || []).length; return String(S.meta.seikyuDate || '').slice(2, 7).replace('-', '') + '-' + S.meta.custCode + '-' + (S.meta.custBr || '0') + (n ? '-' + (n + 1) : ''); }
+const _x2paperHtml = paperHtml;
+paperHtml = function(){
+  let h = _x2paperHtml();
+  if(S.opt.invNo && S.meta){ const no = x2InvNo(); h = h.replace('<div class="xsb"', '<span class="xinvno">請求書番号 ' + esc(no) + '</span><div class="xsb"'); }
+  return h;
+};
+/* N62：紙の仕上がりの点検（縮みすぎ・はみ出し・空ページ） */
+function x2PaperQA(html){
+  const W = document.createElement('div'); W.style.cssText = 'position:fixed;left:-30000px;top:0;background:#fff'; W.innerHTML = html; document.body.appendChild(W);
+  const out = [];
+  try{
+    XR.fitShrink(W); XR.sysFit(W);
+    const ps = Array.from(W.children).filter(e => e.classList && (e.classList.contains('xp') || e.classList.contains('pp')));
+    ps.forEach((p, i) => {
+      const pg = (p.dataset.pg || '') + ' ' + (i + 1) + '枚目';
+      if(String(p.innerText || '').replace(/\s/g, '').length < 15) out.push(pg + '：ほとんど何も書いていないページ');
+      p.querySelectorAll('.st.fit').forEach(e => { const m = /scaleX\(([\d.]+)\)/.exec(e.style.transform || ''); if(m && +m[1] < 0.55) out.push(pg + '：「' + String(e.innerText).trim().slice(0, 24) + '」が ' + Math.round(+m[1] * 100) + '% まで縮んでいる（読みにくい）'); });
+      p.querySelectorAll('.st:not(.fit)').forEach(e => { if(e.scrollWidth > e.clientWidth + 3 && e.clientWidth > 20) out.push(pg + '：「' + String(e.innerText).trim().slice(0, 24) + '」が枠からはみ出している'); });
+    });
+  }catch(e){}
+  W.remove();
+  return out.slice(0, 30);
+}
+/* N63：出したものの台帳（日付・取引先・金額で探せる。前の記録とつないだ指紋で、あとから書き換えたらわかる） */
+async function x2Ledger(kind, pdfName){
+  const L = (E().ledger = E().ledger || []), prev = L[L.length - 1];
+  const T = totals(), iss = (E().issued || []), last = iss[iss.length - 1];
+  const e = { no: x2InvNo(), at: nowIso(), who: X2.who(), kind, pdf: pdfName || '', cust: S.meta.custCode + '-' + (S.meta.custBr || '0'), custName: S.meta.custName, seikyuDate: S.meta.seikyuDate, payDate: S.meta.payDate || '',
+    net: T.net, tax: T.tax, gross: T.gross, fix: !!(last && last.fix), sites: S.sheets.filter(s => s.inKagami).map(s => ({ code: s.code, name: s.siteName || s.name, net: sheetNet(s) })), prevHash: prev ? prev.hash : '' };
+  e.hash = await X2.sha(JSON.stringify(e));
+  L.push(e); save();
+  try{ const all = JSON.parse(X2.ls('seikyuNaviWeb.ledger') || '[]'); all.push(Object.assign({}, e, { sites: undefined })); X2.ls('seikyuNaviWeb.ledger', JSON.stringify(all.slice(-3000))); }catch(err){}
+  return e;
+}
+const _x2print = doPrint;
+doPrint = async function(html, opt){
+  const all = typeof html !== 'string';
+  if(all && S.built && !RO()){
+    await x2AskWho(false);
+    const qa = x2PaperQA(paperHtml()), rc = x2Recon();
+    if(qa.length || rc.ng.length){
+      const v = await askDialog('紙の点検で気になるところ', (rc.ng.length ? '<p><b class="ng">照合が合わない</b></p><ul>' + rc.ng.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '') + (qa.length ? '<p><b>紙の仕上がり</b></p><ul>' + qa.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : ''),
+        [{ t:'このまま進む', v:'ok', primary:true, k:'Y' }, { t:'やめて見直す', v:null, ghost:true, k:'N' }]);
+      if(v !== 'ok') return;
+    }
+  }
+  const n0 = (E().issued || []).length;
+  const r = await _x2print(html, opt);
+  if(all && S.built && (E().issued || []).length > n0){ const pdfName = opt && opt.pdf ? (S.meta.seikyuDate || '').replace(/-/g, '').slice(2) + '_御請求書_' + String(S.meta.custName || '').replace(/\s/g, '') + '御中.pdf' : ''; await x2Ledger(opt && opt.pdf ? 'PDF' : '印刷', pdfName); }
+  return r;
+};
+/* 印刷・PDFのタブに足す */
+const _x2drawPaper = drawPaper;
+drawPaper = function(){
+  _x2drawPaper();
+  const d = $('#xPaperX'); if(!d || $('#xPaper2')) return;
+  const rc = x2Recon();
+  const e = document.createElement('div'); e.id = 'xPaper2'; e.className = 'xpaper';
+  e.innerHTML = '<div><b>照合表</b>' + (rc.ng.length ? '　<b class="ng">合わないところ ' + rc.ng.length + '</b>' : '　<span class="tag ok">合っている</span>') + '<table class="xfin">' + rc.rows.map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>').join('') + '</table>' + (rc.ng.length ? '<ul>' + rc.ng.map(t => '<li class="ng">' + esc(t) + '</li>').join('') + '</ul>' : '') + '</div>' +
+    '<div class="xp-row"><b>送る準備</b> <button class="btn sm" data-x4="cover">送付状</button><button class="btn sm" data-x4="label">宛名ラベル</button><button class="btn sm" data-x4="next">来月への申し送り</button><button class="btn sm" data-x4="sysPdf">システムのPDF（本物）とくらべる</button><button class="btn sm" data-x4="exp">先方の形式で書き出す</button><input type="file" id="xSysPdf" accept=".pdf" hidden></div>' +
+    '<div class="xp-row"><label><input type="checkbox" id="xInvNo"' + (S.opt.invNo ? ' checked' : '') + '> 請求書番号を紙に入れる（' + esc(x2InvNo()) + '）</label><span class="muted">本物の書式にない欄なので、ふだんは入れない</span></div>' +
+    ((E().ledger || []).length ? '<div class="xp-row"><b>台帳</b> ' + E().ledger.slice().reverse().slice(0, 6).map(x => esc(x.no) + ' ' + hm(x.at) + ' ' + x.kind + ' ' + yen(x.net) + (x.who ? '（' + esc(x.who) + '）' : '') + (x.fix ? '<span class="tag ng">訂正版</span>' : '')).join('　') + '</div>' : '');
+  d.insertAdjacentElement('afterend', e);
+};
+document.addEventListener('change', ev => {
+  if(ev.target.id === 'xInvNo'){ S.opt.invNo = ev.target.checked; save(); if(typeof drawPaper === 'function'){ $('#xPaperX') && $('#xPaperX').remove(); $('#xPaper2') && $('#xPaper2').remove(); drawPaper(); } }
+  if(ev.target.id === 'xSysPdf'){ const f = ev.target.files[0]; ev.target.value = ''; if(f) x2SysPdf(f); }
+});
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-x4]'); if(!b) return;
+  const k = b.dataset.x4;
+  if(k === 'cover') return x2Cover();
+  if(k === 'label') return x2Label();
+  if(k === 'next') return x2Next();
+  if(k === 'sysPdf') return $('#xSysPdf').click();
+  if(k === 'exp') return x2Export();
+});
+
+/* N68：送付状と宛名ラベル */
+function x2Me(){ return meVals(S.meta); }
+function x2Cover(){
+  const m = S.meta, me = x2Me(), c = card(), mo = +String(m.seikyuDate).slice(5, 7), ks = S.sheets.filter(s => s.inKagami);
+  const nPages = (() => { try{ const W = document.createElement('div'); W.innerHTML = paperHtml(); return W.querySelectorAll('.xp,.pp').length; }catch(e){ return ''; } })();
+  const h = '<div class="pp xcover"><div class="xcv-d">' + jdate(todayIso()) + '</div>' +
+    '<div class="xcv-to">' + esc(m.custName) + '　御中' + (c.toName ? '<br><span>' + esc(c.toName) + '　様</span>' : '') + '</div>' +
+    '<div class="xcv-me">' + esc(me.co) + '<br>〒' + esc(me.zip) + '　' + esc(me.addr) + '<br>TEL ' + esc(me.tel) + '　FAX ' + esc(me.fax) + (X2.who() ? '<br>担当：' + esc(X2.who()) : '') + '</div>' +
+    '<h1>御請求書送付のご案内</h1>' +
+    '<p>拝啓　時下ますますご清栄のこととお慶び申し上げます。平素は格別のお引き立てを賜り、厚く御礼申し上げます。<br>さて、下記のとおり ' + mo + '月分の御請求書をお送りいたしますので、ご査収くださいますようお願い申し上げます。</p><p style="text-align:right">敬具</p>' +
+    '<div class="xcv-ki">記</div><table class="xcv-t"><tr><td>書類</td><td>御請求書（' + jdate(m.seikyuDate) + '締め）</td><td>' + (nPages ? nPages + ' 枚' : '') + '</td></tr><tr><td>現場数</td><td>' + ks.length + ' 現場</td><td></td></tr><tr><td>御請求金額</td><td>' + yen(totals().gross) + ' 円（税込）</td><td></td></tr>' + (m.payDate ? '<tr><td>お支払日</td><td>' + jdate(m.payDate) + '</td><td></td></tr>' : '') + '</table><div style="text-align:right;margin-top:6mm">以上</div></div>';
+  askDialog('送付状', '<div style="zoom:.45">' + h + '</div>', [{ t:'印刷する', v:'p', primary:true }, { t:'閉じる', v:null, ghost:true }]).then(v => { if(v === 'p') X2.printRaw(h, '送付状_' + String(m.custName).replace(/\s/g, '')); });
+}
+function x2Label(){
+  const m = S.meta, me = x2Me(), c = card();
+  const h = '<div class="pp xlabel"><div class="xlb-box"><div class="xlb-zip">〒' + esc(m.zip || '') + '</div><div class="xlb-addr">' + esc(m.addr || '') + '</div><div class="xlb-name">' + esc(m.custName) + '　御中</div>' + (c.toName ? '<div class="xlb-to">' + esc(c.toName) + '　様</div>' : '') + '<div class="xlb-in">請求書在中</div></div>' +
+    '<div class="xlb-from">' + esc(me.co) + '　〒' + esc(me.zip) + ' ' + esc(me.addr) + '　TEL ' + esc(me.tel) + '</div></div>';
+  askDialog('宛名ラベル（A4に1枚・封筒に貼る／切って使う）', '<div style="zoom:.45">' + h + '</div>', [{ t:'印刷する', v:'p', primary:true }, { t:'閉じる', v:null, ghost:true }]).then(v => { if(v === 'p') X2.printRaw(h, '宛名ラベル_' + String(m.custName).replace(/\s/g, '')); });
+}
+/* N90：来月への申し送り（今月決めたことが来月どう効くか） */
+function x2Next(){
+  const sh = l => (sheetById(l.sheet) || {}).name || '';
+  const nb = S.lines.filter(l => l.nb), rules = card().rules || [], ovl = S.lines.filter(l => l.ovl), heads = S.lines.filter(l => l.head), ed = S.lines.filter(l => !l.nb && (l.edited || l.carried) && l.sys && !l.ovl && !l.head), man = S.lines.filter(l => l.manual && !l.head && !l.nb), memo = S.lines.filter(l => l.memo);
+  const li = (ls, f) => ls.slice(0, 40).map(l => '<li>' + esc(sh(l)) + '：' + esc(l.name) + (f ? f(l) : '') + '</li>').join('') + (ls.length > 40 ? '<li>…ほか ' + (ls.length - 40) + '</li>' : '');
+  const html = '<p>今月決めたことは、来月こう引き継がれます。</p>' +
+    '<h4>出さない品 ' + nb.length + '</h4><p class="muted">来月も出てきたら「先月出さなかった品」として止まる（絶対ダメ）。決まりごとにすれば聞かずに外す</p><ul>' + li(nb, l => '（' + yen(lineAmt(l)) + '）' + (l.rule ? '<span class="tag rule">決まり</span>' : '')) + '</ul>' +
+    '<h4>決まりごと ' + rules.length + '</h4><p class="muted">来月も自動で当てる</p><ul>' + rules.map(r => '<li>' + esc(r.name) + '：' + (r.type === 'nb' ? '出さない' : r.type === 'qty' ? '数量 ' + r.val : '単価 ' + yen(r.val)) + '</li>').join('') + '</ul>' +
+    '<h4>見出し ' + heads.length + '・重ねた行 ' + ovl.length + '</h4><p class="muted">来月も同じところに自動で入る</p><ul>' + li(heads.concat(ovl)) + '</ul>' +
+    '<h4>手直し ' + ed.length + '</h4><p class="muted">数量・単価・品名だけの手直しは来月も自動、分けた・別の品にしたものは「候補」で聞く</p><ul>' + li(ed, l => '（CSV ' + yen(lineAmt(l.sys)) + ' → ' + yen(lineAmt(l)) + '）') + '</ul>' +
+    '<h4>手で足した行 ' + man.length + '</h4><p class="muted">来月は「前月に手で足した行」のボタンで同じ場所に入れられる</p><ul>' + li(man, l => '（' + yen(lineAmt(l)) + '）') + '</ul>' +
+    '<h4>メモ ' + memo.length + '</h4><ul>' + li(memo, l => '：' + esc(l.memo)) + '</ul>';
+  openPanel('来月への申し送り（' + S.meta.custName + '）', html);
+}
+/* N79：先方の形式で書き出す（列を得意先ごとに選んで覚える） */
+const X2COLS = [['site','現場'],['code','現場コード'],['name','品名'],['den','伝票番号'],['kanri','管理番号'],['kashi','貸出日'],['start','開始'],['end','終了'],['ret','返却'],['qty','数量'],['unit','単位'],['kb','区分'],['days','請求日数'],['sdays','ｻﾎﾟｰﾄ日数'],['lu','賃貸単価'],['la','賃貸料'],['su','ｻﾎﾟｰﾄ単価'],['sa','ｻﾎﾟｰﾄ料'],['bu','基本料・販売単価'],['ba','基本料・販売'],['amt','金額'],['kouji','工事番号']];
+async function x2Export(){
+  const c = card(); const sel = c.expCols || ['site','name','kashi','start','end','qty','unit','days','lu','amt'];
+  const v = await askDialog('先方の形式で書き出す', '書き出す列を選んで（得意先ごとに覚える）。並びは上からの順。<div class="xcc">' + X2COLS.map(([k, t]) => '<label style="flex-direction:row;gap:6px"><input type="checkbox" id="xc_' + k + '"' + (sel.indexOf(k) >= 0 ? ' checked' : '') + '>' + t + '</label>').join('') + '</div><p><label>シートの名前 <input id="rnote" value="' + esc(c.expSheet || '請求明細') + '"></label></p>',
+    [{ t:'Excelで書き出す', v:'x', primary:true }, { t:'CSVで書き出す', v:'c' }, { t:'やめる', v:null, ghost:true }]);
+  if(!v) return;
+  const cols = X2COLS.filter(([k]) => X2.dv('xc_' + k, sel.indexOf(k) >= 0));
+  if(!cols.length){ toast('列を1つ以上選んで'); return; }
+  c.expCols = cols.map(x => x[0]); c.expSheet = X2.dv('rnote', '') || '請求明細'; cardSave(); save();
+  const val = (l, k) => { const s = sheetById(l.sheet) || {}; return k === 'site' ? (s.siteName || s.name) : k === 'code' ? s.code : k === 'kouji' ? (s.kouji || '') : k === 'den' ? denOf(l) : k === 'kanri' ? kanOf(l) : k === 'ret' ? (l.retd || l.cont || '') : k === 'amt' ? lineAmt(l) : ['qty','days','sdays','lu','la','su','sa','bu','ba'].includes(k) ? num(l[k]) : (l[k] || ''); };
+  const rows = [cols.map(x => x[1])];
+  S.sheets.filter(s => s.inKagami).forEach(s => billOf(s).forEach(l => rows.push(cols.map(([k]) => l.head ? (k === 'name' ? l.name : '') : val(l, k)))));
+  const base = (S.meta.seikyuDate || '').replace(/-/g, '').slice(2) + '_明細_' + String(S.meta.custName).replace(/\s/g, '');
+  if(v === 'c'){ X2.dl(base + '.csv', X2.csv(rows), 'text/csv'); return; }
+  if(typeof XLSX === 'undefined'){ toast('Excelの部品が読み込めていない'); return; }
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), String(c.expSheet).slice(0, 31) || '請求明細'); XLSX.writeFile(wb, base + '.xlsx');
+}
+/* N89：送付メールを Gmail の下書きで開く */
+document.addEventListener('click', ev => { if(ev.target.closest('[data-x2="mail"]')) x2Gmail(); });
+function x2Gmail(){
+  setTimeout(() => {
+    const B = document.querySelector('.dlg-b'); if(!B || B.querySelector('#xGmail')) return;
+    const p = document.createElement('p');
+    p.innerHTML = '<a class="btn sm primary" id="xGmail" target="_blank" rel="noopener">Gmailで下書きを開く</a> <label class="muted">BCC <input id="xmBcc" value="' + esc(card().bcc || '') + '" placeholder="自分のアドレスなど（得意先カードに残る）" style="width:240px"></label>';
+    B.appendChild(p);
+    const upd = () => { const to = ($('#xmTo') || {}).value || '', su = ($('#xmSub') || {}).value || '', bo = ($('#xmBody') || {}).value || '', bcc = ($('#xmBcc') || {}).value || '';
+      $('#xGmail').href = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(to) + '&su=' + encodeURIComponent(su) + '&body=' + encodeURIComponent(bo) + (bcc ? '&bcc=' + encodeURIComponent(bcc) : ''); };
+    B.addEventListener('input', ev => { if(ev.target.id === 'xmBcc'){ card().bcc = ev.target.value; cardSave(); save(); } upd(); });
+    upd();
+  }, 60);
+};
+/* N85：システムのPDF（本物）と、現場ごとの金額をくらべる */
+async function x2SysPdf(f){
+  toast('システムのPDFを読んでいます…', 30000);
+  try{
+    if(!window.pdfjsLib){ await loadJs('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'); window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+    const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+    const sites = {}; let cur = null, kgTotal = null;
+    for(let i = 1; i <= doc.numPages; i++){
+      const pg = await doc.getPage(i); const tc = await pg.getTextContent();
+      /* 行ごとにまとめる（y が近いものを1行に） */
+      const items = tc.items.map(t => ({ s: t.str, x: t.transform[4], y: Math.round(t.transform[5]) })).filter(t => t.s.trim());
+      const rows = {}; items.forEach(t => { const k = Object.keys(rows).find(y => Math.abs(+y - t.y) <= 2); (rows[k || t.y] = rows[k || t.y] || []).push(t); });
+      const lines = Object.keys(rows).sort((a, b) => b - a).map(y => rows[y].sort((a, b) => a.x - b.x).map(t => t.s).join(' ').replace(/\s+/g, ' ').trim());
+      const txt = lines.join('\n');
+      if(/この現場合計表は別紙御請求書の鑑/.test(txt)) continue;   /* 鑑のページ */
+      const sn = /現場番号\s*[:：]\s*(\d+)/.exec(txt);
+      if(sn){ cur = sn[1]; sites[cur] = sites[cur] || { code: cur, total: null, rows: 0 }; }
+      if(!cur) continue;
+      lines.forEach((ln, j) => { if(/\*{4}御買上計\*{4}/.test(ln)){ const m = /([-\d,]{1,})\s*\*{4}御買上計|\*{4}御買上計\*{4}\s*([-\d,]+)/.exec(ln) || /^([-\d,]+)$/.exec(lines[j - 1] || '') || /^([-\d,]+)$/.exec(lines[j + 1] || ''); if(m) sites[cur].total = num(String(m[1] || m[2]).replace(/,/g, '')); } });
+      sites[cur].rows += lines.filter(ln => /\b(日極|月極|一式|配送|販売|燃料|出庫|整備|修理|訂正)\b/.test(ln)).length;
+    }
+    const out = []; let same = 0;
+    Object.values(sites).forEach(s => {
+      const sh = S.sheets.find(x => String(x.code) === String(s.code));
+      if(!sh){ out.push('現場 ' + s.code + '：Web版にない（本物 ' + (s.total == null ? '?' : yen(s.total)) + '）'); return; }
+      const w = sheetNet(sh), n = billOf(sh).filter(l => !l.head).length;
+      if(s.total == null) out.push(sh.name + '：本物の合計が読めなかった');
+      else if(s.total !== w) out.push(sh.name + '：本物 ' + yen(s.total) + '・Web ' + yen(w) + '（差 ' + (w - s.total > 0 ? '+' : '') + yen(w - s.total) + '）');
+      else { same++; if(s.rows && s.rows !== n) out.push(sh.name + '：金額は同じ・行の数が本物 ' + s.rows + '／Web ' + n); }
+    });
+    S.sheets.filter(s => s.inKagami && !sites[String(s.code)]).forEach(s => out.push(s.name + '：本物のPDFにない（Web ' + yen(sheetNet(s)) + '）'));
+    $('#toast').hidden = true;
+    askDialog('システムのPDF（本物）とくらべた', '<p>本物 ' + Object.keys(sites).length + ' 現場・Web ' + S.sheets.filter(s => s.inKagami).length + ' 現場。<b>金額が同じ現場 ' + same + '</b></p>' + (out.length ? '<ul>' + out.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul><p class="muted">手直し・値引・出さないにした分は、本物とちがって当たり前です。</p>' : '<p><span class="tag ok">全部の現場が同じ</span></p>'), [{ t:'閉じる', v:1, primary:true }]);
+  }catch(e){ console.error(e); toast('PDFを読めなかった：' + (e.message || e), 6000); }
+}
+
+/* ==================================================================
+   追加2-c：現場の画面（N74・N78・N82・N86・N88・N91）
+   ================================================================== */
+const _x2drawSite = drawSite;
+drawSite = function(){
+  _x2drawSite();
+  const bar = $('#shead .xbar'); const sh = sheetById(S.cur);
+  if(!bar || !sh || bar.querySelector('[data-x5]')) return;
+  bar.insertAdjacentHTML('beforeend', '<button class="btn sm" data-x5="bridge" title="前月からの増減を、新しく貸した・返却・単価・日数・手直しに分けて">前月との差</button>' +
+    '<button class="btn sm" data-x5="sysorder" title="手で並べ替えた行を、システム（本物）の順にもどす">システムの順に</button>' +
+    '<button class="btn sm" data-x5="inq" title="お客さんから聞かれた品の、過去3か月の請求と根拠を1枚に">問い合わせの答え</button>' +
+    '<button class="btn sm" data-x5="type" title="この得意先の型（指定用紙・見出し・PDF名・送り方・決まりごと・単価の改定）">得意先の型</button>');
+};
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-x5]'); if(!b) return; ev.stopPropagation();
+  const sh = sheetById(S.cur), k = b.dataset.x5;
+  if(k === 'bridge') return x2Bridge(sh);
+  if(k === 'sysorder') return x2SysOrder(sh);
+  if(k === 'inq') return x2Inq(sh);
+  if(k === 'type') return x2Type();
+}, true);
+
+/* N74：前月との差の説明 */
+function x2Bridge(sh){
+  if(!sh) return;
+  const ls = linesOf(sh).filter(l => !l.nb && !l.head), now = sheetNet(sh), pv = sh.prev ? num(sh.prev.total) : null;
+  if(pv == null){ askDialog('前月との差', sh.name + ' は今月からの現場です（前月なし）。今月 ' + yen(now), [{ t:'閉じる', v:1, primary:true }]); return; }
+  const g = { newL: [], cont: [], man: [] };
+  ls.forEach(l => { if(l.manual || l.ovl) g.man.push(l); else if(l.pv) g.cont.push(l); else g.newL.push(l); });
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  const newAmt = sum(g.newL.map(lineAmt)), manAmt = sum(g.man.map(lineAmt));
+  /* 続いている品：前月の金額 → 今月。単価の変化・日数（期間）の変化・数量の変化・手直しに分ける */
+  let dPrice = 0, dDays = 0, dQty = 0, dOther = 0, contPrev = 0;
+  g.cont.forEach(l => { const p = l.pv, a0 = num(p.amt), a1 = lineAmt(l); contPrev += a0;
+    const lu0 = num(p.lu), q0 = num(p.qty); const t1 = Object.assign({}, l, { lu: lu0 }); calcLine(t1); const pr = a1 - lineAmt(t1);
+    const t2 = Object.assign({}, l, { lu: lu0, qty: q0 }); calcLine(t2); const qq = lineAmt(t1) - lineAmt(t2);
+    dPrice += pr; dQty += qq; const rest = (a1 - a0) - pr - qq; if(l.kb === '日極' || l.kb === '月極') dDays += rest; else dOther += rest; });
+  const gone = pv - contPrev - num(sh.prev && sh.prev.manualAmt || 0);
+  const rows = [['前月の請求', pv], ['前月にあって今月ない（返却済み など）', -gone], ['今月新しく出てきた品 ' + g.newL.length + ' 行', newAmt], ['続いている品の単価の変化', dPrice], ['続いている品の数量の変化', dQty], ['続いている品の日数（期間）の変化', dDays], ['そのほかの変化（区分・基本料 など）', dOther], ['手で足した行・重ねた行 ' + g.man.length + ' 行', manAmt]];
+  const calc = rows.reduce((a, r) => a + r[1], 0), rest = now - calc; if(rest) rows.push(['うまく分けられなかった分', rest]);
+  rows.push(['今月の請求', now]);
+  askDialog('前月との差：' + sh.name, '<table class="xfin">' + rows.map((r, i) => '<tr><td>' + esc(r[0]) + '</td><td style="text-align:right">' + (i === 0 || i === rows.length - 1 ? '<b>' + yen(r[1]) + '</b>' : (r[1] > 0 ? '+' : '') + yen(r[1])) + '</td></tr>').join('') + '</table>' +
+    (g.newL.length ? '<p><b>今月新しく出てきた品</b></p><ul>' + g.newL.slice(0, 15).map(l => '<li>' + esc(l.name) + '　' + yen(lineAmt(l)) + '</li>').join('') + '</ul>' : ''), [{ t:'閉じる', v:1, primary:true }]);
+}
+/* N88：システム（本物）の順にもどす（CSVの順。手で足した行・見出しは、すぐ上にあった行のあとのまま） */
+function x2SysOrder(sh){
+  if(!sh) return;
+  const ls = linesOf(sh); let last = -1;
+  const rk = ls.map((l, i) => { const r = l.sys && !l.dup && l.csvIx != null ? l.csvIx : null; if(r != null){ last = r; return { l, r, i }; } return { l, r: last + 0.0001 * (i + 1), i }; });
+  const sorted = rk.slice().sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.l);
+  if(sorted.every((l, i) => l === ls[i])){ toast('もうシステムの順です'); return; }
+  undoMark && undoMark();
+  const idx = ls.map(l => S.lines.indexOf(l)).sort((a, b) => a - b);
+  idx.forEach((ix, k) => { S.lines[ix] = sorted[k]; });
+  save(); drawSites(); toast('システムの順にもどした（↶ 元に戻す でもどせる）');
+}
+/* N82：問い合わせの答え（過去3か月の請求と根拠）・N70 問い合わせの記録 */
+async function x2Inq(sh){
+  if(!sh) return;
+  const ls = linesOf(sh).filter(l => !l.head);
+  const v = await askDialog('問い合わせの答え', '聞かれた品を選んで。<p><select id="xInqL" style="width:100%">' + ls.map(l => '<option value="' + l.id + '">' + esc(l.name) + '（' + esc(kanOf(l) || '') + '）' + yen(lineAmt(l)) + '</option>').join('') + '</select></p>', [{ t:'過去3か月を出す', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
+  if(v !== 'ok') return;
+  const id = X2.dv('xInqL', ls[0] && ls[0].id);
+  const l = S.lines.find(x => x.id === id) || ls[0];
+  toast('過去の作業を読んでいます…');
+  const rows = (await allWorksMeta()).filter(x => x.w && String(x.w.custCode) === String(S.meta.custCode) && String(x.w.seikyuDate || '') < String(S.meta.seikyuDate || '')).sort((a, b) => String(b.w.seikyuDate).localeCompare(String(a.w.seikyuDate))).slice(0, 3);
+  const same = x => x && (x.key && l.key && keyLoose(x.key) === keyLoose(l.key)) || (x && kanOf(x) && kanOf(x) === kanOf(l) && kanOf(l) !== 'W' && !luCode(kanOf(l))) || (x && normNm(x.name) === normNm(l.name));
+  const hist = [{ d: S.meta.seikyuDate, l, sh }];
+  for(const x of rows){ const w = await loadWork(x); if(!w || !w.lines) continue; const s2 = (w.sheets || []).find(s => String(s.code) === String(sh.code)); if(!s2) continue; w.lines.filter(y => y.sheet === s2.id && !y.head && same(y)).forEach(y => hist.push({ d: w.seikyuDate, l: y, sh: s2 })); }
+  $('#toast').hidden = true;
+  const why = y => [y.nb ? '請求書に出していない' : '', y.rule ? '決まり：' + y.rule : '', y.carried || '', y.edited && !y.carried ? '手直し' : '', y.memo ? 'メモ：' + y.memo : ''].filter(Boolean).join('／');
+  const tbl = '<table class="xinq"><tr><th>締め</th><th>品名</th><th>期間</th><th>数量</th><th>区分</th><th>日数</th><th>単価</th><th>金額</th><th>根拠</th></tr>' + hist.map(h => { const y = h.l; return '<tr><td>' + md2(h.d) + '</td><td>' + esc(y.name) + '</td><td>' + md2(y.start) + '〜' + md2(y.end) + (y.retd ? '（返却 ' + md2(y.retd) + '）' : '') + '</td><td>' + num(y.qty) + esc(y.unit || '') + '</td><td>' + esc(y.kb || '') + '</td><td>' + num(y.days) + '</td><td>' + yen(y.lu || y.bu) + '</td><td>' + yen(lineAmt(y)) + '</td><td>' + esc(why(y)) + '</td></tr>'; }).join('') + '</table>';
+  const page = '<div class="pp xinqp"><h2>ご請求内容のご説明</h2><p>' + esc(S.meta.custName) + '　御中<br>現場：' + esc(sh.siteName || sh.name) + '（' + esc(sh.code) + '）<br>品名：' + esc(l.name) + '（管理番号 ' + esc(kanOf(l) || '') + '）</p>' + tbl + '<p class="xinq-n">金額 ＝ 単価 × 数量 × 日数（月極は30日で1か月）。' + esc(meVals(S.meta).co) + '</p></div>';
+  window.__rnote = '';
+  const v2 = await askDialog('問い合わせの答え：' + l.name, tbl + '<p><b>問い合わせとして残す（来月この品が出たら知らせる）</b><br>聞かれたこと <input id="rnote" style="width:100%" placeholder="例：数量が多いのでは"><br>答え <input id="xInqA" style="width:100%" placeholder="例：9/20に2台追加で出庫"></p>',
+    [{ t:'1枚を印刷', v:'p', primary:true }, { t:'問い合わせとして残す', v:'s' }, { t:'閉じる', v:null, ghost:true }]);
+  if(v2 === 'p') X2.printRaw(page, '請求内容のご説明_' + l.name);
+  if(v2 === 's'){ const c = card(); (c.inq = c.inq || []).push({ date: todayIso(), site: sh.code, name: l.name, q: X2.dv('rnote', ''), a: X2.dv('xInqA', ''), who: X2.who() }); cardSave(); save(); toast('問い合わせを残した（来月この品が出たらチェックに出る）'); }
+}
+
+/* N78：得意先の型（N79 先方の形式・N86 単価の改定・N81 決めた絶対ダメ・N91 Excel版から移す・N89 BCC） */
+function x2Type(){
+  const c = card(), m = S.meta;
+  const lay = []; S.sheets.forEach(sh => { if(!sh.prev) return; try{ const L = prevLayoutOf(sh.prev.lines || []); const h = L.filter(p => p.head).map(p => p.name), o = L.filter(p => p.ovl).length; if(h.length || o) lay.push(sh.name + '：見出し ' + h.join('・') + (o ? '・重ねる行 ' + o : '')); }catch(e){} });
+  const form = [isSanki() ? '三貴の指定用紙（表紙・指定用紙）' : '', isYours() ? 'Yours の指定用紙（請求書）' : ''].filter(Boolean).join('・') || 'なし（本物の書式だけ）';
+  const pdfName = (m.seikyuDate || '').replace(/-/g, '').slice(2) + '_御請求書_' + String(m.custName || '').replace(/\s/g, '') + '御中';
+  const due = X2.dueOf(m.seikyuDate, c.due);
+  const html = '<div class="xtype">' +
+    '<h4>書類</h4><table class="xfin"><tr><td>指定用紙</td><td>' + esc(form) + '</td></tr><tr><td>現場名</td><td>' + (S.sheets.filter(s => s.csvSite).map(s => esc(s.name) + '：' + esc(s.siteName) + '（CSVは ' + esc(s.csvSite) + '）').join('<br>') || 'CSVのとおり') + '</td></tr><tr><td>見出し・重ね</td><td>' + (lay.map(esc).join('<br>') || 'なし') + '</td></tr><tr><td>PDFの名前</td><td>' + esc(pdfName) + '</td></tr></table>' +
+    '<h4>送り方</h4><div class="xcc"><label>宛名（ご担当）<input data-tc="toName" value="' + esc(c.toName || '') + '"></label><label>送付先メール<input data-tc="mailTo" value="' + esc(c.mailTo || '') + '"></label><label>BCC<input data-tc="bcc" value="' + esc(c.bcc || '') + '"></label><label>送り方<input data-tc="how" value="' + esc(c.how || '') + '" placeholder="メール／郵送／ポータル"></label><label>送付の期限<input data-tc="due" value="' + esc(c.due || '') + '" placeholder="翌月5日・3営業日"></label></div>' +
+    (due ? '<p class="muted">今月の期限：' + jdate(due.adj) + (due.moved ? '（' + jdate(due.raw) + ' が休みなので前の営業日）' : '') + '</p>' : '') +
+    '<h4>決まりごと ' + (c.rules || []).length + '</h4><ul>' + (c.rules || []).map(r => '<li>' + esc(r.name) + '：' + (r.type === 'nb' ? '出さない' : r.type === 'qty' ? '数量 ' + r.val : '単価 ' + yen(r.val)) + (r.note ? '（' + esc(r.note) + '）' : '') + '</li>').join('') + '</ul>' +
+    '<h4>単価の改定</h4><ul>' + (c.priceChg || []).map((p, i) => '<li>' + esc(p.name) + '：' + jdate(p.from) + 'から ' + yen(p.lu) + ' <a href="#" data-pcdel="' + i + '">×</a></li>').join('') + '</ul>' +
+    '<div class="xp-row"><input id="xPcN" placeholder="品名（例 ﾐｽﾄﾌｧﾝ）" style="width:150px"><input id="xPcF" placeholder="改定日 11/1" style="width:90px"><input id="xPcL" placeholder="新しい単価" style="width:90px" inputmode="numeric"><button class="btn sm" id="xPcAdd">足す</button><button class="btn sm" id="xPcApply" title="改定日をまたぐ行を、改定日の前と後の2行に分ける">またぐ行を分ける</button></div>' +
+    '<h4>決めた「絶対ダメ」</h4><ul>' + X2.neverRules().map((r, i) => '<li>' + esc(r.note || '') + '　［' + esc([r.name && '品名に「' + r.name + '」', r.shohin && '商品番号 ' + r.shohin, r.kb && '区分 ' + r.kb].filter(Boolean).join('・')) + '］ → ' + ({ billed:'請求書に出したらダメ', qty:'数量は ' + r.val, lu:'単価は ' + r.val, kb:'区分は ' + r.val, unit:'単位は ' + r.val })[r.cond] + (r.scope === 'all' ? '<span class="tag">全得意先</span>' : '') + ' <a href="#" data-nvdel="' + i + '">×</a></li>').join('') + '</ul>' +
+    '<button class="btn sm" id="xNvAdd">＋ 絶対ダメを足す</button>' +
+    '<h4>問い合わせの記録 ' + (c.inq || []).length + '</h4><ul>' + (c.inq || []).slice(-10).map(q => '<li>' + esc(q.date) + '　' + esc(q.name) + '：「' + esc(q.q) + '」→「' + esc(q.a) + '」</li>').join('') + '</ul>' +
+    '<h4>Excel版から移す</h4><p class="muted">Excel版の請求ナビ（.xlsm）の「手直し台帳」から、ずっと続ける手直し（数量・単価）を決まりごとに入れる</p><button class="btn sm" id="xXlImp">Excel版のファイルを選ぶ</button><input type="file" id="xXlImpF" accept=".xlsm,.xlsx" hidden>' +
+    '</div>';
+  openPanel('得意先の型：' + m.custName, html, P => {
+    P.oninput = ev => { const k = ev.target.dataset.tc; if(!k) return; card()[k] = ev.target.value; cardSave(); save(); };
+    P.onclick = async ev => {
+      const t = ev.target;
+      if(t.dataset.pcdel != null){ ev.preventDefault(); c.priceChg.splice(+t.dataset.pcdel, 1); cardSave(); save(); x2Type(); return; }
+      if(t.dataset.nvdel != null){ ev.preventDefault(); x2NeverDel(+t.dataset.nvdel); x2Type(); return; }
+      if(t.id === 'xPcAdd'){ const n = $('#xPcN').value.trim(), f = dateIn($('#xPcF').value), lu = num($('#xPcL').value); if(!n || !f || !lu){ toast('品名・改定日・単価を入れて'); return; } (c.priceChg = c.priceChg || []).push({ name: n, from: f, lu }); cardSave(); save(); x2Type(); return; }
+      if(t.id === 'xPcApply') return x2PriceSplit();
+      if(t.id === 'xNvAdd') return x2NeverAdd();
+      if(t.id === 'xXlImp') return $('#xXlImpF').click();
+    };
+    $('#xXlImpF').onchange = async () => { const f = $('#xXlImpF').files[0]; $('#xXlImpF').value = ''; if(f) await x2XlImport(f); };
+  });
+}
+/* N86：改定日をまたぐ行を2行に分ける */
+function x2PriceSplit(){
+  const c = card(); let n = 0;
+  (c.priceChg || []).forEach(pc => {
+    S.lines.slice().forEach(l => {
+      if(l.nb || l.head || !l.start || !l.end || !(l.kb === '日極' || l.kb === '月極')) return;
+      if(!(normNm(l.name) === normNm(pc.name) || normNm(l.name).indexOf(normNm(pc.name)) >= 0)) return;
+      if(!(l.start < pc.from && l.end >= pc.from) || num(l.lu) === num(pc.lu)) return;
+      const dd = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5) + 1;
+      const pre = X2.isoOf(new Date(new Date(pc.from + 'T00:00:00').getTime() - 864e5));
+      const all = dd(l.start, l.end), d1 = dd(l.start, pre), tot = num(l.days);
+      const days1 = l.kb === '日極' ? Math.min(d1, tot) : Math.round(tot * d1 / all), days2 = Math.max(0, tot - days1);
+      const b = Object.assign({}, l, { id: uid(), dup: true, start: pc.from, days: days2, sdays: num(l.sdays) ? Math.max(0, num(l.sdays) - Math.min(d1, num(l.sdays))) : 0, lu: pc.lu, edited: true, carried: '単価の改定（' + md2(pc.from) + 'から ' + yen(pc.lu) + '）で分けた後ろの行' });
+      l.end = pre; l.days = days1; if(num(l.sdays)) l.sdays = Math.min(d1, num(l.sdays)); l.edited = true; l.carried = '単価の改定（' + md2(pc.from) + '）で分けた前の行';
+      calcLine(l); calcLine(b); S.lines.splice(S.lines.indexOf(l) + 1, 0, b); n++;
+    });
+  });
+  save(); drawSites(); toast(n ? n + ' 行を改定日の前と後に分けた' : 'またぐ行はなかった');
+}
+/* N81：「絶対ダメ」を足す */
+async function x2NeverAdd(){
+  window.__rnote = '';
+  const v = await askDialog('絶対ダメを足す', '起きたミスを登録すると、毎月同じ形をさがして、直すまで印刷・PDFに進めないようにします。' +
+    '<div class="xcc"><label>品名にふくむ文字<input id="xNvN" placeholder="例 ｽﾏｰﾄﾌｫﾝ"></label><label>商品番号（あれば）<input id="xNvS" placeholder="例 ETC888"></label><label>区分（あれば）<input id="xNvK" placeholder="例 販売"></label>' +
+    '<label>ダメなこと<select id="xNvC"><option value="billed">請求書に出したらダメ</option><option value="qty">数量がこれ以外ならダメ</option><option value="lu">単価がこれ以外ならダメ</option><option value="kb">区分がこれ以外ならダメ</option><option value="unit">単位がこれ以外ならダメ</option></select></label><label>その値<input id="xNvV" placeholder="例 3"></label>' +
+    '<label>どこで<select id="xNvA"><option value="cust">この得意先だけ</option><option value="all">全得意先</option></select></label><label class="w">理由・メモ<input id="rnote" placeholder="例：先方の指示でスマホは請求しない"></label></div>',
+    [{ t:'足す', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
+  if(v !== 'ok') return;
+  const g = id => String(X2.dv(id, '') || '').trim();
+  const r = { name: g('xNvN'), shohin: g('xNvS'), kb: g('xNvK'), cond: g('xNvC') || 'billed', val: g('xNvV'), note: g('rnote'), scope: g('xNvA') || 'cust', at: todayIso() };
+  if(!r.name && !r.shohin && !r.kb){ toast('品名か商品番号か区分を入れて'); return; }
+  if(r.scope === 'all'){ let a = []; try{ a = JSON.parse(X2.ls('seikyuNaviWeb.never') || '[]'); }catch(e){} a.push(r); X2.ls('seikyuNaviWeb.never', JSON.stringify(a)); }
+  else { const c = card(); (c.never = c.never || []).push(r); cardSave(); }
+  save(); updChkBadge(); toast('絶対ダメを足した'); if($('#xpanel') && !$('#xpanel').hidden) x2Type();
+}
+function x2NeverDel(i){
+  let g = []; try{ g = JSON.parse(X2.ls('seikyuNaviWeb.never') || '[]'); }catch(e){}
+  if(i < g.length){ g.splice(i, 1); X2.ls('seikyuNaviWeb.never', JSON.stringify(g)); }
+  else { const c = card(); (c.never || []).splice(i - g.length, 1); cardSave(); }
+  save(); updChkBadge();
+}
+/* N91：Excel版の「手直し台帳」から、ずっと続ける数量・単価の手直しを決まりごとへ */
+async function x2XlImport(f){
+  if(typeof XLSX === 'undefined'){ toast('Excelの部品が読み込めていない'); return; }
+  let wb; try{ wb = XLSX.read(await f.arrayBuffer(), { type:'array', bookVBA:false }); }catch(e){ toast('読めなかった：' + (e.message || e), 5000); return; }
+  const ws = wb.Sheets['手直し台帳']; if(!ws){ toast('「手直し台帳」のシートがない（請求ナビ v240 より前のファイル？）', 6000); return; }
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+  const hi = rows.findIndex(r => r && r.indexOf('品名') >= 0 && r.indexOf('欄') >= 0); if(hi < 0){ toast('手直し台帳の見出しが見つからない'); return; }
+  const H = rows[hi], ci = n => H.indexOf(n);
+  const c = card(); c.rules = c.rules || []; let n = 0; const skip = [];
+  rows.slice(hi + 1).forEach(r => {
+    if(!r || !r[ci('品名')]) return;
+    const fld = String(r[ci('欄')] || ''), keep = String(r[ci('続ける')] || ''), val = String(r[ci('手直しの値')] || '').replace(/[,円\s]/g, ''), mk = String(r[ci('目印')] || '').split('|');
+    if(!/ずっと/.test(keep)){ return; }
+    const type = /数量/.test(fld) ? 'qty' : /単価/.test(fld) ? 'lu' : /出さない|外/.test(fld) ? 'nb' : '';
+    if(!type){ skip.push(r[ci('品名')] + '（' + fld + '）'); return; }
+    const site = mk[0] && /^\d+$/.test(mk[0]) ? mk[0] : '', kanri = mk[2] || '';
+    if(c.rules.some(x => x.type === type && normNm(x.name) === normNm(r[ci('品名')]) && String(x.site || '') === site && String(x.kanri || '') === String(kanri))) return;
+    c.rules.push({ type, name: r[ci('品名')], val: type === 'nb' ? '' : num(val), site, kanri: kanri && kanri !== 'W' ? kanri : '', note: 'Excel版の手直し台帳から（' + (r[ci('理由')] || '') + '）', on: true }); n++;
+  });
+  cardSave(); const a = applyRules(true); save(); drawSites();
+  askDialog('Excel版から移した', '決まりごとに <b>' + n + ' 件</b>入れた（今月の行に ' + a + ' 件当てた）。' + (skip.length ? '<br>決まりごとにできないもの（手で足した行など。前月のファイルから自動で引き継がれる）：' + skip.length + ' 件' : ''), [{ t:'わかった', v:1, primary:true }]);
+}
+
+/* ==================================================================
+   追加2-d：控え・締めの管理（N63・N65・N66・N67・N71・N73・N80・N83・N84・N87・N92・N95）・チェック（N72・N81）
+   ================================================================== */
+/* ---------------- N66：毎日の世代バックアップ（この端末に30日） ---------------- */
+X2.bk = (function(){
+  let dbp = null;
+  const db = () => dbp || (dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('seikyuNaviBk', 1); r.onupgradeneeded = () => r.result.createObjectStore('bk'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }));
+  const tx = (mode, fn) => db().then(d => new Promise((res, rej) => { const t = d.transaction('bk', mode); const st = t.objectStore('bk'); let out; const r = fn(st); if(r) r.onsuccess = () => { out = r.result; }; t.oncomplete = () => res(out); t.onerror = () => rej(t.error); }));
+  return {
+    put: (k, v) => tx('readwrite', st => st.put(v, k)),
+    keys: () => tx('readonly', st => st.getAllKeys()),
+    get: k => tx('readonly', st => st.get(k)),
+    del: k => tx('readwrite', st => st.delete(k))
+  };
+})();
+let x2BkT = 0;
+const _x2save2 = save;
+save = function(){
+  _x2save2();
+  if(!S.built || !S.workId || RO()) return;
+  clearTimeout(x2BkT);
+  x2BkT = setTimeout(async () => {
+    try{
+      const day = todayIso(), k = S.workId + '@' + day;
+      const ks = await X2.bk.keys();
+      const o = snapshot(); await X2.bk.put(k, { at: nowIso(), o });   /* その日の最後の形を残す */
+      const old = X2.isoOf(new Date(Date.now() - 30 * 864e5));
+      for(const x of ks){ const d = String(x).split('@')[1] || ''; if(d && d < old) await X2.bk.del(x); }
+    }catch(e){}
+  }, 4000);
+};
+async function x2Backups(){
+  let ks = []; try{ ks = (await X2.bk.keys()).map(String).sort().reverse(); }catch(e){}
+  const rows = ks.map(k => { const [id, d] = k.split('@'); return { k, id, d }; });
+  const html = rows.length ? '<table class="xlog"><tr><th>日</th><th>作業</th><th></th></tr>' + rows.map(r => '<tr><td>' + esc(r.d) + '</td><td>' + esc(r.id) + '</td><td><button class="btn sm" data-bkr="' + esc(r.k) + '">この日の形を開く</button></td></tr>').join('') + '</table><p class="muted">開くと、その日の最後に保存した形で作業を開きます（いまの作業は上書きされる前に、今日の分として残ります）。</p>' : '<p>まだありません（保存するたびに、その日の最後の形を30日残します）。</p>';
+  openPanel('毎日の控え（この端末・30日）', html, P => { P.onclick = async ev => { const b = ev.target.closest('[data-bkr]'); if(!b) return;
+    const x = await X2.bk.get(b.dataset.bkr); if(!x || !x.o) return;
+    const v = await askDialog('この日の形を開く', esc(b.dataset.bkr) + ' の形で開きます。いまの作業はこの形で置きかわります（↶元に戻す ではもどせないので、いまの形は今日の控えに残します）。', [{ t:'開く', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
+    if(v !== 'ok') return;
+    if(S.built && S.workId){ try{ await X2.bk.put(S.workId + '@' + todayIso() + '-前', { at: nowIso(), o: snapshot() }); }catch(e){} }
+    const o = JSON.parse(JSON.stringify(x.o)); o.savedAt = nowIso(); openWork(o); S.workId = o.id; save(); await saveNow(); P.hidden = true; setTab('sites'); toast('その日の形で開いた'); }; });
+}
+
+/* ---------------- N67：送付の記録（送付済にするとき） ---------------- */
+const _x2wa = workAction;
+workAction = async function(ev, rows, redraw){
+  const st = ev.target.closest('[data-wst]');
+  if(!st || st.dataset.v !== 'sent') return _x2wa(ev, rows, redraw);
+  const id = st.dataset.wst, r = rows.find(x => x.id === id);
+  const c = (S.built && S.workId === id) ? card() : (cardLoad(r && r.w.custCode) || {});
+  const v = await askDialog('送付の記録', esc(r ? r.w.custName : '') + '　' + (r ? jdate(r.w.seikyuDate) : '') + '締め' +
+    '<div class="xcc"><label>送り方<select id="xsHow">' + ['メール','郵送','ポータル','持参','FAX'].map(h => '<option' + (String(c.how || '').indexOf(h) >= 0 ? ' selected' : '') + '>' + h + '</option>').join('') + '</select></label><label>送った日<input id="xsDate" value="' + md2(todayIso()) + '"></label><label class="w">宛先<input id="xsTo" value="' + esc(c.mailTo || c.toName || '') + '"></label><label class="w">メモ<input id="xsMemo" placeholder="例：〇〇さまに手渡し"></label></div>',
+    [{ t:'送付済にする', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
+  if(v !== 'ok') return;
+  const rec = { how: X2.dv('xsHow', 'メール'), date: dateIn(X2.dv('xsDate', '')) || todayIso(), to: X2.dv('xsTo', ''), memo: X2.dv('xsMemo', ''), who: X2.who(), at: nowIso() };
+  if(S.built && S.workId === id){ E().sent = rec; S.status = 'sent'; save(); await saveNow(); }
+  else { let w = await WK.get(id); if(!w){ try{ w = await cloudGet(id); }catch(e){} } if(!w){ toast('作業が読めなかった'); return; }
+    w.status = 'sent'; w.ext = w.ext || {}; w.ext.sent = rec; w.sentAt = rec.date; w.sentHow = rec.how; w.savedAt = nowIso(); await WK.put(w); const p = pendList(); if(p.indexOf(id) < 0){ p.push(id); pendSet(p); } clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 1500); }
+  toast('送付済にした（' + rec.how + '・' + md2(rec.date) + '）'); redraw();
+};
+
+/* ---------------- 控えに足す：締めの管理 ---------------- */
+async function x2Rows(){
+  const rows = await allWorksMeta();
+  try{ const all = await WK.all(); const m = {}; all.forEach(o => { m[o.id] = o; }); rows.forEach(x => { const o = m[x.id]; if(o && (!x.cl || String(o.savedAt) >= String(x.cl.savedAt || ''))){ x.w = Object.assign({}, x.w, { nChk: o.nChk, nNever: o.nNever, nSeen: o.nSeen, nKg: o.nKg, nEdit: o.nEdit, nFix: o.nFix, payDate: o.payDate || (o.meta && o.meta.payDate), nbAmt: o.nbAmt, nebAmt: o.nebAmt, sentAt: o.sentAt, sentHow: o.sentHow, sysNet: o.sysNet != null ? o.sysNet : x.w.sysNet, kuri: o.kuri }); } }); }catch(e){}
+  return rows;
+}
+const X2ym = rows => rows.map(x => String(x.w.seikyuDate || '').slice(0, 7)).filter(Boolean).sort().pop() || '';
+const _x2hk = drawHikae;
+drawHikae = async function(reload){
+  await _x2hk(reload);
+  const L = $('#hkList'); if(!L || $('#xHk2')) return;
+  const rows = await x2Rows(), ym = X2ym(rows), cur = rows.filter(x => String(x.w.seikyuDate || '').slice(0, 7) === ym);
+  const nv = cur.reduce((a, x) => a + num(x.w.nNever), 0), ck = cur.reduce((a, x) => a + num(x.w.nChk), 0);
+  const d = document.createElement('div'); d.id = 'xHk2'; d.className = 'hk-g xboard';
+  d.innerHTML = '<div class="hk-gh"><b>締めの道具（' + X2.ymj(ym) + '）</b><span>絶対ダメの残り <b class="' + (nv ? 'ng' : '') + '">' + nv + '</b></span><span>要確認の残り ' + ck + '</span></div>' +
+    '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px">' +
+    [['remain','全得意先の残り'],['missing','請求漏れの得意先'],['flash','今月の見込み（速報）'],['report','締めレポート（社長向け）'],['cal','締めの日程表'],['pay','入金予定表'],['card','手間の通信簿'],['ledger','出したものの台帳'],['audit','記録をCSVで'],['bk','毎日の控え'],['set','設定（名前・暗号化・休み）']].map(([k, t]) => '<button class="btn sm" data-x6="' + k + '">' + t + '</button>').join('') + '</div>';
+  L.insertAdjacentElement('afterbegin', d);
+  d.onclick = ev => { const b = ev.target.closest('[data-x6]'); if(!b) return; x2Tool(b.dataset.x6, rows, ym); };
+};
+function x2Tool(k, rows, ym){
+  const cur = rows.filter(x => String(x.w.seikyuDate || '').slice(0, 7) === ym);
+  const st = x => STATUS[x.w.status || 'draft'][0];
+  if(k === 'remain'){   /* N84 */
+    const rs = cur.slice().sort((a, b) => num(b.w.nNever) - num(a.w.nNever) || num(b.w.nChk) - num(a.w.nChk));
+    openPanel('全得意先の残り（' + X2.ymj(ym) + '）', '<table class="xlog"><tr><th>得意先</th><th>状態</th><th class="n">絶対ダメ</th><th class="n">要確認</th><th class="n">見た現場</th></tr>' + rs.map(x => '<tr><td>' + esc(x.w.custName) + '</td><td>' + st(x) + '</td><td class="n">' + (x.w.nNever == null || x.w.nNever === '' ? '—' : (+x.w.nNever ? '<b class="ng">' + x.w.nNever + '</b>' : '0')) + '</td><td class="n">' + (x.w.nChk == null || x.w.nChk === '' ? '—' : x.w.nChk) + '</td><td class="n">' + (x.w.nKg ? (x.w.nSeen || 0) + '/' + x.w.nKg : '—') + '</td></tr>').join('') + '</table><p class="muted">「—」は前の版で保存した作業（開いて保存し直すと出る）</p>');
+  }
+  if(k === 'missing'){   /* N83 */
+    const pm = ymAdd(ym, -1), last = rows.filter(x => String(x.w.seikyuDate || '').slice(0, 7) === pm), have = new Set(cur.map(x => x.w.custCode + '-' + (x.w.custBr || '0')));
+    const miss = last.filter(x => !have.has(x.w.custCode + '-' + (x.w.custBr || '0')));
+    openPanel('請求漏れの得意先（' + X2.ymj(ym) + '）', '<p>先月（' + X2.ymj(pm) + '）は請求したのに、今月の作業がまだない得意先：<b>' + miss.length + '</b></p><table class="xlog"><tr><th>得意先</th><th>先月の締め</th><th class="n">先月の税抜</th></tr>' + miss.map(x => '<tr><td>' + esc(x.w.custName) + '</td><td>' + md2(x.w.seikyuDate) + '</td><td class="n">' + yen(x.w.net) + '</td></tr>').join('') + '</table><p class="muted">今月はもう貸していない得意先なら問題なし。CSVの出し忘れに注意</p>');
+  }
+  if(k === 'flash'){   /* N80 */
+    const pm = ymAdd(ym, -1), last = rows.filter(x => String(x.w.seikyuDate || '').slice(0, 7) === pm);
+    const by = {}; last.forEach(x => { by[x.w.custCode + '-' + (x.w.custBr || '0')] = { name: x.w.custName, prev: num(x.w.net), now: null, st: '' }; });
+    cur.forEach(x => { const k2 = x.w.custCode + '-' + (x.w.custBr || '0'); by[k2] = by[k2] || { name: x.w.custName, prev: null }; by[k2].now = num(x.w.net); by[k2].st = st(x); });
+    const rs = Object.values(by).sort((a, b) => num(b.now != null ? b.now : b.prev) - num(a.now != null ? a.now : a.prev));
+    const est = rs.reduce((a, r) => a + (r.now != null ? r.now : num(r.prev)), 0), done = rs.filter(r => r.now != null).reduce((a, r) => a + r.now, 0);
+    openPanel('今月の見込み（速報・' + X2.ymj(ym) + '）', '<p>作業がある得意先 ' + yen(done) + '＋まだの得意先は先月の額で見込む → <b>見込み ' + yen(est) + '</b>（税抜）</p><table class="xlog"><tr><th>得意先</th><th class="n">先月</th><th class="n">今月</th><th>状態</th></tr>' + rs.map(r => '<tr><td>' + esc(r.name) + '</td><td class="n">' + (r.prev == null ? '—' : yen(r.prev)) + '</td><td class="n">' + (r.now == null ? '<span class="muted">（' + yen(r.prev) + ' で見込み）</span>' : yen(r.now)) + '</td><td>' + esc(r.st || 'まだ') + '</td></tr>').join('') + '</table>');
+  }
+  if(k === 'report') return x2Report(cur, ym);
+  if(k === 'cal') return x2Cal(cur, ym);
+  if(k === 'pay'){   /* N87 */
+    const rs = cur.filter(x => x.w.payDate).sort((a, b) => String(a.w.payDate).localeCompare(String(b.w.payDate)));
+    openPanel('入金予定表（' + X2.ymj(ym) + '締め）', '<table class="xlog"><tr><th>お支払日</th><th>得意先</th><th class="n">税込</th><th>状態</th></tr>' + rs.map(x => { const pd = x.w.payDate, off = X2.isOff(pd); return '<tr><td>' + md2(pd) + (off ? ' <span class="tag">休み→' + md2(X2.prevBiz(pd)) + 'か翌営業日</span>' : '') + '</td><td>' + esc(x.w.custName) + '</td><td class="n">' + yen(num(x.w.net) + num(x.w.tax)) + '</td><td>' + st(x) + '</td></tr>'; }).join('') + '<tr><td></td><td><b>合計</b></td><td class="n"><b>' + yen(rs.reduce((a, x) => a + num(x.w.net) + num(x.w.tax), 0)) + '</b></td><td></td></tr></table>' +
+      (cur.length > rs.length ? '<p class="muted">お支払日がわからない作業 ' + (cur.length - rs.length) + ' 件（前の版で保存したもの。開いて保存し直すと入る）</p>' : '') + '<button class="btn sm" id="xPayCsv">CSVで書き出す</button>', P => { P.querySelector('#xPayCsv').onclick = () => X2.dl('入金予定表_' + ym + '.csv', X2.csv([['お支払日','得意先コード','得意先','税抜','消費税','税込','状態']].concat(rs.map(x => [x.w.payDate, x.w.custCode, x.w.custName, num(x.w.net), num(x.w.tax), num(x.w.net) + num(x.w.tax), st(x)]))), 'text/csv'); });
+  }
+  if(k === 'card'){   /* N95 */
+    const yms = Array.from(new Set(rows.map(x => String(x.w.seikyuDate || '').slice(0, 7)).filter(Boolean))).sort().slice(-6);
+    const by = {}; rows.forEach(x => { const y = String(x.w.seikyuDate || '').slice(0, 7); if(yms.indexOf(y) < 0) return; const k2 = x.w.custName; (by[k2] = by[k2] || {})[y] = x.w; });
+    const cellOf = w => !w ? '' : (w.nEdit == null ? '<span class="muted">—</span>' : '手 ' + w.nEdit + (num(w.nNever) ? '・<b class="ng">ダメ ' + w.nNever + '</b>' : '') + (num(w.nFix) ? '・訂正 ' + w.nFix : ''));
+    openPanel('手間の通信簿（得意先×月）', '<p class="muted">手＝手直し・手で足した行の数、ダメ＝絶対ダメの残り、訂正＝訂正版を出した回数。手間の多い得意先は、システム側で直してもらう相談の材料に</p><table class="xlog"><tr><th>得意先</th>' + yms.map(y => '<th>' + X2.ymj(y).replace(/^\d+年/, '') + '</th>').join('') + '</tr>' +
+      Object.keys(by).sort((a, b) => yms.reduce((s, y) => s + num((by[b][y] || {}).nEdit), 0) - yms.reduce((s, y) => s + num((by[a][y] || {}).nEdit), 0)).map(n => '<tr><td>' + esc(n) + '</td>' + yms.map(y => '<td>' + cellOf(by[n][y]) + '</td>').join('') + '</tr>').join('') + '</table>');
+  }
+  if(k === 'ledger') return x2LedgerView();
+  if(k === 'audit') return x2Audit(rows);
+  if(k === 'bk') return x2Backups();
+  if(k === 'set') return x2Settings();
+}
+/* N71：月の締めレポート（社長向け1枚） */
+async function x2Report(cur, ym){
+  const rs = cur.slice().sort((a, b) => num(b.w.net) - num(a.w.net));
+  const sum = f => rs.reduce((a, x) => a + num(f(x)), 0);
+  const tr = x => '<tr><td>' + esc(x.w.custName) + '</td><td class="n">' + yen(x.w.net) + '</td><td class="n">' + (x.w.sysNet == null || x.w.sysNet === '' ? '—' : yen(x.w.sysNet)) + '</td><td class="n">' + (x.w.sysNet == null || x.w.sysNet === '' ? '—' : ((num(x.w.net) - num(x.w.sysNet) > 0 ? '+' : '') + yen(num(x.w.net) - num(x.w.sysNet)))) + '</td><td class="n">' + (x.w.nEdit == null ? '—' : x.w.nEdit) + '</td><td class="n">' + (x.w.nebAmt ? yen(x.w.nebAmt) : '') + '</td><td class="n">' + (x.w.nbAmt ? yen(x.w.nbAmt) : '') + '</td><td>' + STATUS[x.w.status || 'draft'][0] + '</td></tr>';
+  const page = '<div class="pp xrep"><h2>' + X2.ymj(ym) + '締め　請求のまとめ</h2><p>' + esc(meVals(S.meta || {}).co || '株式会社ワークス') + '　作成 ' + jdate(todayIso()) + (X2.who() ? '（' + esc(X2.who()) + '）' : '') + '</p>' +
+    '<table class="xrep-t"><tr><th>得意先</th><th>請求（税抜）</th><th>システム</th><th>差</th><th>手直し</th><th>値引</th><th>出さない</th><th>状態</th></tr>' + rs.map(tr).join('') +
+    '<tr class="tot"><td>合計 ' + rs.length + '社</td><td class="n">' + yen(sum(x => x.w.net)) + '</td><td class="n">' + yen(sum(x => x.w.sysNet)) + '</td><td class="n">' + yen(sum(x => num(x.w.net) - num(x.w.sysNet || x.w.net))) + '</td><td class="n">' + sum(x => x.w.nEdit) + '</td><td class="n">' + yen(sum(x => x.w.nebAmt)) + '</td><td class="n">' + yen(sum(x => x.w.nbAmt)) + '</td><td>' + ['draft','printed','sent'].map(s => STATUS[s][0] + ' ' + rs.filter(x => (x.w.status || 'draft') === s).length).join('・') + '</td></tr></table>' +
+    '<p class="xinq-n">差＝請求とシステム（CSV）の差（手直し・値引・出さない・重ねた行など）。「—」は前の版で保存した作業。</p></div>';
+  const v = await askDialog('締めレポート（' + X2.ymj(ym) + '）', '<div style="zoom:.5">' + page + '</div>', [{ t:'印刷する', v:'p', primary:true }, { t:'PDFで保存', v:'f' }, { t:'閉じる', v:null, ghost:true }]);
+  if(v === 'p') X2.printRaw(page, '締めレポート_' + ym);
+  if(v === 'f'){ const P = $('#print'); P.innerHTML = page; makePdf(P, '締めレポート_' + ym); }
+}
+/* N73：締めの日程表（送付の期限・お支払日を月のカレンダーに。N94 休みは前の営業日） */
+function x2Cal(cur, ym){
+  const ev = {};
+  const push = (d, t, cls) => { if(!d) return; (ev[d] = ev[d] || []).push('<span class="' + cls + '">' + t + '</span>'); };
+  cur.forEach(x => { const c = cardLoad(x.w.custCode) || {}; const du = X2.dueOf(x.w.seikyuDate, c.due); const s = x.w.status || 'draft';
+    if(du) push(du.adj, '送付：' + esc(x.w.custName) + (s === 'sent' ? ' ✓' : ''), s === 'sent' ? 'ok' : (du.adj < todayIso() ? 'ng' : 'due'));
+    if(x.w.payDate) push(x.w.payDate, '入金：' + esc(x.w.custName), 'pay'); });
+  const months = [ymAdd(ym, 1), ymAdd(ym, 2)];
+  const grid = m => { const y = +m.slice(0, 4), mo = +m.slice(5, 7), first = new Date(y, mo - 1, 1), days = new Date(y, mo, 0).getDate();
+    let h = '<h4>' + y + '年' + mo + '月</h4><table class="xcal"><tr>' + ['日','月','火','水','木','金','土'].map(w => '<th>' + w + '</th>').join('') + '</tr><tr>' + '<td></td>'.repeat(first.getDay());
+    for(let d = 1; d <= days; d++){ const iso = m + '-' + pad2(d), wd = new Date(y, mo - 1, d).getDay(); if(wd === 0 && d > 1) h += '</tr><tr>'; h += '<td class="' + (X2.isOff(iso) ? 'off' : '') + (iso === todayIso() ? ' today' : '') + '"><b>' + d + '</b>' + (ev[iso] || []).join('') + '</td>'; }
+    return h + '</tr></table>'; };
+  const noDue = cur.filter(x => !X2.dueOf(x.w.seikyuDate, (cardLoad(x.w.custCode) || {}).due));
+  openPanel('締めの日程表', months.map(grid).join('') + (noDue.length ? '<p class="muted">送付の期限が決まっていない得意先：' + noDue.map(x => esc(x.w.custName)).join('、') + '（得意先カードの「送付の期限」に「翌月5日」などと入れると出る）</p>' : '') + '<p class="muted">休み（土日・祝日・年末年始）にかかる期限は、前の営業日にずらしています。</p>');
+}
+/* N63：出したものの台帳（日付・取引先・金額で探す）・N65：記録をCSVで */
+function x2LedgerAll(){ try{ return JSON.parse(X2.ls('seikyuNaviWeb.ledger') || '[]'); }catch(e){ return []; } }
+async function x2LedgerView(){
+  const L = x2LedgerAll().slice().reverse();
+  const html = '<div class="xp-row"><input id="xLgQ" placeholder="取引先・番号でさがす" style="width:160px"><input id="xLgF" placeholder="日付 から 10/1" style="width:90px"><input id="xLgT" placeholder="まで 10/31" style="width:90px"><input id="xLgA" placeholder="金額 以上" style="width:90px" inputmode="numeric"><input id="xLgB" placeholder="以下" style="width:80px" inputmode="numeric"></div><div id="xLgR"></div>' +
+    '<p class="muted">印刷・PDFにしたときに自動で残ります（この端末）。前の記録とつないだ指紋（ハッシュ）で、あとから書き換えたらわかります。PDFのファイルそのものは、決めたフォルダに保存してください（電子帳簿保存法の細かい決まりは税理士さんに確認を）。</p><button class="btn sm" id="xLgChk">書き換えがないか確かめる</button> <button class="btn sm" id="xLgCsv">台帳をCSVで</button>';
+  openPanel('出したものの台帳', html, P => {
+    const draw = () => { const q = ($('#xLgQ').value || '').trim(), f = dateIn($('#xLgF').value) || '', t = dateIn($('#xLgT').value) || '', a = num($('#xLgA').value), b = num($('#xLgB').value);
+      const rs = L.filter(x => (!q || (x.custName + x.no + x.cust).indexOf(q) >= 0) && (!f || x.at.slice(0, 10) >= f) && (!t || x.at.slice(0, 10) <= t) && (!a || x.gross >= a) && (!b || x.gross <= b));
+      $('#xLgR').innerHTML = '<table class="xlog"><tr><th>番号</th><th>出した日</th><th>取引先</th><th>締め</th><th class="n">税込</th><th>種類</th><th>だれ</th></tr>' + rs.slice(0, 300).map(x => '<tr><td>' + esc(x.no) + (x.fix ? '<span class="tag ng">訂正</span>' : '') + '</td><td>' + hm(x.at) + '</td><td>' + esc(x.custName) + '</td><td>' + md2(x.seikyuDate) + '</td><td class="n">' + yen(x.gross) + '</td><td>' + esc(x.kind) + (x.pdf ? '<br><small>' + esc(x.pdf) + '</small>' : '') + '</td><td>' + esc(x.who || '') + '</td></tr>').join('') + '</table>'; };
+    P.oninput = draw; draw();
+    P.querySelector('#xLgCsv').onclick = () => X2.dl('出したものの台帳_' + todayIso().replace(/-/g, '') + '.csv', X2.csv([['番号','出した日時','取引先コード','取引先','締め','お支払日','税抜','消費税','税込','種類','PDFの名前','訂正版','だれ','指紋']].concat(L.slice().reverse().map(x => [x.no, x.at, x.cust, x.custName, x.seikyuDate, x.payDate, x.net, x.tax, x.gross, x.kind, x.pdf, x.fix ? '訂正版' : '', x.who, x.hash]))), 'text/csv');
+    P.querySelector('#xLgChk').onclick = async () => { const ws = await allWorksMeta(); let bad = 0, n = 0;
+      for(const x of ws){ const w = await loadWork(x); const lg = w && w.ext && w.ext.ledger; if(!lg) continue; let prev = '';
+        for(const e of lg){ n++; const c = Object.assign({}, e); delete c.hash; const h = await X2.sha(JSON.stringify(c)); if(h !== e.hash || e.prevHash !== prev) bad++; prev = e.hash; } }
+      toast(n + ' 件を確かめた：' + (bad ? '書き換えのあとが ' + bad + ' 件' : '書き換えなし'), 7000); };
+  });
+}
+async function x2Audit(rows){
+  toast('作業を読んでいます…');
+  const out = [['得意先','締め','いつ','だれ','現場','品','どこ','前','後']];
+  for(const x of rows){ const w = await loadWork(x); if(!w || !w.ext || !w.ext.log) continue; const shn = id => ((w.sheets || []).find(s => s.id === id) || {}).name || '';
+    w.ext.log.forEach(e => out.push([w.custName, w.seikyuDate, e.at, e.who || '', shn(e.sh), e.name, FN[e.f] || (e.f === '+' ? '追加' : e.f === '-' ? '削除' : e.f), e.from, e.to])); }
+  X2.dl('請求ナビ_変更の記録_' + todayIso().replace(/-/g, '') + '.csv', X2.csv(out), 'text/csv'); toast((out.length - 1) + ' 件を書き出した');
+}
+
+/* ---------------- 設定：作業する人（N64）・クラウドの暗号化（N92）・休み（N94） ---------------- */
+async function x2Settings(){
+  const enc = !!X2.ls('seikyuNaviWeb.encKey');
+  const html = '<h4>作業する人（この端末）</h4><p>' + (X2.who() ? esc(X2.who()) : '<span class="muted">まだ</span>') + '　<button class="btn sm" id="xSetWho">変える</button></p>' +
+    '<h4>クラウドの暗号化（合言葉）</h4><p>' + (enc ? '<span class="tag ok">この端末は合言葉あり</span>' : '<span class="muted">なし</span>') + '</p><p class="muted">合言葉を入れると、クラウドに置く作業の中身（明細・金額）を暗号にして送ります。ほかの端末で開くときも同じ合言葉が要ります。<b>合言葉を忘れると、クラウドの中身は二度と読めません</b>（この端末に残っている分は読める）。一覧の見出し（得意先名・合計）は暗号にしません。</p><button class="btn sm" id="xSetEnc">' + (enc ? '合言葉を変える' : '合言葉を入れる') + '</button>' + (enc ? ' <button class="btn sm ghost" id="xSetEncOff">この端末から合言葉を消す</button>' : '') +
+    '<h4>画面の動き</h4><p><label><input type="checkbox" id="xSetMotion"' + (X2.ls('seikyuNaviWeb.nomotion') ? ' checked' : '') + '> 動きを少なくする（ふわっと・ぽん などを止める）</label></p>' +
+    '<h4>会社の休み（年末年始など）</h4><p class="muted">土日・祝日のほかに休む日（月-日、カンマ区切り）</p><input id="xSetOff" value="' + esc(X2.offExtra().join(',')) + '" style="width:100%">';
+  openPanel('設定', html, P => {
+    P.querySelector('#xSetWho').onclick = async () => { await x2AskWho(true); x2Settings(); };
+    P.querySelector('#xSetMotion').onchange = ev => { X2.ls('seikyuNaviWeb.nomotion', ev.target.checked ? '1' : null); document.body.classList.toggle('nomotion', ev.target.checked); toast(ev.target.checked ? '動きを少なくした' : '動きをもどした'); };
+    P.querySelector('#xSetOff').onchange = ev => { X2.ls('seikyuNaviWeb.offDays', ev.target.value); toast('休みの日を残した'); };
+    P.querySelector('#xSetEnc').onclick = async () => { window.__rnote = ''; const v = await askDialog('合言葉', '8文字以上。<b>忘れると読めなくなる</b>ので、紙などに残して。<p><input id="rnote" style="width:100%" type="password"></p><p>もう一度 <input id="xEnc2" style="width:100%" type="password"></p>', [{ t:'残す', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
+      if(v !== 'ok') return; const a = X2.dv('rnote', ''), b = X2.dv('xEnc2', ''); if(a.length < 8 || a !== b){ toast('8文字以上で、2回同じに入れて', 5000); return; }
+      X2.ls('seikyuNaviWeb.encKey', a); X2.encKey = null; toast('合言葉を残した。次の保存から暗号にして送る', 5000); if(S.built) save(); x2Settings(); };
+    const off = P.querySelector('#xSetEncOff'); if(off) off.onclick = () => { X2.ls('seikyuNaviWeb.encKey', null); X2.encKey = null; toast('この端末から合言葉を消した（次の保存から暗号にしない）', 5000); x2Settings(); };
+  });
+}
+/* N92：packJson / unpackJson に暗号（AES-GCM・合言葉から PBKDF2）をはさむ */
+X2.key = async () => {
+  const pw = X2.ls('seikyuNaviWeb.encKey'); if(!pw) return null;
+  if(X2.encKey && X2.encKey.pw === pw) return X2.encKey.k;
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const k = await crypto.subtle.deriveKey({ name:'PBKDF2', salt: new TextEncoder().encode('seikyuNaviWeb.v1'), iterations: 150000, hash:'SHA-256' }, base, { name:'AES-GCM', length: 256 }, false, ['encrypt','decrypt']);
+  X2.encKey = { pw, k }; return k;
+};
+const _x2pack = packJson, _x2unpack = unpackJson;
+packJson = async function(o){
+  const pk = await _x2pack(o); const k = await X2.key().catch(() => null); if(!k) return pk;
+  const raw = pk.z ? bufOf(pk.z) : new TextEncoder().encode('J' + pk.j);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name:'AES-GCM', iv }, k, raw));
+  const all = new Uint8Array(iv.length + ct.length + 1); all[0] = pk.z ? 1 : 2; all.set(iv, 1); all.set(ct, 13);
+  return { z: 'ENC1:' + b64of(all) };
+};
+unpackJson = async function(f){
+  if(!(f.z && String(f.z).indexOf('ENC1:') === 0)) return _x2unpack(f);
+  let k = await X2.key().catch(() => null);
+  if(!k){ window.__rnote = ''; const v = await askDialog('合言葉が要ります', 'クラウドの作業が暗号になっています。合言葉を入れて。<p><input id="rnote" type="password" style="width:100%"></p>', [{ t:'開く', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]); if(v !== 'ok') throw new Error('合言葉がないので開けない'); X2.ls('seikyuNaviWeb.encKey', X2.dv('rnote', '')); k = await X2.key(); }
+  const all = bufOf(String(f.z).slice(5)), kind = all[0], iv = all.slice(1, 13), ct = all.slice(13);
+  let raw; try{ raw = new Uint8Array(await crypto.subtle.decrypt({ name:'AES-GCM', iv }, k, ct)); }catch(e){ X2.ls('seikyuNaviWeb.encKey', null); X2.encKey = null; throw new Error('合言葉がちがう'); }
+  if(kind === 1) return _x2unpack({ z: b64of(raw) });
+  return JSON.parse(new TextDecoder().decode(raw).slice(1));
+};
+
+/* ---------------- チェックのタブ：N72 締めの手順・N81 絶対ダメを足す ---------------- */
+const X2STEPS = ['CSVを入れて現場ごとに分けた','前月を照らし直した（前月の手直し・手で足した行）','出す／出さない を全部決めた（販売・リースアップ・先月出さなかった品）','絶対ダメ 0・要確認を全部見た','全部の現場を「見た」','指定用紙（三貴・Yours）を直した','照合表が合っている','印刷・PDFにした','送付した（送付済にして記録）'];
+const _x2dc = drawChecks;
+drawChecks = function(){
+  _x2dc();
+  const L = $('#chkList'); if(!L || !S.built) return;
+  const c = card(), steps = c.steps && c.steps.length ? c.steps : X2STEPS, dn = E().steps || {};
+  document.querySelectorAll('.xsteps').forEach(x => x.remove());
+  const d = document.createElement('div'); d.className = 'xsteps';
+  d.innerHTML = '<details' + (Object.keys(dn).length < steps.length ? ' open' : '') + '><summary><b>締めの手順</b>　' + Object.keys(dn).filter(k => +k < steps.length).length + ' / ' + steps.length + '　<button class="btn sm" data-x7="never">＋ 絶対ダメを足す</button> <button class="btn sm ghost" data-x7="edit">手順を直す</button></summary><ol>' +
+    steps.map((s, i) => '<li><label><input type="checkbox" data-x7s="' + i + '"' + (dn[i] ? ' checked' : '') + '> ' + esc(s) + (dn[i] ? ' <small class="muted">' + hm(dn[i].at) + (dn[i].who ? '・' + esc(dn[i].who) : '') + '</small>' : '') + '</label></li>').join('') + '</ol></details>';
+  L.insertAdjacentElement('beforebegin', d);
+  d.onclick = async ev => {
+    const b = ev.target.closest('[data-x7]'); if(b){ ev.preventDefault(); if(b.dataset.x7 === 'never') return x2NeverAdd();
+      window.__rnote = steps.join('\n'); const v = await askDialog('締めの手順を直す', 'この得意先の手順（1行に1つ）<p><textarea id="rnote" style="width:100%;height:220px">' + esc(steps.join('\n')) + '</textarea></p>', [{ t:'残す', v:'ok', primary:true }, { t:'最初の手順にもどす', v:'def' }, { t:'やめる', v:null, ghost:true }]);
+      if(v === 'ok'){ c.steps = String(X2.dv('rnote', '')).split(/\n/).map(x => x.trim()).filter(Boolean); cardSave(); save(); drawChecks(); } if(v === 'def'){ delete c.steps; cardSave(); save(); drawChecks(); } return; }
+    const s = ev.target.closest('[data-x7s]'); if(s){ const e = E(); e.steps = e.steps || {}; if(s.checked) e.steps[s.dataset.x7s] = { at: nowIso(), who: X2.who() }; else delete e.steps[s.dataset.x7s]; save(); drawChecks(); }
+  };
+  d.querySelectorAll('details').forEach(x => x.querySelector('summary').addEventListener('click', ev => { if(ev.target.closest('button')) ev.preventDefault(); }));
+};
+
+/* 見た目：いま開いているタブの色を body に */
+(function(){
+  const _st = setTab;
+  setTab = function(t){ _st(t); if(S.tab === t) document.body.dataset.tab = t; };
+  document.body.dataset.tab = S.tab || 'load';
+})();
+/* 現場の一覧：金額の棒と「見た」の進み具合 */
+(function(){
+  const _ds = drawSites;
+  drawSites = function(){
+    _ds();
+    const L = $('#siteList'); if(!L) return;
+    const bs = $$('.site', L); if(!bs.length) return;
+    const nets = bs.map(b => { const sh = sheetById(b.dataset.id); return sh ? Math.max(0, sheetNet(sh)) : 0; }), mx = Math.max(1, ...nets);
+    bs.forEach((b, i) => { b.style.setProperty('--pct', (nets[i] / mx).toFixed(3)); if(!b.querySelector('.bar')){ const d = document.createElement('i'); d.className = 'bar'; b.appendChild(d); } });
+    const ks = S.sheets.filter(s => s.inKagami), n = ks.filter(s => window.seenOk && seenOk(s)).length;
+    let pg = L.querySelector('.xprog'); if(!pg){ pg = document.createElement('div'); pg.className = 'xprog'; pg.innerHTML = '<i></i>'; const m = L.querySelector('.muted'); if(m) m.insertAdjacentElement('afterend', pg); else L.prepend(pg); }
+    pg.style.setProperty('--pct', (ks.length ? n / ks.length * 100 : 0) + '%'); pg.title = '見た ' + n + ' / ' + ks.length;
+  };
+})();
+
+/* ==================================================================
+   動き（マイクロインタラクション）
+   ================================================================== */
+(function(){
+  const reduce = () => document.body.classList.contains('nomotion') || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  /* トースト：消えるときも下へすっと */
+  toast = function(m, ms){ const t = $('#toast'); t.classList.remove('out'); t.textContent = m; t.hidden = false; clearTimeout(window.__toastT); window.__toastT = setTimeout(() => { t.classList.add('out'); setTimeout(() => { t.hidden = true; t.classList.remove('out'); }, 180); }, ms || 2600); };
+  /* 保存の印：保存するたびに点がぴょこっと */
+  const _ss = showSaveSt;
+  showSaveSt = function(t, bad){ _ss(t, bad); const e = $('#saveSt'); if(!e) return; e.classList.remove('tick'); void e.offsetWidth; e.classList.add('tick'); };
+  /* 数字のタイル：値が変わったら数字が転がる */
+  const roll = (el, from, to, suffixHtml) => {
+    if(reduce() || from === to || isNaN(from) || isNaN(to)){ return; }
+    const t0 = performance.now(), dur = 420, neg = to < 0;
+    const step = now => { const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3); const v = Math.round(from + (to - from) * e);
+      el.firstChild.nodeValue = (v > 0 && el.dataset.plus ? '+' : '') + yen(v); if(p < 1) requestAnimationFrame(step); else el.firstChild.nodeValue = (to > 0 && el.dataset.plus ? '+' : '') + yen(to); };
+    requestAnimationFrame(step);
+  };
+  const numOf = s => { const m = /[-+]?[\d,]+/.exec(String(s || '')); return m ? +m[0].replace(/[,+]/g, '') : NaN; };
+  const _dk = drawKpis;
+  drawKpis = function(){
+    const old = $$('#kpis .kpi .v').map(v => numOf(v.firstChild && v.firstChild.nodeValue));
+    _dk();
+    $$('#kpis .kpi .v').forEach((v, i) => { if(i === 3 || !v.firstChild || v.firstChild.nodeType !== 3) return; const to = numOf(v.firstChild.nodeValue); if(/^\+/.test(v.firstChild.nodeValue)) v.dataset.plus = '1'; if(!isNaN(old[i])) roll(v, old[i], to); });
+  };
+  /* 現場の一覧：切りかえたとき、選んだ印と並びがなめらかに動く（対応ブラウザだけ） */
+  let lastCur = null;
+  const _ds = drawSites;
+  drawSites = function(){
+    const vt = document.startViewTransition && !reduce() && S.cur !== lastCur && lastCur !== null && S.tab === 'sites';
+    lastCur = S.cur;
+    if(!vt){ _ds(); stagger(); return; }
+    document.startViewTransition(() => { _ds(); stagger(); });
+  };
+  const stagger = () => { $$('#siteList .site').forEach((b, i) => { b.style.animationDelay = Math.min(i * 28, 400) + 'ms'; b.classList.add('in'); }); };
+  /* チェック：直した・このままでいい で、消える行がすっと抜けて下が詰まる */
+  const _dc = drawChecks;
+  let vtBusy = false;
+  drawChecks = function(){
+    const name = () => $$('#chkList > li').forEach((li, i) => { const k = li.dataset.i != null ? 'ck' + li.dataset.i : 'ckx' + i; li.style.viewTransitionName = k; });
+    if(!document.startViewTransition || reduce() || vtBusy || !$('#chkList') || !$('#chkList').children.length){ _dc(); name(); return; }
+    vtBusy = true;
+    const t = document.startViewTransition(() => { _dc(); name(); });
+    t.finished.finally(() => { vtBusy = false; });
+  };
+  /* 明細：金額が変わった行の金額がぽんと */
+  let before = null;
+  $('#siteBody').addEventListener('change', ev => { const tr = ev.target.closest && ev.target.closest('tr[data-id]'); if(!tr) return; const l = S.lines.find(x => x.id === tr.dataset.id); before = l ? { id: l.id, amt: lineAmt(l), sh: sheetNet(sheetById(l.sheet)) } : null;
+    setTimeout(() => { if(!before) return; const l2 = S.lines.find(x => x.id === before.id); const tr2 = $('tr[data-id="' + before.id + '"]'); if(l2 && tr2 && lineAmt(l2) !== before.amt){ const td = tr2.children[8]; if(td){ td.classList.remove('amt-pop'); void td.offsetWidth; td.classList.add('amt-pop'); } const tb = $('#shead .tot b'); if(tb){ tb.classList.remove('amt-pop'); void tb.offsetWidth; tb.classList.add('amt-pop'); } } before = null; }, 60); }, true);
+  /* ボタン：押した所から波紋 */
+  document.addEventListener('pointerdown', ev => { const b = ev.target.closest('.btn, .tabs button, .site'); if(!b || reduce()) return; const r = b.getBoundingClientRect(); const s = document.createElement('span'); s.className = 'ripple'; const d = Math.max(r.width, r.height) * 1.6; s.style.cssText = 'width:' + d + 'px;height:' + d + 'px;left:' + (ev.clientX - r.left - d / 2) + 'px;top:' + (ev.clientY - r.top - d / 2) + 'px'; b.appendChild(s); setTimeout(() => s.remove(), 520); }, true);
+})();
+
+/* ==================================================================
+   動き 2
+   ================================================================== */
+(function(){
+  const reduce = () => document.body.classList.contains('nomotion') || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  /* 明るい・暗い の切りかえ（上の帯。丸く広がって切りかわる） */
+  const root = document.documentElement;
+  const saved = (() => { try{ return localStorage.getItem('seikyuNaviWeb.theme') || ''; }catch(e){ return ''; } })();
+  if(saved) root.dataset.theme = saved;
+  const isDark = () => root.dataset.theme === 'dark' || (!root.dataset.theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const b = document.createElement('button'); b.className = 'latest xtheme'; b.type = 'button'; b.id = 'btnTheme';
+  const paint = () => { b.textContent = isDark() ? '☀ 明るく' : '☾ 暗く'; b.title = '画面の明るさを切りかえる'; };
+  paint();
+  const lt = $('.top .latest'); if(lt) lt.insertAdjacentElement('afterend', b);
+  b.onclick = ev => {
+    const next = isDark() ? 'light' : 'dark';
+    const go = () => { root.dataset.theme = next; try{ localStorage.setItem('seikyuNaviWeb.theme', next); }catch(e){} paint(); };
+    if(!document.startViewTransition || reduce()){ go(); return; }
+    const x = ev.clientX, y = ev.clientY, r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    const t = document.startViewTransition(go);
+    t.ready.then(() => { root.animate({ clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + r + 'px at ' + x + 'px ' + y + 'px)'] }, { duration: 450, easing: 'ease-in', pseudoElement: '::view-transition-new(root)' }); });
+  };
+  /* ファイルを画面に持ってきたら、入れる所が光る */
+  let dragN = 0;
+  document.addEventListener('dragenter', ev => { if(!ev.dataTransfer || !Array.from(ev.dataTransfer.types || []).includes('Files')) return; dragN++; document.body.classList.add('dragging'); });
+  document.addEventListener('dragleave', () => { dragN = Math.max(0, dragN - 1); if(!dragN) document.body.classList.remove('dragging'); });
+  document.addEventListener('drop', () => { dragN = 0; document.body.classList.remove('dragging'); });
+  /* 「見た」を押したら ✓ が描かれる */
+  $('#siteBody').addEventListener('click', ev => { const b = ev.target.closest('[data-x="seen"]'); if(!b) return; const sh = sheetById(S.cur); const was = sh && seenOk(sh); setTimeout(() => { if(!sh || was || !seenOk(sh)) return; const t = $('#siteList .site[data-id="' + sh.id + '"] .tag.ok'); if(t) t.classList.add('draw'); const bb = $('#shead [data-x="seen"]'); if(bb) bb.classList.add('draw'); }, 30); }, true);
+  /* 全部クリアしたときの小さな祝い（チェックの残り0） */
+  let lastTodo = null;
+  const _dc = drawChecks;
+  drawChecks = function(){
+    _dc();
+    const n = (window.__chk || []).filter(x => !chkDone(x) && x.lv !== 'sales').length;
+    if(lastTodo != null && lastTodo > 0 && n === 0 && !reduce()) sparkle($('#chkList li:has(.tag.ok)') || $('#chkList'));
+    lastTodo = n;
+  };
+  function sparkle(host){
+    if(!host) return; const r = host.getBoundingClientRect(); const box = document.createElement('div'); box.className = 'xspark'; document.body.appendChild(box);
+    const cols = ['#1E8E5A','#19A7B5','#F59E0B','#5B8DF7','#A070F5'];
+    for(let i = 0; i < 18; i++){ const s = document.createElement('i'); const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 90; s.style.cssText = 'left:' + (r.left + 60 + Math.random() * 40) + 'px;top:' + (r.top + r.height / 2) + 'px;background:' + cols[i % cols.length] + ';--dx:' + Math.cos(a) * d + 'px;--dy:' + (Math.sin(a) * d - 40) + 'px;animation-delay:' + (Math.random() * 120) + 'ms'; box.appendChild(s); }
+    setTimeout(() => box.remove(), 1300);
+  }
+  /* 「システムとの差」が 0 になった瞬間：タイルが緑にふわっと＋✓ */
+  let lastDiff = null;
+  const _dk = drawKpis;
+  drawKpis = function(){ _dk(); const d = S.meta ? totals().diff : null; const k = $$('#kpis .kpi')[2]; if(k && lastDiff != null && lastDiff !== 0 && d === 0) k.classList.add('zero'); lastDiff = d; };
+  /* 絶対ダメのゲートで止まったとき：ダイアログがふるえる */
+  const _ad = askDialog;
+  askDialog = function(title, html, buttons){ const p = _ad(title, html, buttons); if(/絶対ダメ が \d+ 件/.test(String(title))) setTimeout(() => { const D = document.querySelector('.dlg'); if(D) D.classList.add('shake'); }, 0); return p; };
+  /* プレビューの 前・次：紙が横に流れる */
+  let pvDir = 0;
+  const _step = stepSitePv; stepSitePv = function(d){ pvDir = d; _step(d); pvDir = 0; };
+  const _sp = sitePreview; sitePreview = function(all){ _sp(all); const B = $('#spvBody'); if(B && pvDir){ B.classList.remove('fl', 'fr'); void B.offsetWidth; B.classList.add(pvDir > 0 ? 'fl' : 'fr'); } };
+  /* 次の要確認へ：その行にスポットライト */
+  new MutationObserver(ms => { ms.forEach(m => { const tr = m.target; if(tr.classList && tr.classList.contains('flash') && !tr.classList.contains('spot')){ tr.classList.add('spot'); setTimeout(() => tr.classList.remove('spot'), 1600); } }); }).observe($('#siteBody'), { attributes: true, attributeFilter: ['class'], subtree: true });
+  /* 行を足した・消した：行がすっと入る・抜ける（対応ブラウザ） */
+  const _ds = drawSites; let lastN = null;
+  drawSites = function(){
+    const n = S.lines.length, sh = S.cur;
+    if(document.startViewTransition && !reduce() && lastN != null && lastN !== n && sh === window.__lastSh && S.tab === 'sites'){
+      $$('#siteBody tr[data-id]').forEach(tr => { tr.style.viewTransitionName = 'r' + tr.dataset.id; });
+      lastN = n; document.startViewTransition(() => { _ds(); $$('#siteBody tr[data-id]').forEach(tr => { tr.style.viewTransitionName = 'r' + tr.dataset.id; }); }); return;
+    }
+    lastN = n; window.__lastSh = sh; _ds();
+  };
+  /* 印刷・PDFのあと：ボタンが「✓ 出した」に */
+  const _dp = doPrint;
+  doPrint = async function(html, opt){ const n0 = (E().issued || []).length; const r = await _dp(html, opt); if((E().issued || []).length > n0){ const bt = opt && opt.pdf ? $('#btnPdf') : $('#btnPrint'); if(bt){ const t = bt.innerHTML; bt.classList.add('done'); bt.innerHTML = '✓ 出した'; setTimeout(() => { bt.classList.remove('done'); bt.innerHTML = t; }, 2200); } } return r; };
+  /* トーストに種類の印（できない・読めない → 注意、した・できた → OK） */
+  const _toast = toast;
+  toast = function(m, ms){ _toast(m, ms); const t = $('#toast'); t.classList.remove('ok', 'warn'); const s = String(m); if(/できなかった|できない|読めな|エラー|ちがう|ない。|まだ /.test(s)) t.classList.add('warn'); else if(/した$|した（|できた|残した|写した|足した|もどした|同じにした/.test(s)) t.classList.add('ok'); };
+  /* 入力欄：選ぶと少し浮く（CSSだけでは効かないSafari向けにクラス） */
+  document.addEventListener('focusin', ev => { const td = ev.target.closest && ev.target.closest('table.ln td'); if(td) td.classList.add('focus'); });
+  document.addEventListener('focusout', ev => { const td = ev.target.closest && ev.target.closest('table.ln td'); if(td) td.classList.remove('focus'); });
+})();
+
+/* ==================================================================
+   動き 3
+   ================================================================== */
+(function(){
+  const reduce = () => document.body.classList.contains('nomotion') || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if(localStorage.getItem('seikyuNaviWeb.nomotion')) document.body.classList.add('nomotion');
+  /* 画面の切りかえ：タブの並びの方向へ流れる */
+  const ORDER = ['load','sites','check','paper']; let prevTab = S.tab || 'load';
+  const _st = setTab;
+  setTab = function(t){ const a = ORDER.indexOf(prevTab), b = ORDER.indexOf(t); document.body.dataset.dir = b > a ? 'r' : b < a ? 'l' : ''; _st(t); if(S.tab === t){ prevTab = t; window.__freshTab = t; } };
+  /* スクロールしたら上の帯の影が深く・右下に「上へ」 */
+  const up = document.createElement('button'); up.className = 'xup'; up.type = 'button'; up.title = '上へ'; up.textContent = '↑'; document.body.appendChild(up);
+  up.onclick = () => window.scrollTo({ top: 0, behavior: reduce() ? 'auto' : 'smooth' });
+  let tk = false;
+  addEventListener('scroll', () => { if(tk) return; tk = true; requestAnimationFrame(() => { document.body.classList.toggle('scrolled', scrollY > 8); up.classList.toggle('show', scrollY > 700); tk = false; }); }, { passive: true });
+  /* 現場の一覧：開いた直後だけ、金額の棒が伸びる。「見た」の輪 */
+  const _ds = drawSites;
+  drawSites = function(){
+    _ds();
+    const L = $('#siteList'); if(!L) return;
+    if(window.__freshTab === 'sites' && !reduce()){ window.__freshTab = ''; $$('#siteList .site .bar').forEach(b => { const w = b.style.width; b.style.transition = 'none'; b.style.width = '0'; requestAnimationFrame(() => requestAnimationFrame(() => { b.style.transition = ''; b.style.width = w || ''; })); }); }
+    const m = L.querySelector('.muted'); if(!m) return;
+    const ks = S.sheets.filter(s => s.inKagami), n = ks.filter(s => seenOk(s)).length, pct = ks.length ? n / ks.length : 0;
+    let r = m.querySelector('.xring'); if(!r){ r = document.createElement('span'); r.className = 'xring'; r.innerHTML = '<svg viewBox="0 0 20 20"><circle class="bg" cx="10" cy="10" r="8"/><circle class="fg" cx="10" cy="10" r="8"/></svg>'; m.prepend(r); }
+    r.querySelector('.fg').style.strokeDashoffset = (50.27 * (1 - pct)).toFixed(2); r.classList.toggle('full', pct >= 1);
+  };
+  /* 数字のタイル：鑑の合計に、ここ数か月の小さな折れ線（先月までの作業がクラウド・端末にあるとき） */
+  const _dk = drawKpis;
+  drawKpis = function(){
+    _dk();
+    const h = (S._hist || []).slice(-6).map(x => x.net).concat([totals().net]).filter(v => typeof v === 'number');
+    const k = $$('#kpis .kpi')[1]; if(!k || h.length < 3) return;
+    const W = 120, H = 30, mn = Math.min(...h), mx = Math.max(...h), sp = mx - mn || 1;
+    const pts = h.map((v, i) => [(i / (h.length - 1) * (W - 6) + 3).toFixed(1), (H - 3 - (v - mn) / sp * (H - 8)).toFixed(1)]);
+    const d = pts.map(p => p.join(',')).join(' '), last = pts[pts.length - 1];
+    k.insertAdjacentHTML('beforeend', '<svg class="xline" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + d + '"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.4"/></svg>');
+    k.title = 'ここ ' + (h.length - 1) + ' か月の鑑の合計の動き（最後が今月）';
+  };
+  /* 行を消したトースト：その場で「もどす」 */
+  const _toast = toast;
+  toast = function(m, ms){
+    _toast(m, ms); const t = $('#toast');
+    if(/を消した。/.test(String(m))){ t.textContent = String(m).replace(/。.*$/, ''); const b = document.createElement('button'); b.className = 'xtoastbtn'; b.type = 'button'; b.textContent = '↶ もどす'; b.onclick = () => { undo(); t.hidden = true; }; t.appendChild(b); clearTimeout(window.__toastT); window.__toastT = setTimeout(() => { t.classList.add('out'); setTimeout(() => { t.hidden = true; t.classList.remove('out'); }, 180); }, 6000); }
+  };
+  /* 明るい／暗いのボタン：押すとくるっと */
+  document.addEventListener('click', ev => { const b = ev.target.closest('#btnTheme'); if(!b) return; b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); }, true);
+})();
 
 </script>
 
