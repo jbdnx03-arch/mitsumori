@@ -6,7 +6,7 @@
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-4';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-5';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -95,8 +95,14 @@ self.addEventListener('fetch', function(ev){
     return;
   }
   if(rel === 'sw.js') return;
-  // 同じフォルダのほかのページ・画像（車両管理報告書などの ./sharyo.html）も、いちど開いたらキャッシュ優先
-  if(LOCAL.indexOf(url.origin + url.pathname) >= 0 || /\.(html|png|jpe?g|svg|webmanifest|json|css|js)$/i.test(rel)){
+  // ほかのページ（請求ナビ・滅失申請・車両管理など ./*.html）は、本体と同じ「ネット優先」。
+  // 前は「キャッシュ優先＋裏で更新」だったので、GitHubに上げたあと1回目に開くと古い版が出ていた（2026-10-27）
+  if(/\.html$/i.test(rel)){
+    ev.respondWith(ネット優先(url.origin + url.pathname, new Request(url.origin + url.pathname, { cache: 'no-cache' }), 9000));
+    return;
+  }
+  // 画像・manifest などは、いちど開いたらキャッシュ優先
+  if(LOCAL.indexOf(url.origin + url.pathname) >= 0 || /\.(png|jpe?g|svg|webmanifest|json|css|js)$/i.test(rel)){
     ev.respondWith(古いまま出して裏で更新(url.origin + url.pathname, req));
   }
 });
