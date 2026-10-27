@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-28 07:58-->
+<!--BUILD:2026-10-28 08:55-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2502,7 +2502,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-28 07:58';
+const BUILD = '2026-10-28 08:55';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -5957,6 +5957,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 08:55';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -5995,7 +5996,8 @@ function render(nav){
     var cur = here && here !== 'mitsumori' && appOf(x.href) === here;
     return '<a class="wqn' + (x.fixed ? ' fx' : '') + (cur ? ' cur' : '') + '" href="' + esc(x.href || ('./index.html?go=' + x.key)) + '" data-k="' + esc(x.key) + '" title="' + esc(x.full || x.label) + '">' + esc(x.label) + '</a>';
   }).join('');
-  if(nav.dataset.sig === h) return; nav.dataset.sig = h; nav.innerHTML = h;
+  h += '<button type="button" class="wqn up" data-wqup="1" title="最新版にする"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4M13.5 2.5V5.5H10.5"/></svg>最新版</button>';
+  if(nav.dataset.sig === h){ try{ badge(); }catch(e){} return; } nav.dataset.sig = h; nav.innerHTML = h; try{ badge(); }catch(e){}
 }
 function setH(nav){
   var hh = nav.hidden ? 0 : nav.offsetHeight;
@@ -6016,6 +6018,7 @@ function startApp(){
   try{ new ResizeObserver(function(){ setH(nav); }).observe(nav); }catch(e){ window.addEventListener('resize', function(){ setH(nav); }); }
   window.addEventListener('storage', function(e){ if(e.key === KEY) render(nav); });
   window.addEventListener('pageshow', function(){ render(nav); });
+  nav.addEventListener('click', function(e){ if(e.target.closest('[data-wqup]')){ e.preventDefault(); openPane(); } });
 }
 /* ---------- web見積の中：画面（シート）を開いているときだけ、上に出す ---------- */
 function startWq(){
@@ -6039,6 +6042,7 @@ function startWq(){
   new MutationObserver(function(){ clearTimeout(t); t = setTimeout(upd, 30); }).observe(document.body, { subtree:true, childList:true, attributes:true, attributeFilter:['hidden'] });
   window.addEventListener('resize', function(){ if(!nav.hidden) setH(nav); });
   nav.addEventListener('click', function(e){
+    if(e.target.closest('[data-wqup]')){ e.preventDefault(); openPane(); return; }
     var a = e.target.closest('a.wqn'); if(!a) return;
     if(a.dataset.home){ e.preventDefault(); closeAll(); try{ window.WQ.home.open(); }catch(err){ location.href = './index.html'; } return; }
     var href = a.getAttribute('href') || '', m = href.match(/index\.html\?go=([^&#]+)/);
@@ -6057,7 +6061,157 @@ function startWq(){
   }
   window.WQNAV = { render:function(){ render(nav); }, closeAll:closeAll };
 }
-function go(){ if(APP === 'mitsumori') startWq(); else startApp(); }
+/* ===== 最新版にする（2026-10-28）=====
+   ・どのアプリの帯にも「↻ 最新版」。押すと、アプリごとに「この端末の版／いちばん新しい版」を出して、まとめて最新にできる
+   ・開いたときに自分のアプリの新しい版があれば、帯のボタンに印をつける（請求ナビは開いてすぐなら自動で入れかえる）
+   ・版は、GitHubの各ページの先頭にある <!--BUILD:…--> を、キャッシュを通さずに読んでくらべる */
+var BLD = String(window.WQNAV_BUILD || ''); if(!/^\d{4}-\d\d-\d\d/.test(BLD)) BLD = '';
+var UPAPPS = [
+  { a:'mitsumori', t:'WEB見積書', f:'index.html' },
+  { a:'seikyu', t:'請求ナビ', f:'seikyu.html' },
+  { a:'meshitsu', t:'滅失・中古販売申請書', f:'meshitsu.html' },
+  { a:'sharyo', t:'車両管理報告書', f:'sharyo.html' },
+  { a:'zoto', t:'お中元・お歳暮', f:'zoto.html' },
+  { a:'rental', t:'レンタル機購入申請書', f:'rental.html' }
+];
+var KV = 'wq.ver';
+function verMine(){ try{ var o = JSON.parse(localStorage.getItem(KV) || '{}'); return o && typeof o === 'object' ? o : {}; }catch(e){ return {}; } }
+function verSave(o){ try{ localStorage.setItem(KV, JSON.stringify(o)); }catch(e){} }
+if(APP && BLD){ var vm0 = verMine(); vm0[APP] = BLD; verSave(vm0); }
+function sv(s){ var m = String(s || '').match(/^\d{4}-(\d\d)-(\d\d) (\d\d:\d\d)/); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : (s || '—'); }
+function one(f){
+  if(!/^https?:$/.test(location.protocol)) return Promise.resolve('');
+  return new Promise(function(ok){
+    var done = false, t = setTimeout(function(){ if(!done){ done = true; ok(''); } }, 8000);
+    fetch('./' + f + '?ck=' + Date.now(), { cache:'no-store', headers:{ 'Range':'bytes=0-399' } })
+      .then(function(r){ return r.ok || r.status === 206 ? r.text() : ''; })
+      .then(function(tx){ if(done) return; done = true; clearTimeout(t); var m = String(tx).match(/<!--BUILD:([^>]*?)-->/); ok(m ? m[1] : ''); })
+      .catch(function(){ if(done) return; done = true; clearTimeout(t); ok(''); });
+  });
+}
+var lastCk = null;
+function check(){
+  return Promise.all(UPAPPS.map(function(x){ return one(x.f); })).then(function(L){
+    var mine = verMine();
+    var rows = UPAPPS.map(function(x, i){ var me = x.a === APP && BLD ? BLD : (mine[x.a] || ''); return { a:x.a, t:x.t, f:x.f, mine:me, latest:L[i], newer: !!(L[i] && me && L[i] > me), none: !me }; });
+    lastCk = { at: Date.now(), rows: rows };
+    badge();
+    return rows;
+  });
+}
+function selfNewer(){ if(!lastCk) return false; var r = lastCk.rows.filter(function(x){ return x.a === APP; })[0]; return !!(r && r.newer); }
+function anyNewer(){ return !!(lastCk && lastCk.rows.some(function(x){ return x.newer; })); }
+function badge(){
+  var n = anyNewer();
+  Array.prototype.forEach.call(document.querySelectorAll('[data-wqup]'), function(b){ b.classList.toggle('new', n); b.title = n ? '新しい版があります（押すと最新版にする）' : '最新版にする'; });
+}
+/* 最新版にする：キャッシュを消して、全部のページを取り直し、いまのページを新しい版で開き直す */
+function run(){
+  busy('最新版にしています…');
+  var rows = lastCk ? lastCk.rows : [];
+  var jobs = [];
+  try{ if(window.caches) jobs.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); })); }catch(e){}
+  try{ if(navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(r){ return r.update().catch(function(){}); })); })); }catch(e){}
+  UPAPPS.forEach(function(x){ jobs.push(fetch('./' + x.f, { cache:'reload' }).catch(function(){})); });
+  jobs.push(fetch('./sw.js', { cache:'reload' }).catch(function(){}));
+  var t = new Promise(function(ok){ setTimeout(ok, 9000); });
+  Promise.race([Promise.all(jobs.map(function(p){ return Promise.resolve(p).catch(function(){}); })), t]).then(function(){
+    var me = rows.filter(function(x){ return x.a === APP; })[0];
+    var q = new URLSearchParams(location.search);
+    q.set('v', (me && me.latest) || String(Date.now()));
+    try{ sessionStorage.setItem('wq.upd', '1'); }catch(e){}
+    location.replace(location.pathname + '?' + q.toString() + location.hash);
+  });
+}
+var ov = null;
+function busy(msg){
+  if(!ov){ ov = document.createElement('div'); ov.id = 'wqup-busy'; document.body.appendChild(ov); }
+  ov.innerHTML = '<div><i></i><b>' + esc(msg) + '</b></div>'; ov.hidden = false;
+}
+var pane = null;
+function openPane(){
+  if(!pane){
+    pane = document.createElement('div'); pane.id = 'wqup'; pane.setAttribute('role', 'dialog'); pane.setAttribute('aria-label', '最新版にする');
+    document.body.appendChild(pane);
+    pane.addEventListener('click', function(e){
+      if(e.target === pane || e.target.closest('[data-x]')){ pane.hidden = true; return; }
+      if(e.target.closest('[data-run]')){ run(); return; }
+      var o = e.target.closest('[data-openf]'); if(o){ location.href = './' + o.dataset.openf; }
+    });
+    document.addEventListener('keydown', function(e){ if(pane && !pane.hidden && e.key === 'Escape'){ pane.hidden = true; } });
+  }
+  pane.hidden = false;
+  paint(null);
+  check().then(paint);
+}
+function paint(rows){
+  var h = '<div class="wqup-c"><div class="wqup-h"><b>最新版にする</b><button type="button" class="wqup-x" data-x="1" aria-label="閉じる">×</button></div>';
+  if(!rows){ h += '<div class="wqup-l"><div class="wqup-w"><i></i>GitHub の版をしらべています…</div></div>'; }
+  else {
+    var n = rows.filter(function(x){ return x.newer; }).length;
+    h += '<p class="wqup-s">' + (n ? '新しい版が <b>' + n + '</b> つあります。下のボタンで、この端末を全部最新にします。' : 'この端末で使ったアプリは、全部いちばん新しい版です。') + '</p>';
+    h += '<div class="wqup-l">' + rows.map(function(x){
+      var st = !x.latest ? '<span class="wqup-g">しらべられない</span>' : x.none ? '<span class="wqup-g">開くと分かる</span>' : x.newer ? '<span class="wqup-n">新しい版あり</span>' : '<span class="wqup-ok">最新</span>';
+      return '<div class="wqup-r' + (x.a === APP ? ' me' : '') + '"><b>' + esc(x.t) + (x.a === APP ? '<em>いま</em>' : '') + '</b><small>この端末 ' + esc(sv(x.mine)) + '　→　最新 ' + esc(sv(x.latest)) + '</small>' + st + '</div>';
+    }).join('') + '</div>';
+  }
+  h += '<div class="wqup-b"><button type="button" class="wqup-go" data-run="1">↻ 最新版にする</button><button type="button" class="wqup-cl" data-x="1">閉じる</button></div>' +
+       '<small class="wqup-f">キャッシュを消して、全部のアプリを GitHub から取り直します。入力中の内容は消えません（保存済みのものはそのまま）。</small></div>';
+  pane.innerHTML = h;
+}
+var UPCSS =
+'#wqnav .wqn.up{margin-left:auto;border-color:rgba(255,255,255,.28);background:#2A3437;position:sticky;right:-12px;z-index:1;box-shadow:-10px 0 10px 2px #1E2628,12px 0 0 0 #1E2628}' +
+'#wqnav .wqn.up:hover{background:#38464A}' +
+'#wqnav .wqn.up.new{background:#E8554E;border-color:#E8554E}' +
+'#wqnav .wqn.up.new::after{content:"新";font-size:9.5px;font-weight:800;background:#fff;color:#E8554E;border-radius:6px;padding:1px 4px;margin-left:3px}' +
+'#wqup{position:fixed;inset:0;z-index:2147483000;background:rgba(20,26,28,.45);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);font:13px/1.5 "Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP","Meiryo",sans-serif;color:#1E2628;animation:wqupf .18s ease}' +
+'#wqup[hidden],#wqup-busy[hidden]{display:none!important}' +
+'#wqup .wqup-c{background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.25);width:100%;max-width:440px;max-height:calc(100vh - 32px);overflow:auto;padding:16px 18px 14px;box-sizing:border-box;animation:wqupu .22s cubic-bezier(.2,.8,.2,1)}' +
+'#wqup .wqup-h{display:flex;align-items:center;margin-bottom:4px}#wqup .wqup-h b{font-size:16px;font-weight:800}' +
+'#wqup .wqup-x{margin-left:auto;border:0;background:#EEF1F1;width:30px;height:30px;border-radius:50%;font-size:17px;cursor:pointer;color:#1E2628}' +
+'#wqup .wqup-s{margin:2px 0 10px;color:#4A5558;font-size:12.5px}#wqup .wqup-s b{color:#E8554E}' +
+'#wqup .wqup-l{display:flex;flex-direction:column;gap:6px}' +
+'#wqup .wqup-r{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;column-gap:8px;padding:9px 11px;border:1px solid #E3E8E8;border-radius:11px;align-items:center}' +
+'#wqup .wqup-r.me{border-color:#14646E;background:#F2F8F8}' +
+'#wqup .wqup-r b{font-weight:700;font-size:13px}#wqup .wqup-r b em{font-style:normal;font-size:10px;font-weight:800;color:#14646E;background:#DCEDEE;border-radius:6px;padding:1px 5px;margin-left:5px;vertical-align:1px}' +
+'#wqup .wqup-r small{grid-column:1;color:#6B7679;font-size:11.5px;font-variant-numeric:tabular-nums}' +
+'#wqup .wqup-r>span{grid-column:2;grid-row:1/3;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;white-space:nowrap}' +
+'#wqup .wqup-ok{background:#E3F3EA;color:#1F7A4A}#wqup .wqup-n{background:#FDE7E5;color:#C9362F}#wqup .wqup-g{background:#F0F2F2;color:#7A8487}' +
+'#wqup .wqup-w{display:flex;align-items:center;gap:8px;color:#6B7679;padding:14px 4px}' +
+'#wqup .wqup-w i,#wqup-busy i{width:16px;height:16px;border:2.5px solid #CFE3E4;border-top-color:#14646E;border-radius:50%;animation:wqups .7s linear infinite;flex:0 0 auto}' +
+'#wqup .wqup-b{display:flex;gap:8px;margin-top:14px}' +
+'#wqup .wqup-go{flex:1;border:0;background:#14646E;color:#fff;font:inherit;font-weight:800;font-size:14px;padding:12px;border-radius:11px;cursor:pointer}' +
+'#wqup .wqup-go:active{transform:scale(.98)}' +
+'#wqup .wqup-cl{border:1px solid #D5DCDC;background:#fff;color:#1E2628;font:inherit;font-weight:700;padding:12px 16px;border-radius:11px;cursor:pointer}' +
+'#wqup .wqup-f{display:block;margin-top:9px;color:#8A9396;font-size:11px}' +
+'#wqup-busy{position:fixed;inset:0;z-index:2147483001;background:rgba(255,255,255,.82);display:flex;align-items:center;justify-content:center;font:700 14px "Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;color:#1E2628}' +
+'#wqup-busy>div{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:16px 20px;box-shadow:0 10px 30px rgba(0,0,0,.15)}' +
+'@keyframes wqups{to{transform:rotate(360deg)}}@keyframes wqupf{from{opacity:0}}@keyframes wqupu{from{opacity:0;transform:translateY(10px) scale(.98)}}' +
+'@media (prefers-reduced-motion:reduce){#wqup,#wqup .wqup-c{animation:none}}' +
+'@media print{#wqup,#wqup-busy{display:none!important}}';
+(function(){ var st = document.createElement('style'); st.id = 'wqup-css'; st.textContent = UPCSS; (document.head || document.documentElement).appendChild(st); })();
+/* 最新版にしたあとの知らせ・URL の ?v= を消す */
+function afterLoad(){
+  try{ if(sessionStorage.getItem('wq.upd')){ sessionStorage.removeItem('wq.upd'); var d = document.createElement('div'); d.id = 'wqup-busy'; d.style.background = 'transparent'; d.style.pointerEvents = 'none'; d.innerHTML = '<div>✓ 最新版にしました' + (BLD ? '（版 ' + esc(sv(BLD)) + '）' : '') + '</div>'; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 2600); } }catch(e){}
+  try{ var q = new URLSearchParams(location.search); if(q.has('v') || q.has('ck')){ q.delete('v'); q.delete('ck'); var s = q.toString(); history.replaceState(history.state, '', location.pathname + (s ? '?' + s : '') + location.hash); } }catch(e){}
+  var t0 = Date.now();
+  setTimeout(function(){
+    check().then(function(){
+      /* 請求ナビ（暗号の入口がないので、ここで入れかえる）：開いてすぐなら、新しい版へ自動で入れかえる。同じ版へは3回まで */
+      if(APP === 'seikyu' && selfNewer() && Date.now() - t0 < 12000){
+        var me = lastCk.rows.filter(function(x){ return x.a === APP; })[0];
+        try{ var ck = String(sessionStorage.getItem('wq.ck2') || '').split('|'), n = ck[0] === me.latest ? (+ck[1] || 0) : 0; if(n >= 3) return; sessionStorage.setItem('wq.ck2', me.latest + '|' + (n + 1)); }catch(e){ return; }
+        run();
+      }
+    });
+  }, 1500);
+  /* 開きっぱなしでも、30分ごとに見る */
+  setInterval(function(){ if(!document.hidden) check(); }, 30 * 60 * 1000);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden && (!lastCk || Date.now() - lastCk.at > 10 * 60 * 1000)) check(); });
+}
+window.WQUP = { open: openPane, run: run, check: check, rows: function(){ return lastCk ? lastCk.rows : null; }, build: BLD, short: sv, badge: badge };
+
+function go(){ if(APP === 'mitsumori') startWq(); else startApp(); try{ afterLoad(); }catch(e){} }
 if(document.body) go(); else document.addEventListener('DOMContentLoaded', go);
 })();
 
