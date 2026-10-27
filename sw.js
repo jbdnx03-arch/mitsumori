@@ -6,7 +6,7 @@
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-3';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-4';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -91,7 +91,7 @@ self.addEventListener('fetch', function(ev){
       return;                                                // それ以外の確認はそのままネットへ
     }
     // 本体は「ネット優先」：開くたびに最新かを確認する（変わっていなければ 304 で軽い）。4秒たっても返らない・切れているときはキャッシュの版
-    ev.respondWith(ネット優先(INDEX, plain, 4000));
+    ev.respondWith(ネット優先(INDEX, plain, 9000));   /* スマホの電波でも本体（約10MB）を取り切れるよう、切り替えは9秒 */
     return;
   }
   if(rel === 'sw.js') return;
