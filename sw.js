@@ -6,7 +6,7 @@
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-5';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-6';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -102,7 +102,7 @@ self.addEventListener('fetch', function(ev){
     return;
   }
   // 画像・manifest などは、いちど開いたらキャッシュ優先
-  if(LOCAL.indexOf(url.origin + url.pathname) >= 0 || /\.(png|jpe?g|svg|webmanifest|json|css|js)$/i.test(rel)){
+  if(LOCAL.indexOf(url.origin + url.pathname) >= 0 || /\.(png|jpe?g|svg|webmanifest|json|css|js|woff2?)$/i.test(rel)){   /* 請求書の字体（fonts/*.woff2）も、いちど取ったらキャッシュから */
     ev.respondWith(古いまま出して裏で更新(url.origin + url.pathname, req));
   }
 });
