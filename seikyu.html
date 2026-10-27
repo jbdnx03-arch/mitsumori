@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-27 07:57-->
+<!--BUILD:2026-10-27 13:43-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -341,7 +341,7 @@ table.wl small{color:var(--ink3)}
 <div class="wrap">
   <section id="tab-load">
     <div class="card" id="worksCard">
-      <h2>最近の作業 <span class="n" id="worksNote">得意先・締めごとに、この端末とクラウドに自動で残ります</span><button class="btn sm" id="btnWorksAll" type="button" style="margin-left:auto">控えをすべて見る<kbd>K</kbd></button></h2>
+      <h2>今月の作業 <span class="n" id="worksNote">いちばん新しい締め月の分を全部。得意先・締めごとに、この端末とクラウドに自動で残ります</span><button class="btn sm" id="btnWorksAll" type="button" style="margin-left:auto">控えをすべて見る<kbd>K</kbd></button></h2>
       <div id="worksList" class="works"><div class="muted">読み込んでいます…</div></div>
       <div class="row" style="margin-top:8px"><button class="btn sm" id="btnWorksReload" type="button">↻ クラウドを見直す</button><span class="muted" id="worksCloud"></span></div>
     </div>
@@ -1472,14 +1472,19 @@ function workCard(x){
     Object.keys(STATUS).filter(k => k !== (w.status || 'draft')).map(k => '<button class="btn sm" data-wst="' + esc(x.id) + '" data-v="' + k + '">' + STATUS[k][0] + 'にする</button>').join('') +
     (isNow ? '' : '<button class="btn sm ghost" data-wdel="' + esc(x.id) + '">消す</button>') + '</div></div>';
 }
-/* 読み込みタブ：最近の作業（5件）＋控えへ */
+/* 読み込みタブ：今月の作業（いちばん新しい締め月を全部）＋控えへ */
 async function drawWorks(reload){
   const L = $('#worksList'); if(!L) return;
   const draw = async rl => {
     const rows = await mergedWorks(rl);
     $('#worksCloud').textContent = cloudErr2 ? 'クラウドを見られなかった（' + cloudErr2 + '）。この端末の分だけ出しています' : 'クラウド：' + (cloudCache || []).length + ' 件';
     if(!rows.length){ L.innerHTML = '<div class="muted">まだありません。CSVを入れて「現場ごとに分ける」を押すと、ここに残ります。</div>'; return; }
-    L.innerHTML = rows.slice(0, 5).map(workCard).join('') + (rows.length > 5 ? '<div class="muted" style="margin-top:6px">ほか ' + (rows.length - 5) + ' 件は「控え」で見られます</div>' : '');
+    /* いちばん新しい締め月の作業は全部出す（それより前の月は「控え」） */
+    const ym = rows.map(x => (x.w.seikyuDate || '').slice(0, 7)).filter(Boolean).sort().pop() || '';
+    const show = ym ? rows.filter(x => (x.w.seikyuDate || '').slice(0, 7) === ym) : rows.slice(0, 5);
+    const rest = rows.length - show.length, net = show.reduce((a, x) => a + num(x.w.net), 0), done = show.filter(x => (x.w.status || 'draft') !== 'draft').length;
+    L.innerHTML = (ym ? '<div class="wmh"><b>' + (+ym.slice(0, 4)) + '年' + (+ym.slice(5, 7)) + '月締め</b><span>' + show.length + '件</span><span>税抜 ' + yen(net) + '</span><span>' + done + '件 印刷・送付済</span></div>' : '') +
+      show.map(workCard).join('') + (rest > 0 ? '<div class="muted" style="margin-top:6px">前の月の ' + rest + ' 件は「控え」で見られます</div>' : '');
     L.onclick = ev => workAction(ev, rows, () => draw(false));
   };
   await draw(!!reload);
@@ -2433,7 +2438,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-27 07:57';
+const BUILD = '2026-10-27 13:43';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -2615,6 +2620,12 @@ table.xcal{border-collapse:collapse;width:100%;table-layout:fixed;font-size:11px
 table.xcal td span{display:block;font-size:10px;border-radius:4px;padding:0 2px;margin-top:1px}table.xcal .due{background:var(--warnbg);color:var(--warn)}table.xcal .ng{background:var(--ngbg);color:var(--ng)}table.xcal .ok{background:var(--okbg);color:var(--ok)}table.xcal .pay{background:#E8EEF8;color:#2F5597}
 .xsteps{margin-bottom:8px}.xsteps details{background:var(--soft);border-radius:10px;padding:6px 10px}.xsteps ol{margin:6px 0 0 18px;padding:0}.xsteps li{margin:2px 0}
 .xtype h4{margin:12px 0 4px}.xtype ul{margin:2px 0 4px 18px;padding:0;font-size:12.5px}
+/* N96：CSVを入れたときの「これを更新します？」の頭 */
+.xcsvhd{padding:10px 14px;border-radius:12px;background:var(--tint,rgba(20,100,110,.08));margin-bottom:8px;line-height:1.5}
+.xcsvhd b{font-size:1.1em}
+/* 読み込みタブ「最近の作業」：いちばん新しい締め月を全部出す。その見出し */
+.wmh{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin:2px 2px 8px}
+.wmh b{font-size:14px;color:var(--ink)}
 
 /* ==================================================================
    請求ナビ Web：見た目（デザイン）。紙（.pp／.xp／#print）には触らない
@@ -4114,6 +4125,7 @@ function keyHelp(){
 })();
 /* 版の変更点（N44） */
 const CHANGES = [
+  ['2026-10-27 09:10', 'CSVを入れたら「これは○○の○月○日締めの分。更新します？」と聞く（開いている得意先でなくてもOK・保存してあれば手直しを残して更新、なければ新しく作る）'],
   ['2026-10-26 22:00', '提案 N56・N58〜N95：照合表／インボイスの点検／紙の仕上がりの点検／請求書番号（入れるかは選ぶ）／出したものの台帳（探せる・書き換えがわかる）／作業する人の名前／記録をCSVで／毎日の控え（30日）／送付の記録／送付状・宛名ラベル／前回分の未入金／問い合わせの答えと記録／締めレポート・日程表・速報・請求漏れ・全得意先の残り・入金予定表・手間の通信簿（控え）／締めの手順／前月との差の内訳／あるべき金額との突き合わせ／CSVの取り違え／新しい版で変わった行／得意先の型／先方の形式で書き出す／絶対ダメを足せる／本物のPDFとくらべる／単価の改定日／システムの順にもどす／Gmailで下書き／来月への申し送り／Excel版から移す／クラウドの暗号化（合言葉）／初めての得意先は全部見てから／休みの日'],
   ['2026-10-26 20:03', '「絶対ダメ」：前に起きたミスと同じ形は、直すか確かめるまで印刷・PDFに進めない／別の得意先の前月・2社分のCSVは読まない'],
   ['2026-10-24 08:05', '提案 N1〜N54：CSVで今月を更新（手直しを残す）／先月のWeb版から自動で前月／要確認の消し込み・次へ（N）・重点チェック・今後出さない／見た印と進み具合／前月の明細を横に・前月の残り／行メモ・決まりごと・得意先カード／変更の記録（L）／印刷前の最終確認・訂正版の記録・送付済ロック／PDF名・送付メール・請求のポイント／二重請求・単価・見積とのちがい／営業向け（長く借りている・季節品・引き上げ漏れ）／請求残高一覧表・Excel版とくらべる・Excelで書き出す／CSVまとめて取り込み／貸出状況照会／見るだけのリンク・練習モード・確認モード／キーの一覧（?）'],
@@ -4134,7 +4146,7 @@ setTimeout(() => { if(!S.built) verNotes(); }, 1500);
 multiCsv();
 window.seikyuExt.CHANGES = CHANGES;
 /* 追加2（ext2*.js）から使う中身 */
-Object.assign(window, { E, nowIso, hm, card, cardSave, cardLoad, chkDone, chkKey, RO, FN, openPanel, ymAdd, applyRules, seenOk, allWorksMeta, loadWork, jumpTo, prevExcluded, matchExcluded, extraChecks, seenToggle });
+Object.assign(window, { E, nowIso, hm, card, cardSave, cardLoad, chkDone, chkKey, RO, FN, openPanel, ymAdd, applyRules, seenOk, allWorksMeta, loadWork, jumpTo, prevExcluded, matchExcluded, extraChecks, seenToggle, updateFromCsv });
 })();
 /* 日付・数の欄は、選んだらすぐ打ちこめるように中身を全部選ぶ（品名は途中を直すことが多いので選ばない） */
 (function(){
@@ -5372,6 +5384,85 @@ drawChecks = function(){
   };
   /* 明るい／暗いのボタン：押すとくるっと */
   document.addEventListener('click', ev => { const b = ev.target.closest('#btnTheme'); if(!b) return; b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); }, true);
+})();
+/* ------------------------------------------------------------------
+   N96：CSVを入れたら、どの得意先・どの締めの分かを見て「これを更新します。いいですか？」と聞く
+   （開いている得意先でなくてもよい。保存してあればその作業を更新、なければ新しく作る）
+   ------------------------------------------------------------------ */
+(function(){
+  const _tk = takeCsv;
+  takeCsv = async function(f){
+    await _tk(f);
+    if(!csvText || !/^✓/.test($('#stCsv').textContent || '')) return;
+    let D; try{ D = readCsv(csvText); }catch(e){ return; }
+    const id = workIdOf(D.meta); if(!id) return;
+    if(S.built && S.workId === id && S.csvRaw && S.csvRaw === csvText) return;   /* 同じCSV：前のトーストだけ */
+    const rows = await allWorksMeta(); const x = rows.find(r => r.id === id); const w = x && x.w;
+    const other = S.built && S.meta && S.workId && S.workId !== id ? S.meta : null;
+    const head = '<div class="xcsvhd"><b>' + esc(D.meta.custName) + '</b>　<b>' + jdate(D.meta.seikyuDate) + '締め</b><br><small class="muted">' + esc(f.name) + '　' + D.lines.length + ' 行・' + Object.keys(D.sites).length + ' 現場　税抜 ' + yen(D.meta.sysNet) + '</small></div>';
+    let v;
+    if(w){
+      v = await askDialog('このCSVは「' + esc(D.meta.custName) + '」の ' + jdate(D.meta.seikyuDate) + '締め の分です', head +
+        '<p>この得意先・締めの作業が保存してあります（最後に保存 ' + hm(w.savedAt) + '・税抜 ' + yen(w.net || 0) + (w.status === 'sent' ? '・<b style="color:var(--warn)">送付済</b>' : w.status === 'printed' ? '・印刷済' : '') + '）。</p>' +
+        '<p><b>今の手直しを残して、このCSVで更新します。いいですか？</b><br><small>手直し・出さない・手で足した行・メモはそのまま。CSVで変わったところだけ入れかえます。</small></p>' +
+        (other ? '<p class="muted">いま開いている「' + esc(other.custName) + '　' + jdate(other.seikyuDate) + '締め」は保存して、こちらに切りかえます。</p>' : (S.built && S.workId === id ? '<p class="muted">（いま開いている作業です）</p>' : '')),
+        [{ t:'はい、更新する', v:'upd', primary:true, k:'Y' }, { t:'CSVから作り直す（手直しは消える）', v:'re', k:'R' }, { t:'開くだけ（CSVは使わない）', v:'open', k:'O' }, { t:'あとで', v:null, ghost:true, k:'N' }]);
+    }else{
+      v = await askDialog('このCSVは「' + esc(D.meta.custName) + '」の ' + jdate(D.meta.seikyuDate) + '締め の分です', head +
+        '<p>この得意先・締めの作業はまだありません。</p><p><b>現場ごとに分けて、新しく作ります。いいですか？</b><br><small>前月は、' + (prevData ? '入れてある前月のファイル' : '先月のWeb版の作業（あれば）') + 'から引き継ぎます。</small></p>' +
+        (other ? '<p class="muted">いま開いている「' + esc(other.custName) + '　' + jdate(other.seikyuDate) + '締め」は保存して、こちらに切りかえます。</p>' : ''),
+        [{ t:'はい、作る', v:'new', primary:true, k:'Y' }, { t:'あとで（「現場ごとに分ける」を押すまで何もしない）', v:null, ghost:true, k:'N' }]);
+    }
+    if(!v){ toast('そのままにした。「現場ごとに分ける」を押すと続きができます', 5000); return; }
+    if(v === 'open'){ openWorkId(id, x.cl); return; }
+    if(S.built && S.workId && S.workId !== id) await saveNow();
+    const cr = document.querySelector('input[name="carry"]:checked'); S.opt.carry = cr ? cr.value : 'simple';
+    try{
+      if(v === 'upd'){ await updateFromCsv(x); return; }
+      let auto = '';
+      if(!prevData){
+        const pw = await window.seikyuExt.findPrevWork(D.meta);
+        if(pw){ prevData = window.seikyuExt.workToPrev(pw); prevName = 'Web版 ' + jdate(pw.seikyuDate) + '締めの作業'; auto = jdate(pw.seikyuDate); window.__prevCard = pw.ext && pw.ext.card; }
+      }
+      build(); S.workId = id; S.status = 'draft'; S.printedAt = ''; save();
+      toast('現場ごとに分けた' + (S.prev ? '（前月の手直しを引き継ぎ' + (auto ? '：Web版の ' + auto + '締めから自動で' : '') + '）' : ''), 5000);
+      if(auto) prevData = null;
+      setTab('sites'); setTimeout(askNoBill, 400);
+    }catch(e){ console.error(e); toast('作れませんでした：' + (e.message || e), 6000); }
+  };
+})();
+/* N97：保存してある作業の一覧（読み込みタブ・控え）の各カードから、その得意先のCSVを選んで更新できる */
+(function(){
+  const _wc = workCard;
+  workCard = function(x){
+    return _wc(x).replace('<div class="wc4">', '<div class="wc4"><button class="btn sm" data-wcsv="' + esc(x.id) + '" title="この得意先・締めのCSVを選んで、手直しを残して更新">CSVで更新</button>');
+  };
+  let inp = null, target = null;
+  function picker(){
+    if(inp) return inp;
+    inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.csv,text/csv'; inp.hidden = true; inp.id = 'xWcsv'; document.body.appendChild(inp);
+    inp.addEventListener('change', async () => {
+      const f = inp.files[0]; inp.value = ''; if(!f || !target) return;
+      const t = target; target = null;
+      let D; try{ D = readCsv(await readFileText(f)); }catch(e){ toast(e.message || 'CSVを読めませんでした', 8000); return; }
+      const id = workIdOf(D.meta);
+      if(String(D.meta.custCode) !== String(t.w.custCode || '')){ await askDialog('別の得意先のCSVです', '選んだCSVは <b>' + esc(D.meta.custName) + '</b>（' + jdate(D.meta.seikyuDate) + '締め）の分です。<br><b>' + esc(t.w.custName) + '</b> の作業には使えません。取り違えていないか確かめて。', [{ t:'わかった', v:1, primary:true, k:'Y' }]); return; }
+      if(id !== t.id){
+        const v = await askDialog('同じ得意先ですが、締めがちがいます', '選んだCSVは <b>' + jdate(D.meta.seikyuDate) + '締め</b>、この作業は <b>' + jdate(t.w.seikyuDate || '') + '締め</b> です。<br>このCSVの締めの分として、ふつうに読み込みますか？', [{ t:'読み込む', v:1, primary:true, k:'Y' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+        if(!v) return;
+      }
+      try{ if(typeof closeHikae === 'function') closeHikae(); }catch(e){}
+      setTab('load'); await takeCsv(f);
+    });
+    return inp;
+  }
+  document.addEventListener('click', async ev => {
+    const b = ev.target.closest('[data-wcsv]'); if(!b) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const rows = await allWorksMeta(); target = rows.find(r => r.id === b.dataset.wcsv) || null;
+    if(!target){ toast('作業が読めなかった'); return; }
+    picker().click();
+  }, true);
 })();
 
 </script>
