@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-28 08:55-->
+<!--BUILD:2026-10-28 19:25-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -995,14 +995,23 @@ function shortName(n){
 }
 /* 前月の手直しが「1対1の書きかえ」か（分けた・別の品にした、ではない） */
 function normNm(s){ return String(s || '').normalize('NFKC').replace(/【[^】]*】|\([^)]*\)|（[^）]*）|\s/g, ''); }
-function simpleEdit(e){
-  if(e.vers.length !== 1) return false;
-  if(num(e.vers[0].qty) !== num(e.sys.qty)) return false;            /* 数量を変えた手直しは、確かめてから */
-  const a = normNm(e.vers[0].name), b = normNm(e.sys.name);
-  if(!a || !b) return true;
+/* 2つの品名が「同じ品の言いかえ」くらい近いか */
+function nameNear(x, y){
+  const a = normNm(x), b = normNm(y);
+  if(!a || !b) return false;
   if(a === b || a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return true;
   const A = new Set(a), hit = Array.from(new Set(b)).filter(c => A.has(c)).length;
   return hit / Math.max(new Set(b).size, 1) >= 0.6;
+}
+function simpleEdit(e, l){
+  if(e.vers.length !== 1) return false;
+  if(num(e.vers[0].qty) !== num(e.sys.qty)) return false;            /* 数量を変えた手直しは、確かめてから */
+  const a = normNm(e.vers[0].name), b = normNm(e.sys.name);
+  /* 2026-10-28：村上工業・原宿FFで、CSVでは「5W単信トランシーバー」の行が、前月の手直しの品名「普通騒音計」になって
+     騒音計が2つになった。品名が大きく変わる手直しは、自動では入れない（候補にして確かめてから） */
+  if(l && l.name && a && !nameNear(e.vers[0].name, l.name)) return false;
+  if(!a || !b) return !!(a && l && nameNear(e.vers[0].name, l.name)) || (!a && !b);
+  return nameNear(e.vers[0].name, e.sys.name);
 }
 /* 前月の手直しの「候補」：中身（何をどう変えたか）を行に持たせる。保存して開き直しても使える */
 function suggOf(l, e, sh, how){
@@ -1201,7 +1210,7 @@ function build(){
     if(e && e.edited && mode !== 'none' && same){
       /* 同じ締めのExcel（今月の作業の続き）：Excelで直したとおりに、期間・日数・金額までそのまま入れる */
       applyVers(l, e, sh, true).forEach(n => S.lines.push(n));
-    }else if(e && e.edited && mode !== 'none' && (mode === 'all' || simpleEdit(e))){
+    }else if(e && e.edited && mode !== 'none' && ((mode === 'all' && (!l.name || nameNear(e.vers[0] && e.vers[0].name, l.name) || e.vers.length > 1)) || simpleEdit(e, l))){
       /* 前月の手直しを今月にも（何行かに分けていたら、そのまま分ける）。金額は今月の日数で計算し直す */
       applyVers(l, e, sh).forEach(n => S.lines.push(n));
     }else{
@@ -1857,6 +1866,18 @@ function checks(){
       g.forEach(x => seen.add(x[1].id));
       out.unshift({ lv:'warn', t:'まったく同じ行が ' + g.length + ' つ：' + g[0][1].name, s: sh.name + '　行 ' + pr(g) + '。品名・伝票番号・期間・数量・金額が同じです。' + (csvBoth ? 'CSVでも別の行です。本当に ' + g.length + ' 台なら「このままでいい」、二重なら片方を × で消して' : '二重になっています。いらない行は × で消して'), id: g[1][1].id, sh: sh.id, dup: g.map(x => x[1].id), never: !csvBoth });
     });
+    /* CSVの品名とまったくちがう品名になっている行（前月の手直しの引き継ぎなど）。同じ品名の行がほかにもあれば二重請求の形なので「絶対ダメ」 */
+    ls.forEach((m, i) => {
+      if(m.head || m.nb || m.manual || !m.sys || !m.sys.name || !m.name || seen.has(m.id) || m.dup) return;
+      if(nameNear(m.name, m.sys.name)) return;
+      const twin = ls.findIndex(c => c !== m && !c.head && !c.nb && normNm(c.name) === normNm(m.name));
+      if(twin >= 0){
+        seen.add(m.id);
+        out.unshift({ lv:'warn', never:true, t:'同じ品が2つになっている：' + m.name, s: sh.name + '　行 ' + (i + 1) + ' はCSVでは「' + m.sys.name + '」（' + (m.kanri || m.shohin || '') + '）。' + (m.carried ? '前月の手直しを引き継いで品名が変わった。' : '品名を手で変えている。') + '行 ' + (twin + 1) + ' にも同じ品がある。CSVのとおりに戻すなら、行の ↺（CSVのとおりに戻す）を押して', id: m.id, sh: sh.id, dup: [m.id, ls[twin].id] });
+      }else{
+        out.push({ lv:'warn', t:'CSVと品名がちがう：' + m.name, s: sh.name + '　行 ' + (i + 1) + ' はCSVでは「' + m.sys.name + '」（' + (m.kanri || m.shohin || '') + '）。' + (m.carried ? '前月の手直しを引き継いだ。' : '') + '別の品になっていないか確かめて', id: m.id, sh: sh.id });
+      }
+    });
     /* 前月から「重ねて」出した行が、CSVの行と同じ品・同じ金額（2重に見える） */
     ls.forEach((m, i) => {
       if(!m.ovl || m.head || m.nb || seen.has(m.id)) return;
@@ -2502,7 +2523,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-28 08:55';
+const BUILD = '2026-10-28 19:25';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -5957,7 +5978,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 08:55';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 19:25';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
