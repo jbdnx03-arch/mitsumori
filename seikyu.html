@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-28 19:29-->
+<!--BUILD:2026-10-28 20:55-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2523,7 +2523,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-28 19:29';
+const BUILD = '2026-10-28 20:55';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6015,7 +6015,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 19:29';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 20:55';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -6054,6 +6054,7 @@ function render(nav){
     var cur = here && here !== 'mitsumori' && appOf(x.href) === here;
     return '<a class="wqn' + (x.fixed ? ' fx' : '') + (cur ? ' cur' : '') + '" href="' + esc(x.href || ('./index.html?go=' + x.key)) + '" data-k="' + esc(x.key) + '" title="' + esc(x.full || x.label) + '">' + esc(x.label) + '</a>';
   }).join('');
+  h += '<button type="button" class="wqn lx" data-luxbtn="1" title="テーマと演出">✦</button>';
   h += '<button type="button" class="wqn up" data-wqup="1" title="最新版にする"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4M13.5 2.5V5.5H10.5"/></svg>最新版</button>';
   if(nav.dataset.sig === h){ try{ badge(); }catch(e){} return; } nav.dataset.sig = h; nav.innerHTML = h; try{ badge(); }catch(e){}
 }
@@ -6218,7 +6219,8 @@ function paint(rows){
   pane.innerHTML = h;
 }
 var UPCSS =
-'#wqnav .wqn.up{margin-left:auto;border-color:rgba(255,255,255,.28);background:#2A3437;position:sticky;right:-12px;z-index:1;box-shadow:-10px 0 10px 2px #1E2628,12px 0 0 0 #1E2628}' +
+'#wqnav .wqn.lx{margin-left:auto;position:sticky;right:76px;z-index:1;background:#2A3437;box-shadow:-10px 0 10px 2px #1E2628}' +
+'#wqnav .wqn.up{margin-left:0;border-color:rgba(255,255,255,.28);background:#2A3437;position:sticky;right:-12px;z-index:1;box-shadow:-10px 0 10px 2px #1E2628,12px 0 0 0 #1E2628}' +
 '#wqnav .wqn.up:hover{background:#38464A}' +
 '#wqnav .wqn.up.new{background:#E8554E;border-color:#E8554E}' +
 '#wqnav .wqn.up.new::after{content:"新";font-size:9.5px;font-weight:800;background:#fff;color:#E8554E;border-radius:6px;padding:1px 4px;margin-left:3px}' +
@@ -6271,6 +6273,373 @@ window.WQUP = { open: openPane, run: run, check: check, rows: function(){ return
 
 function go(){ if(APP === 'mitsumori') startWq(); else startApp(); try{ afterLoad(); }catch(e){} }
 if(document.body) go(); else document.addEventListener('DOMContentLoaded', go);
+})();
+
+/* ===== wqlux：6アプリ共通の「売り物の見た目」（2026-10-28）=====
+   ・ダーク基調（深い紺緑＋金）を標準に。各アプリのダーク用CSSを、端末の設定によらず使えるようにする
+   ・背景にゆっくり動くオーロラと光の粒。カードはガラス風・金のふち・光る影
+   ・動き：カードが順に出る、ボタンの波紋と光の線、画面の切りかえ、保存・完了で紙吹雪、上にスクロールの金の線
+   ・紙（見積書・請求書のプレビューと印刷）には一切さわらない。印刷では全部消える
+   ・帯の「✦」で テーマ（ダーク／ライト）と 演出（多め／ふつう／なし）を切りかえ（全アプリ共通で覚える） */
+(function(){
+'use strict';
+if(window.__wqlux) return; window.__wqlux = 1;
+var APP = window.WQNAV_APP || '';
+var SMALL = /^(sharyo|meshitsu|zoto|rental)$/.test(APP);
+var KT = 'wq.lux.theme', KM = 'wq.lux.motion', KMIG = 'wq.lux.mig.' + APP;
+function ls(k, v){ try{ if(v === undefined) return localStorage.getItem(k); if(v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){ return null; } }
+var root = document.documentElement;
+var reduce = false; try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+var coarse = false; try{ coarse = matchMedia('(pointer: coarse)').matches; }catch(e){}
+var lowEnd = false; try{ lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2); }catch(e){}
+function motion(){ var m = ls(KM); if(m === 'off' || m === 'std' || m === 'max') return m; return reduce ? 'off' : 'max'; }
+var PAPER = '#pvpaper, #paper, #print, .xp, .pp, .pw, .pg, .pgdoc, .pgatt, #xPdfWork, .sheet-paper, .paper, .pvwrap';
+function inPaper(el){ try{ return !!(el && el.closest && el.closest(PAPER)); }catch(e){ return false; } }
+
+/* ---------- テーマ：アプリごとの切りかえ方 ---------- */
+function curTheme(){
+  if(APP === 'mitsumori') return (ls('wq.skin') === 'yoru') ? 'dark' : 'light';
+  if(APP === 'seikyu'){ var t = ls('seikyuNaviWeb.theme'); return t === 'light' ? 'light' : (t === 'dark' ? 'dark' : (root.dataset.theme || 'light')); }
+  return ls(KT) === 'light' ? 'light' : 'dark';
+}
+function applyTheme(t){
+  if(APP === 'mitsumori'){
+    if(t === 'dark'){ var b = ls('wq.skin'); if(b && b !== 'yoru') ls('wq.skin.beforeLux', b); ls('wq.skin', 'yoru'); root.setAttribute('data-skin', 'yoru'); root.setAttribute('data-theme', 'dark'); }
+    else { var pb = ls('wq.skin.beforeLux') || ''; ls('wq.skin', pb === 'yoru' ? '' : pb); if(pb && pb !== 'yoru'){ root.setAttribute('data-skin', pb); } else root.removeAttribute('data-skin'); root.setAttribute('data-theme', 'light'); }
+  }else if(APP === 'seikyu'){
+    ls('seikyuNaviWeb.theme', t); root.dataset.theme = t;
+  }else{
+    ls(KT, t); root.setAttribute('data-theme', t);
+  }
+  root.classList.toggle('lux-dark', t === 'dark');
+  if(t === 'dark') setTimeout(function(){ darkFix(); }, 30); else darkUnfix();
+  paintBtn();
+}
+/* はじめて開いたとき：ダークにする（あとは各アプリ・✦ の切りかえに従う） */
+if(!ls(KMIG)){ ls(KMIG, '1'); if(APP === 'mitsumori' || APP === 'seikyu') applyTheme('dark'); }
+if(APP !== 'mitsumori' && APP !== 'seikyu') root.setAttribute('data-theme', curTheme());
+root.classList.add('lux'); root.classList.toggle('lux-dark', curTheme() === 'dark');
+function setMotionClass(){ var m = motion(); root.classList.toggle('lux-m-max', m === 'max'); root.classList.toggle('lux-m-std', m === 'std'); root.classList.toggle('lux-m-off', m === 'off'); }
+setMotionClass();
+
+/* ---------- 端末の「ダーク」設定にしか効かないCSSを、ダークを選んだときにも効くように写す ---------- */
+function splitSel(s){ var out = [], d = 0, cur = ''; for(var i = 0; i < s.length; i++){ var c = s[i]; if(c === '(') d++; else if(c === ')') d--; if(c === ',' && d === 0){ out.push(cur); cur = ''; } else cur += c; } out.push(cur); return out; }
+function scopeRule(r){
+  if(r.type !== 1 || !r.selectorText) return r.cssText;
+  var sels = splitSel(r.selectorText).map(function(x){
+    x = x.trim();
+    if(/:root:not\(\[data-theme=["']?light["']?\]\)/.test(x)) return x.replace(/:root:not\(\[data-theme=["']?light["']?\]\)/, ':root[data-theme="dark"]');
+    if(/^:root\b/.test(x) || /^html\b/.test(x)) return x.replace(/^(:root|html)/, '$1[data-theme="dark"]');
+    if(/data-theme/.test(x)) return x;
+    return ':root[data-theme="dark"] ' + x;
+  });
+  return sels.join(', ') + '{' + r.style.cssText + '}';
+}
+function copyDarkMedia(){
+  if(document.getElementById('lux-darkcopy')) return;
+  var css = [];
+  Array.prototype.forEach.call(document.styleSheets, function(sh){
+    var rules; try{ rules = sh.cssRules; }catch(e){ return; }
+    if(!rules) return;
+    Array.prototype.forEach.call(rules, function(r){
+      if(r.type === 4 && /prefers-color-scheme:\s*dark/.test(r.conditionText || (r.media && r.media.mediaText) || '')){
+        Array.prototype.forEach.call(r.cssRules, function(x){ try{ css.push(scopeRule(x)); }catch(e){} });
+      }
+    });
+  });
+  if(!css.length) return;
+  var st = document.createElement('style'); st.id = 'lux-darkcopy'; st.textContent = css.join('\n');
+  document.head.appendChild(st);
+}
+
+/* ---------- 見た目 ---------- */
+var CSS = [
+'@media screen{',
+/* 背景：オーロラと光の粒 */
+'html.lux.lux-dark{background:#05090C !important; color-scheme:dark}',
+'html.lux.lux-dark body{background:transparent !important}',
+'#lux-bg,#lux-cv{position:fixed; inset:0; pointer-events:none; z-index:-1}',
+'html:not(.lux-dark) #lux-bg, html:not(.lux-dark) #lux-cv{display:none}',
+'#lux-bg{background:radial-gradient(42% 36% at 18% 12%, rgba(63,193,201,.20), transparent 62%), radial-gradient(36% 32% at 84% 8%, rgba(217,183,106,.16), transparent 62%), radial-gradient(48% 42% at 62% 96%, rgba(56,98,180,.18), transparent 64%), radial-gradient(30% 28% at 6% 88%, rgba(140,90,200,.12), transparent 62%), linear-gradient(180deg,#071015 0%,#05090C 100%); background-size:140% 140%,140% 140%,140% 140%,140% 140%,100% 100%}',
+'html.lux-m-max #lux-bg, html.lux-m-std #lux-bg{animation:luxAurora 28s ease-in-out infinite alternate}',
+'@keyframes luxAurora{0%{background-position:0% 0%,100% 0%,50% 100%,0% 100%,0 0}50%{background-position:30% 20%,70% 30%,30% 70%,20% 80%,0 0}100%{background-position:10% 40%,90% 10%,70% 90%,10% 60%,0 0}}',
+'html.lux.lux-dark .wq-home{background:radial-gradient(42% 36% at 18% 12%, rgba(63,193,201,.20), transparent 62%), radial-gradient(36% 32% at 84% 8%, rgba(217,183,106,.16), transparent 62%), radial-gradient(48% 42% at 62% 96%, rgba(56,98,180,.18), transparent 64%), linear-gradient(180deg,#071015 0%,#05090C 100%) fixed !important}',
+'#lux-bg::after{content:""; position:absolute; inset:0; opacity:.05; background-image:url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'160\' height=\'160\'><filter id=\'n\'><feTurbulence type=\'fractalNoise\' baseFrequency=\'.9\' numOctaves=\'2\' stitchTiles=\'stitch\'/></filter><rect width=\'100%\' height=\'100%\' filter=\'url(%23n)\'/></svg>")}',
+/* 上のスクロールの金の線 */
+'#lux-prog{position:fixed; left:0; top:0; height:2px; width:100%; transform-origin:0 50%; transform:scaleX(0); background:linear-gradient(90deg,#3FC1C9,#E3C77F 60%,#F6E7B5); box-shadow:0 0 10px rgba(227,199,127,.7); z-index:2147483000; pointer-events:none; transition:transform .12s linear}',
+'html.lux-m-off #lux-prog{display:none}',
+/* ガラスのカード（紙の中は除く） */
+'html.lux-dark .card:not(.pr-cd):not(.xp *), html.lux-dark .hm-card, html.lux-dark .hm-app, html.lux-dark .hm-hero, html.lux-dark .kpi, html.lux-dark .panel, html.lux-dark .box{backdrop-filter:blur(12px) saturate(140%); -webkit-backdrop-filter:blur(12px) saturate(140%); border-color:rgba(255,255,255,.08) !important; box-shadow:0 14px 34px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.06) !important}',
+'html.lux-dark .card h2, html.lux-dark .hm-h{letter-spacing:.06em}',
+/* 金のふちが光る（タイル・カードにマウスを当てたとき） */
+'html.lux .lux-glow{position:relative; isolation:isolate}',
+'html.lux.lux-dark .lux-glow::before{content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px; background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%), rgba(246,231,181,.75), rgba(63,193,201,.35) 35%, transparent 60%); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; opacity:0; transition:opacity .25s; pointer-events:none; z-index:1}',
+'html.lux.lux-dark .lux-glow:hover::before{opacity:1}',
+'html.lux.lux-dark .lux-glow::after{content:""; position:absolute; inset:0; border-radius:inherit; background:radial-gradient(220px circle at var(--mx,50%) var(--my,50%), rgba(227,199,127,.10), transparent 60%); opacity:0; transition:opacity .25s; pointer-events:none}',
+'html.lux.lux-dark .lux-glow:hover::after{opacity:1}',
+/* タイルは持ち上がる */
+'html.lux-m-max .hm-app, html.lux-m-std .hm-app{transition:transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s}',
+'html.lux-m-max .hm-app:hover, html.lux-m-std .hm-app:hover{transform:translateY(-4px)}',
+'html.lux.lux-dark .hm-app:hover{box-shadow:0 22px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(227,199,127,.25), 0 0 26px rgba(63,193,201,.18) !important}',
+/* 主なボタン：金の光が走る */
+'html.lux .lux-sheen{position:relative; overflow:hidden}',
+'html.lux-m-max .lux-sheen::after{content:""; position:absolute; top:0; bottom:0; width:40%; left:-60%; background:linear-gradient(105deg, transparent, rgba(255,255,255,.35), transparent); transform:skewX(-18deg); animation:luxSheen 4.8s ease-in-out infinite; pointer-events:none}',
+'@keyframes luxSheen{0%,72%{left:-60%}100%{left:130%}}',
+'html.lux.lux-dark .btn.primary, html.lux.lux-dark .btn.pri, html.lux.lux-dark .hm-btn.pri, html.lux.lux-dark .btn-primary{box-shadow:0 8px 22px rgba(63,193,201,.22), inset 0 1px 0 rgba(255,255,255,.18) !important}',
+'html.lux.lux-dark :focus-visible{outline:2px solid rgba(227,199,127,.85) !important; outline-offset:2px; box-shadow:0 0 0 4px rgba(227,199,127,.18) !important}',
+/* 波紋 */
+'.lux-ripw{position:absolute; inset:0; border-radius:inherit; overflow:hidden; pointer-events:none; z-index:3}',
+'.lux-rip{position:absolute; border-radius:50%; transform:scale(0); background:radial-gradient(circle, rgba(255,255,255,.45), rgba(255,255,255,0) 70%); pointer-events:none; animation:luxRip .6s ease-out forwards; z-index:3}',
+'@keyframes luxRip{to{transform:scale(1); opacity:0}}',
+/* 順に出る */
+'html.lux-m-max .lux-in, html.lux-m-std .lux-in{animation:luxIn .55s cubic-bezier(.2,.8,.2,1) both; animation-delay:var(--ld,0ms)}',
+'html.lux-m-max .lux-in{animation-name:luxInMax}',
+'@keyframes luxIn{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}',
+'@keyframes luxInMax{from{opacity:0; transform:translateY(18px) scale(.975); filter:blur(4px)}to{opacity:1; transform:none; filter:none}}',
+/* 画面が開くとき */
+'html.lux-m-max .lux-open, html.lux-m-std .lux-open{animation:luxOpen .42s cubic-bezier(.2,.8,.2,1) both}',
+'@keyframes luxOpen{from{opacity:0; transform:translateY(14px) scale(.99)}to{opacity:1; transform:none}}',
+/* web見積のホーム・請求ナビの上の帯：深いガラス＋金の線、見出しは金のグラデーション */
+'html.lux.lux-dark .wq-home .hm-top{background:linear-gradient(120deg, rgba(16,48,54,.92), rgba(8,16,20,.92) 60%, rgba(30,24,10,.9)) !important; box-shadow:0 1px 0 rgba(227,199,127,.35), 0 18px 40px rgba(0,0,0,.4) !important; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px)}',
+'html.lux.lux-dark .wq-home .hm-hi b, html.lux.lux-dark .top .brand b, html.lux.lux-dark .top h1, html.lux.lux-dark .topbar h1{background:linear-gradient(100deg,#FFF7DD 0%,#E3C77F 45%,#F6E7B5 60%,#C99A45 100%); -webkit-background-clip:text; background-clip:text; color:transparent !important; background-size:200% 100%}',
+'html.lux-m-max.lux-dark .wq-home .hm-hi b, html.lux-m-max.lux-dark .top h1, html.lux-m-max.lux-dark .topbar h1{animation:luxGold 6s ease-in-out infinite}',
+'@keyframes luxGold{0%,100%{background-position:0% 0}50%{background-position:100% 0}}',
+'html.lux.lux-dark .top{box-shadow:0 1px 0 rgba(227,199,127,.3), 0 14px 34px rgba(0,0,0,.35) !important}',
+'html.lux.lux-dark .topbar{background:linear-gradient(120deg, rgba(16,48,54,.95), rgba(8,16,20,.95) 65%, rgba(30,24,10,.92)) !important; box-shadow:0 1px 0 rgba(227,199,127,.35) !important}',
+'html.lux.lux-dark .hm-h, html.lux.lux-dark .card > h2{color:#E9D9A8 !important}',
+/* 帯 */
+'html.lux.lux-dark #wqnav{background:linear-gradient(180deg, rgba(10,18,22,.92), rgba(8,14,18,.86)) !important; backdrop-filter:blur(14px) saturate(150%); -webkit-backdrop-filter:blur(14px) saturate(150%); box-shadow:0 1px 0 rgba(227,199,127,.28), 0 10px 30px rgba(0,0,0,.35) !important}',
+'html.lux.lux-dark #wqnav .wqn{border-color:rgba(255,255,255,.14)}',
+'html.lux.lux-dark #wqnav .wqn.cur{background:linear-gradient(135deg,#F6E7B5,#D9B76A); border-color:#E3C77F; color:#1A1408; box-shadow:0 0 18px rgba(227,199,127,.45)}',
+'html.lux.lux-dark #wqnav .wqn.fx{background:rgba(255,255,255,.92)}',
+'#wqnav .wqn.lx{border-color:rgba(227,199,127,.45) !important; color:#F2DFA6; padding:6px 10px}',
+'html.lux.lux-dark #wqnav .wqn.lx, html.lux.lux-dark #wqnav .wqn.up:not(.new){background:#0C1418 !important; box-shadow:-10px 0 10px 2px #0A1216 !important}',
+'html:not(.lux-dark) #wqnav .wqn.lx{color:#fff}',
+/* ✦ のメニュー */
+'#lux-menu{position:fixed; z-index:2147483001; top:calc(var(--wqnav-h,44px) + 8px); right:12px; width:248px; background:rgba(14,20,24,.94); color:#EAF1F2; border:1px solid rgba(227,199,127,.3); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.5); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); padding:12px; font:13px/1.45 "Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif; animation:luxOpen .25s cubic-bezier(.2,.8,.2,1) both}',
+'#lux-menu[hidden]{display:none}',
+'#lux-menu b{display:block; font-size:11px; letter-spacing:.2em; color:#E3C77F; margin:2px 2px 6px}',
+'#lux-menu .row{display:flex; gap:6px; margin-bottom:10px}',
+'#lux-menu button{flex:1; appearance:none; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05); color:inherit; font:inherit; font-weight:700; padding:8px 6px; border-radius:10px; cursor:pointer}',
+'#lux-menu button.on{background:linear-gradient(135deg,#F6E7B5,#D9B76A); color:#1A1408; border-color:#E3C77F}',
+'#lux-menu small{display:block; color:rgba(234,241,242,.6); font-size:11px}',
+/* 紙吹雪 */
+'.lux-cf{position:fixed; top:0; left:0; width:8px; height:12px; pointer-events:none; z-index:2147483002; border-radius:2px; will-change:transform}',
+'}',
+'@media print{#lux-bg,#lux-cv,#lux-prog,#lux-menu,.lux-cf,.lux-rip,.lux-ripw{display:none !important} .lux-in,.lux-open{animation:none !important; opacity:1 !important; transform:none !important; filter:none !important}}',
+'@media (prefers-reduced-motion: reduce){html.lux:not(.lux-m-max) .lux-in, html.lux:not(.lux-m-max) .lux-open{animation:none !important}}'
+].join('\n');
+
+/* 請求書・見積書の紙はいつも白（ダークでも） */
+CSS += '\n@media screen{html.lux-dark #pvpaper, html.lux-dark #print .xp, html.lux-dark #print .pp, html.lux-dark .pv .xp, html.lux-dark .pv .pp{color-scheme:light}}';
+
+/* お中元・レンタル機購入申請書：ダークのCSVを持っていないので、ここで用意する */
+var DARK2 = [
+':root[data-theme="dark"]{--brand:#3FA9B4; --on-brand:#fff; --ink:#E6EEF0; --ink-2:#B6C6CA; --ink-3:#8399A0; --line:#2C3D43; --line-2:#24343A; --surface:rgba(20,30,35,.82); --surface-2:rgba(255,255,255,.04); --paper:#0A1216; --fill:rgba(227,199,127,.08); --bg:#0A1216; --warn:#F0A066; --ok:#6CCB95; --kAb:#173A2E; --kBb:#16304A; --kXb:#1E2A2E; --kOb:#3A2C14; --kA:#7FD6B0; --kB:#8BC3F0; --kX:#9AB0B5; --kO:#E9C27A}',
+':root[data-theme="dark"] .topbar{background:linear-gradient(135deg,#0E3A40,#0A2328) !important}',
+':root[data-theme="dark"] .card h2{background:rgba(255,255,255,.035) !important; color:#9FDDE3}',
+':root[data-theme="dark"] input, :root[data-theme="dark"] select, :root[data-theme="dark"] textarea{background:rgba(255,255,255,.05) !important; color:var(--ink) !important; border-color:#33474E !important}',
+':root[data-theme="dark"] table th{background:rgba(255,255,255,.04) !important; color:var(--ink-2) !important}',
+':root[data-theme="dark"] table td{border-color:#26363C !important}',
+':root[data-theme="dark"] .btn, :root[data-theme="dark"] button.ghost{border-color:#3A4E55}'
+].join('\n');
+
+function inject(){
+  var st = document.createElement('style'); st.id = 'lux-css'; st.textContent = CSS + (SMALL ? '\n@media screen{' + DARK2 + '}' : ''); document.head.appendChild(st);
+  var bg = document.createElement('div'); bg.id = 'lux-bg'; document.body.insertBefore(bg, document.body.firstChild);
+  var pr = document.createElement('div'); pr.id = 'lux-prog'; document.body.appendChild(pr);
+  copyDarkMedia();
+}
+
+
+/* ---------- 小さいアプリ：白や淡い色の背景が残っているところを、ダークに合わせて置きかえる ---------- */
+function rgbOf(s){ var m = /rgba?\(([^)]+)\)/.exec(s || ''); if(!m) return null; var a = m[1].split(',').map(function(x){ return parseFloat(x); }); return { r:a[0], g:a[1], b:a[2], a:a.length > 3 ? a[3] : 1 }; }
+function lum(c){ return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255; }
+var fixed = [];
+function darkFix(rootEl){
+  if(!SMALL || !root.classList.contains('lux-dark')) return;
+  var L = (rootEl && rootEl.querySelectorAll) ? [rootEl].concat(Array.prototype.slice.call(rootEl.querySelectorAll('*'))) : Array.prototype.slice.call(document.body.querySelectorAll('*'));
+  L.forEach(function(el){
+    if(el.__ldk || el.nodeType !== 1 || /^(SCRIPT|STYLE|SVG|PATH|CANVAS|IMG|BR)$/i.test(el.tagName) || el.id === 'wqnav' || (el.closest && el.closest('#wqnav, #lux-menu, #wqup')) || inPaper(el)) return;
+    var cs = getComputedStyle(el), bg = rgbOf(cs.backgroundColor);
+    if(bg && bg.a > .5 && lum(bg) > .8){
+      var mx = Math.max(bg.r, bg.g, bg.b), mn = Math.min(bg.r, bg.g, bg.b), v;
+      if(mx - mn < 10) v = 'rgba(255,255,255,.045)';
+      else { var k = 210 / (mx - mn); v = 'rgba(' + Math.round((bg.r - mn) * k + 30) + ',' + Math.round((bg.g - mn) * k + 30) + ',' + Math.round((bg.b - mn) * k + 30) + ',.16)'; }
+      el.__ldk = 1; fixed.push(el); el.style.setProperty('background-color', v, 'important');
+      var fg = rgbOf(cs.color); if(fg && lum(fg) < .45){ el.style.setProperty('color', '#E6EEF0', 'important'); el.__ldc = 1; }
+    }else{
+      var fg2 = rgbOf(cs.color); if(fg2 && lum(fg2) < .3 && !(bg && bg.a > .5 && lum(bg) > .5)){ el.__ldk = 1; el.__ldc = 1; fixed.push(el); el.style.setProperty('color', '#DCE6E8', 'important'); }
+    }
+  });
+}
+function darkUnfix(){ fixed.forEach(function(el){ el.style.removeProperty('background-color'); if(el.__ldc) el.style.removeProperty('color'); el.__ldk = 0; el.__ldc = 0; }); fixed = []; }
+/* ---------- 光の粒（キャンバス） ---------- */
+var cv = null, cx = null, dots = [], raf = 0, lastT = 0;
+function startDots(){
+  if(motion() !== 'max' || lowEnd || !root.classList.contains('lux-dark')){ stopDots(); return; }
+  if(!cv){ cv = document.createElement('canvas'); cv.id = 'lux-cv'; document.body.insertBefore(cv, document.body.firstChild.nextSibling); cx = cv.getContext('2d'); }
+  cv.hidden = false;
+  var resize = function(){ var d = Math.min(2, window.devicePixelRatio || 1); cv.width = innerWidth * d; cv.height = innerHeight * d; cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px'; cx.setTransform(d, 0, 0, d, 0, 0); };
+  resize(); window.addEventListener('resize', resize);
+  var N = coarse ? 18 : 38; dots = [];
+  for(var i = 0; i < N; i++) dots.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: .6 + Math.random() * 1.8, vx: (Math.random() - .5) * .12, vy: -.05 - Math.random() * .18, a: .25 + Math.random() * .5, g: Math.random() < .35 });
+  if(!raf) raf = requestAnimationFrame(tick);
+}
+function stopDots(){ if(raf){ cancelAnimationFrame(raf); raf = 0; } if(cv){ cv.hidden = true; } }
+function tick(t){
+  raf = requestAnimationFrame(tick);
+  if(document.hidden || t - lastT < 33) return; lastT = t;
+  var W = innerWidth, H = innerHeight;
+  cx.clearRect(0, 0, W, H);
+  for(var i = 0; i < dots.length; i++){
+    var d = dots[i]; d.x += d.vx; d.y += d.vy; if(d.y < -10){ d.y = H + 10; d.x = Math.random() * W; } if(d.x < -10) d.x = W + 10; if(d.x > W + 10) d.x = -10;
+    var tw = .6 + .4 * Math.sin(t / 900 + i);
+    cx.beginPath(); cx.arc(d.x, d.y, d.r, 0, 6.283);
+    cx.fillStyle = d.g ? 'rgba(240,214,150,' + (d.a * tw) + ')' : 'rgba(120,220,228,' + (d.a * tw * .8) + ')';
+    cx.shadowColor = d.g ? 'rgba(240,214,150,.9)' : 'rgba(120,220,228,.8)'; cx.shadowBlur = 8; cx.fill();
+  }
+  cx.shadowBlur = 0;
+  if(!coarse){
+    for(var a = 0; a < dots.length; a++) for(var b = a + 1; b < dots.length; b++){
+      var dx = dots[a].x - dots[b].x, dy = dots[a].y - dots[b].y, dd = dx * dx + dy * dy;
+      if(dd < 12000){ cx.strokeStyle = 'rgba(160,210,220,' + (.07 * (1 - dd / 12000)) + ')'; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(dots[a].x, dots[a].y); cx.lineTo(dots[b].x, dots[b].y); cx.stroke(); }
+    }
+  }
+}
+
+/* ---------- 順に出る（同じものは2回出さない） ---------- */
+var IN_SEL = '.card, .hm-card, .hm-app, .hm-hero, .kpi, .hm-h, .site, .sitecard, .stat, .tile, section.card, .xsteps, .chk-focus';
+var seenSig = new Set(), batch = [], bt = 0;
+function sigOf(el){ return (el.id || '') + '|' + String(el.className || '').slice(0, 40) + '|' + String(el.textContent || '').replace(/\s+/g, '').slice(0, 36); }
+var io = null;
+function watchIn(el){
+  if(!el || el.__lux || inPaper(el)) return; el.__lux = 1;
+  var s = sigOf(el); if(seenSig.has(s)) return; seenSig.add(s);
+  if(motion() === 'off') return;
+  if(!io){ io = new IntersectionObserver(function(ents){ ents.forEach(function(en){ if(!en.isIntersecting) return; io.unobserve(en.target); batch.push(en.target); }); clearTimeout(bt); bt = setTimeout(flushIn, 16); }, { rootMargin:'0px 0px -4% 0px' }); }
+  io.observe(el);
+}
+function flushIn(){
+  var typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  batch.sort(function(a, b){ var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return (ra.top - rb.top) || (ra.left - rb.left); });
+  batch.forEach(function(el, i){
+    if(typing && el.contains(document.activeElement)) return;
+    el.style.setProperty('--ld', Math.min(i, 14) * (motion() === 'max' ? 55 : 35) + 'ms');
+    el.classList.remove('lux-in'); void el.offsetWidth; el.classList.add('lux-in');
+    setTimeout(function(){ el.classList.remove('lux-in'); el.style.removeProperty('--ld'); }, 1400 + Math.min(i, 14) * 60);
+  });
+  batch = [];
+}
+function scanIn(rootEl){ try{ (rootEl || document).querySelectorAll(IN_SEL).forEach(watchIn); }catch(e){} }
+
+/* ---------- ふちの光（マウスの位置） ---------- */
+var GLOW_SEL = '.hm-app, .hm-card, .hm-hero, .card, .kpi, .tile, .sitecard';
+function markGlow(rootEl){ if(coarse) return; try{ (rootEl || document).querySelectorAll(GLOW_SEL).forEach(function(el){ if(!el.__lg && !inPaper(el)){ el.__lg = 1; el.classList.add('lux-glow'); } }); }catch(e){} }
+document.addEventListener('pointermove', function(ev){
+  if(coarse) return; var el = ev.target && ev.target.closest && ev.target.closest('.lux-glow'); if(!el) return;
+  var r = el.getBoundingClientRect(); el.style.setProperty('--mx', (ev.clientX - r.left) + 'px'); el.style.setProperty('--my', (ev.clientY - r.top) + 'px');
+}, { passive:true });
+
+/* ---------- ボタンの光の線・波紋 ---------- */
+var SHEEN_SEL = '.btn.primary, .btn.pri, .hm-btn.pri, .btn-primary, .wqup-go, #pvPdf, #btnBuild';
+function markSheen(rootEl){ try{ (rootEl || document).querySelectorAll(SHEEN_SEL).forEach(function(el){ if(!el.__ls && !inPaper(el)){ el.__ls = 1; el.classList.add('lux-sheen'); } }); }catch(e){} }
+document.addEventListener('pointerdown', function(ev){
+  if(motion() === 'off') return;
+  var b = ev.target && ev.target.closest && ev.target.closest('button, .btn, .hm-app, .wqn, a.btn'); if(!b || inPaper(b) || b.disabled) return;
+  var cs = getComputedStyle(b); if(cs.position === 'static') b.style.position = 'relative';
+  var r = b.getBoundingClientRect(), s = Math.max(r.width, r.height) * 2.2, w = document.createElement('span'), sp = document.createElement('span');
+  w.className = 'lux-ripw'; sp.className = 'lux-rip'; sp.style.width = sp.style.height = s + 'px'; sp.style.left = (ev.clientX - r.left - s / 2) + 'px'; sp.style.top = (ev.clientY - r.top - s / 2) + 'px';
+  w.appendChild(sp); b.appendChild(w); setTimeout(function(){ w.remove(); }, 650);
+}, true);
+
+/* ---------- 画面が開くとき（hidden が外れたとき） ---------- */
+var OPEN_SEL = '.sheetwrap, #wq-home, .tabpane, .pane, [role="dialog"], .dlg, #sitePv, #hikae';
+function onOpen(el){
+  if(!el || inPaper(el) || motion() === 'off') return;
+  var t = el.matches && el.matches('.sheetwrap, #wq-home') ? (el.querySelector('.sheet, .hm-body, .sheetbody') || el) : el;
+  t.classList.remove('lux-open'); void t.offsetWidth; t.classList.add('lux-open'); setTimeout(function(){ t.classList.remove('lux-open'); }, 600);
+  setTimeout(function(){ scanIn(el); markGlow(el); markSheen(el); }, 30);
+}
+
+/* ---------- 紙吹雪：保存・完了などの知らせのとき ---------- */
+var OK_RE = /(保存した|保存しました|送付済|受注|印刷した|PDFを作った|PDFを保存した|最新版にしました|できた|完了|覚えた|作りました|入れた|反映した)/;
+var lastBurst = 0;
+function burst(x, y, n){
+  if(motion() !== 'max') return; var now = Date.now(); if(now - lastBurst < 1500) return; lastBurst = now;
+  var C = ['#F6E7B5', '#E3C77F', '#3FC1C9', '#7FD6B0', '#FFFFFF', '#C79A3C'];
+  n = n || (coarse ? 26 : 44);
+  for(var i = 0; i < n; i++){
+    (function(i){
+      var p = document.createElement('i'); p.className = 'lux-cf'; p.style.background = C[i % C.length];
+      if(i % 3 === 0){ p.style.width = '6px'; p.style.height = '6px'; p.style.borderRadius = '50%'; }
+      document.body.appendChild(p);
+      var ang = -Math.PI / 2 + (Math.random() - .5) * 1.9, sp = 5 + Math.random() * 7, vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp, px = x, py = y, rot = Math.random() * 360, vr = (Math.random() - .5) * 22, life = 0;
+      var step = function(){ life++; vy += .28; vx *= .985; px += vx; py += vy; rot += vr; p.style.transform = 'translate(' + px + 'px,' + py + 'px) rotate(' + rot + 'deg)'; p.style.opacity = String(Math.max(0, 1 - life / 85)); if(life < 85 && py < innerHeight + 20) requestAnimationFrame(step); else p.remove(); };
+      requestAnimationFrame(step);
+    })(i);
+  }
+}
+window.WQLUX = { burst: burst };
+function checkToast(el){
+  try{
+    if(!el || el.nodeType !== 1) return;
+    var t = el.matches('#toast, .toast, .wq-toast, [class*="toast"]') ? el : (el.closest && el.closest('#toast, .toast, .wq-toast'));
+    if(!t || t.hidden) return;
+    var tx = String(t.textContent || ''); if(!OK_RE.test(tx) || /できな|失敗|エラー|できませ/.test(tx)) return;
+    var r = t.getBoundingClientRect(); burst(r.left + r.width / 2, r.top + r.height / 2);
+  }catch(e){}
+}
+
+/* ---------- 上の金の線（どこまで読んだか） ---------- */
+function prog(){ var p = document.getElementById('lux-prog'); if(!p) return; var h = document.documentElement.scrollHeight - innerHeight; p.style.transform = 'scaleX(' + (h > 40 ? Math.min(1, scrollY / h) : 0) + ')'; }
+window.addEventListener('scroll', prog, { passive:true });
+
+/* ---------- ✦ のメニュー ---------- */
+var menu = null;
+function paintBtn(){ Array.prototype.forEach.call(document.querySelectorAll('[data-luxbtn]'), function(b){ b.title = 'テーマと演出（いま：' + (curTheme() === 'dark' ? 'ダーク' : 'ライト') + '・演出' + ({ max:'多め', std:'ふつう', off:'なし' })[motion()] + '）'; }); if(menu && !menu.hidden) paintMenu(); }
+function paintMenu(){
+  var t = curTheme(), m = motion();
+  menu.innerHTML = '<b>テーマ</b><div class="row"><button data-lt="dark" class="' + (t === 'dark' ? 'on' : '') + '">ダーク</button><button data-lt="light" class="' + (t === 'light' ? 'on' : '') + '">ライト</button></div>' +
+    '<b>動き・演出</b><div class="row"><button data-lm="max" class="' + (m === 'max' ? 'on' : '') + '">多め</button><button data-lm="std" class="' + (m === 'std' ? 'on' : '') + '">ふつう</button><button data-lm="off" class="' + (m === 'off' ? 'on' : '') + '">なし</button></div>' +
+    '<small>6つのアプリ全部に効きます（この端末で覚えます）。紙の見積書・請求書は変わりません。</small>';
+}
+function openMenu(anchor){
+  if(!menu){
+    menu = document.createElement('div'); menu.id = 'lux-menu'; document.body.appendChild(menu);
+    menu.addEventListener('click', function(ev){
+      var a = ev.target.closest('[data-lt]'), b = ev.target.closest('[data-lm]');
+      if(a){ applyTheme(a.getAttribute('data-lt')); setTimeout(startDots, 50); paintMenu(); return; }
+      if(b){ ls(KM, b.getAttribute('data-lm')); setMotionClass(); startDots(); paintMenu(); paintBtn(); if(b.getAttribute('data-lm') === 'max'){ var r = b.getBoundingClientRect(); lastBurst = 0; burst(r.left + r.width / 2, r.top); } return; }
+    });
+    document.addEventListener('pointerdown', function(ev){ if(menu && !menu.hidden && !menu.contains(ev.target) && !(ev.target.closest && ev.target.closest('[data-luxbtn]'))) menu.hidden = true; }, true);
+    document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape' && menu && !menu.hidden) menu.hidden = true; });
+  }
+  if(!menu.hidden && menu.__open){ menu.hidden = true; menu.__open = 0; return; }
+  paintMenu(); menu.hidden = false; menu.__open = 1;
+  if(anchor){ var r = anchor.getBoundingClientRect(); menu.style.top = Math.min(innerHeight - 220, r.bottom + 8) + 'px'; menu.style.right = Math.max(8, innerWidth - r.right) + 'px'; }
+}
+window.WQLUX.open = openMenu;
+document.addEventListener('click', function(ev){ var b = ev.target.closest && ev.target.closest('[data-luxbtn]'); if(b){ ev.preventDefault(); ev.stopPropagation(); openMenu(b); } }, true);
+
+/* ---------- 始める ---------- */
+function start(){
+  inject();
+  scanIn(); markGlow(); markSheen(); startDots(); prog();
+  setTimeout(function(){ darkFix(); }, 80);
+  var mt = 0, pend = [];
+  new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      if(m.type === 'attributes'){ if(m.attributeName === 'hidden' && !m.target.hidden && m.target.matches && m.target.matches(OPEN_SEL)) onOpen(m.target); if(m.attributeName === 'hidden' || m.attributeName === 'class') checkToast(m.target); if(m.attributeName === 'class' && m.target.__ldk && !/lux-/.test(String(m.target.className))){ m.target.style.removeProperty('background-color'); if(m.target.__ldc) m.target.style.removeProperty('color'); m.target.__ldk = 0; m.target.__ldc = 0; darkFix(m.target); } if(m.attributeName === 'data-theme'){ root.classList.toggle('lux-dark', root.getAttribute('data-theme') === 'dark'); startDots(); } return; }
+      m.addedNodes.forEach(function(n){ if(n.nodeType === 1){ pend.push(n); checkToast(n); } else if(n.parentElement) checkToast(n.parentElement); });
+      if(m.type === 'characterData' && m.target.parentElement) checkToast(m.target.parentElement);
+    });
+    clearTimeout(mt); mt = setTimeout(function(){ var L = pend; pend = []; L.forEach(function(n){ if(!document.contains(n) || inPaper(n)) return; if(n.matches && n.matches(IN_SEL)) watchIn(n); scanIn(n); markGlow(n); markSheen(n); darkFix(n); }); }, 60);
+  }).observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['hidden', 'class', 'data-theme'], characterData:true });
+  root.classList.toggle('lux-dark', (APP === 'mitsumori' || APP === 'seikyu') ? root.getAttribute('data-theme') === 'dark' : curTheme() === 'dark');
+  paintBtn();
+}
+if(document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
 
 </script>
