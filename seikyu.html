@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-28 19:25-->
+<!--BUILD:2026-10-28 19:29-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2523,7 +2523,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-28 19:25';
+const BUILD = '2026-10-28 19:29';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -4546,7 +4546,9 @@ async function makePdf(box, name){
     XR.fitShrink(W); XR.sysFit(W);
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const ps = Array.from(W.children).filter(e => e.classList && (e.classList.contains('xp') || e.classList.contains('pp')));
-    const mob = /iPhone|iPad|Android/.test(navigator.userAgent);
+    const mob = /iPhone|iPad|Android/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+    let txtOk = false;
+    if(!mob){ try{ if(!window.WQ_PDFFONT) await loadJs('./pdffont.js'); txtOk = !!window.WQ_PDFFONT; }catch(e){ txtOk = false; } }
     let pdf = null;
     for(let i = 0; i < ps.length; i++){
       const el = ps[i], port = el.classList.contains('port') || el.classList.contains('pp');
@@ -4558,6 +4560,8 @@ async function makePdf(box, name){
       let w = pw, h = pw * cv.height / cv.width; if(h > ph){ h = ph; w = ph * cv.width / cv.height; }
       pdf.addImage(cv.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, w, h, undefined, 'FAST');
       cv.width = cv.height = 0;
+      /* 文字の層（見えない文字）を重ねて、選べる・さがせる「文字PDF」にする（web見積と同じ。スマホは重くて失敗しやすいので付けない） */
+      if(txtOk) pdfTextLayer(pdf, el, w);
     }
     W.remove();
     const fn = String(name || '御請求書').replace(/[\\/:*?"<>|]/g, '') + '.pdf';
@@ -4567,6 +4571,39 @@ async function makePdf(box, name){
   }catch(e){ console.error(e); const w = $('#xPdfWork'); if(w) w.remove(); toast('PDFを作れなかった：' + (e.message || e), 7000); }
 }
 window.makePdf = makePdf;
+/* PDFに見えない文字を重ねる（px → mm）。字は web見積と同じ IPAゴシックの一部（pdffont.js） */
+let pdfFontOn = null;
+function pdfTextLayer(pdf, root, pw){
+  try{
+    if(pdfFontOn !== pdf){ pdf.addFileToVFS('wq-ipag.ttf', window.WQ_PDFFONT); pdf.addFont('wq-ipag.ttf', 'WQJP', 'normal'); pdfFontOn = pdf; }
+    const rr = root.getBoundingClientRect(); if(!(rr.width > 0)) return;
+    const k = pw / rr.width;
+    pdf.setFont('WQJP', 'normal'); pdf.setTextColor(0, 0, 0);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let n, cnt = 0;
+    while((n = walker.nextNode()) && cnt < 6000){
+      const t = String(n.nodeValue || ''); if(!t.trim()) continue;
+      const pe = n.parentElement; if(!pe) continue;
+      const cs = getComputedStyle(pe); if(cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const rg = document.createRange(); rg.selectNodeContents(n);
+      const rects = Array.from(rg.getClientRects()).filter(r => r.width > 0 && r.height > 0);
+      if(!rects.length) continue;
+      const txt = t.replace(/\s+/g, ' ').trim();
+      let parts;
+      if(rects.length === 1) parts = [txt];
+      else { const tot = rects.reduce((a, r) => a + r.width, 0); let pos = 0; parts = rects.map((r, i) => { const len = i === rects.length - 1 ? txt.length - pos : Math.round(txt.length * r.width / tot); const sg = txt.substr(pos, len); pos += len; return sg; }); }
+      rects.forEach((r, i) => {
+        const sg = parts[i]; if(!sg || !sg.trim()) return;
+        const fsPx = Math.min(parseFloat(cs.fontSize) || 9, r.height);
+        const fsPt = fsPx * k / 0.352778; if(!(fsPt > 1)) return;
+        pdf.setFontSize(fsPt);
+        const x = (r.left - rr.left) * k, y = (r.top - rr.top) * k;
+        pdf.text(sg, x, y + r.height * k * 0.82, { renderingMode: 'invisible', maxWidth: Math.max(1, r.width * k * 1.2) });
+        cnt++;
+      });
+    }
+  }catch(e){ console.warn('text layer', e); }
+}
 async function pdfHand(blob, fn, n){
   const file = new File([blob], fn, { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
@@ -5978,7 +6015,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 19:25';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 19:29';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
