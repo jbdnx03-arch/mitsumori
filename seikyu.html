@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-29 22:05-->
+<!--BUILD:2026-10-29 22:06-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2180,6 +2180,13 @@ function sitePreview(all){
     $('#spvPrev').onclick = () => stepSitePv(-1);
     $('#spvNext').onclick = () => stepSitePv(1);
     M.addEventListener('keydown', ev => { if(ev.key === 'ArrowLeft'){ stepSitePv(-1); ev.preventDefault(); } if(ev.key === 'ArrowRight'){ stepSitePv(1); ev.preventDefault(); } });
+    /* 請求書（紙）とボタンの帯以外のところを押したら閉じる（「閉じる」と同じ） */
+    M.addEventListener('click', ev => {
+      const t = ev.target;
+      if(t.closest('.spv-bar, .xp, button, a, input, select, label')) return;
+      const B0 = $('#spvBody'); if(B0 && t !== M && t !== B0 && B0.contains(t)){ const pg = [...B0.children].some(c => c.contains(t) && c.getBoundingClientRect().width < B0.clientWidth - 4); if(pg) return; }
+      closeSitePv();
+    });
     M.tabIndex = -1;
   }
   const B = $('#spvBody'); B.innerHTML = curPvHtml();
@@ -2534,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-29 22:05';
+const BUILD = '2026-10-29 22:06';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6880,7 +6887,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 22:05';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 22:06';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
