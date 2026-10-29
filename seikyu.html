@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-29 22:06-->
+<!--BUILD:2026-10-29 22:14-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -965,7 +965,7 @@ const sheetNet = sh => billOf(sh).reduce((a, l) => a + lineAmt(l), 0);
 function withSubs(ls){
   if(S.opt.subTotals === false || ls.filter(l => l.head).length < 2) return ls;
   const out = []; let cur = null, sum = 0, n = 0;
-  const flush = () => { if(cur && n) out.push({ sub: true, name: '****小計****', amt: sum }); };   /* 下の「****御買上計****」と同じ形 */
+  const flush = () => { if(cur && n) out.push({ sub: true, name: '****小　　計****', amt: sum }); };   /* 下の「****御買上計****」と同じ形 */
   ls.forEach(l => { if(l.head){ flush(); cur = l; sum = 0; n = 0; out.push(l); return; } out.push(l); if(cur){ sum += lineAmt(l); n++; } });
   flush();
   return out;
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-29 22:06';
+const BUILD = '2026-10-29 22:14';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6170,7 +6170,7 @@ function parseWList(P, custName){
 /* ---------- 見る ---------- */
 function findings(C, W){
   const F = [];
-  const R = C.rows.filter(r => r.name && !/小計|合計/.test(r.name));
+  const R = C.rows.filter(r => r.name && !/小[\s　]*計|合計/.test(r.name));
   const siteName = code => (C.sites[code] || {}).name || code;
   const add = (title, text, marks) => { F.push({ no: F.length + 1, title, text, marks: marks || [] }); };
   const nm = r => r.name.replace(/【[^】]*】/g, '');
@@ -6887,7 +6887,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 22:06';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 22:14';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -7318,7 +7318,19 @@ var CSS = [
 'html.lux.lux-dark ::selection{background:rgba(227,199,127,.35); color:#fff}',
 'html.lux-dark #pvpaper, html.lux-dark #print .xp, html.lux-dark #print .pp, html.lux-dark .pv .xp, html.lux-dark .pv .pp{color-scheme:light}',
 '}',
-'@media print{#lux-bg,#lux-cv,#lux-wx,#lux-fx,#lux-prog,#lux-menu,#lux-gal,.lux-cf,.lux-rip,.lux-ripw{display:none !important} .lux-in,.lux-open,.lux-page{animation:none !important; opacity:1 !important; transform:none !important}}'
+'@media print{#lux-bg,#lux-cv,#lux-wx,#lux-fx,#lux-prog,#lux-menu,#lux-gal,.lux-cf,.lux-rip,.lux-ripw{display:none !important} .lux-in,.lux-open,.lux-page{animation:none !important; opacity:1 !important; transform:none !important}}',
+'/* 重なる窓（確認・プレビュー）：うしろはふわっと暗く、窓は少し浮いて出る */',
+'html.lux .modal:not([hidden]), html.lux .dlg-veil, html.lux #ask:not([hidden]), html.lux #pvPick, html.lux .spv:not([hidden]){animation:luxVeil .2s ease-out both}',
+'html.lux .modal:not([hidden]) > .box, html.lux .dlg-veil > .dlg, html.lux #ask:not([hidden]) > .askbox, html.lux #pvPick > *{animation:luxPop .26s cubic-bezier(.2,.9,.25,1.15) both}',
+'html.lux-dark .modal:not([hidden]), html.lux-dark .dlg-veil, html.lux-dark #ask:not([hidden]){background:rgba(3,7,9,.62) !important; -webkit-backdrop-filter:blur(5px) saturate(1.1); backdrop-filter:blur(5px) saturate(1.1)}',
+'html.lux-dark .modal > .box, html.lux-dark .dlg-veil > .dlg, html.lux-dark #ask > .askbox{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(227,199,127,.22) !important}',
+'html.lux-m-off .modal, html.lux-m-off .modal > .box, html.lux-m-off .dlg-veil, html.lux-m-off .dlg-veil > .dlg, html.lux-m-off #ask, html.lux-m-off #ask > .askbox{animation:none !important}',
+'.lux-veil-out{animation:luxVeilOut .16s ease-in both !important}',
+'@keyframes luxVeil{from{opacity:0}to{opacity:1}}',
+'@keyframes luxVeilOut{from{opacity:1}to{opacity:0}}',
+'@keyframes luxPop{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}',
+'/* うしろ（紙・窓の外）は押すと閉じる：さわれる所だと分かるように */',
+'html.lux [data-lux-out]{cursor:zoom-out}'
 ].join('\n');
 var DARK2 = [
 ':root[data-theme="dark"]{--brand:#3FA9B4; --on-brand:#fff; --ink:#E6EEF0; --ink-2:#B6C6CA; --ink-3:#8399A0; --line:#2C3D43; --line-2:#24343A; --surface:#121C21; --surface-2:rgba(255,255,255,.04); --paper:#0A1216; --fill:rgba(227,199,127,.08); --bg:#0A1216; --warn:#F0A066; --ok:#6CCB95; --kAb:#173A2E; --kBb:#16304A; --kXb:#1E2A2E; --kOb:#3A2C14; --kA:#7FD6B0; --kB:#8BC3F0; --kX:#9AB0B5; --kO:#E9C27A}',
@@ -7562,6 +7574,43 @@ function openMenu(anchor){
 document.addEventListener('click', function(ev){ var b = ev.target.closest && ev.target.closest('[data-luxbtn]'); if(b){ ev.preventDefault(); ev.stopPropagation(); openMenu(b); } }, true);
 window.WQLUX = { open:openMenu, motion:motion, loadFx:loadFx, play:function(id, x, y){ return loadFx().then(function(F){ F.play(id, { x:x, y:y }); }); }, coarse:coarse, ls:ls, app:APP, log:logEvent };
 if(ls('wq.lux.liteFix') === '1') root.classList.add('lux-lite');
+
+
+/* ---------- 重なる窓：紙・窓の外を押したら「閉じる」と同じ（2026-10-29：全アプリ共通） ----------
+   押す前（pointerdown）と押した後（click）が同じ「外側」のときだけ閉じる（文字を選んで外で離したときは閉じない） */
+var VEIL_SEL = '.modal, .dlg-veil, #ask, .spv, #pvPick, .sheetwrap';
+var OUT_SEL = '#pvbody, .spv-body, .sheetbody';
+var CLOSE_RE = /^(閉じる|とじる|キャンセル|やめる|もどる|戻る|もどって直す|いいえ|×|✕)$/;
+function veilOf(t){
+  if(!t || !t.closest) return null;
+  var v = t.closest(VEIL_SEL); if(!v || v.hidden) return null;
+  /* 押したのが窓そのもの（うしろの暗いところ）か、紙を並べた所の余白か */
+  if(t === v && !v.matches('.sheetwrap')) return v;
+  if(t.matches(OUT_SEL) && v.contains(t)) return v;
+  return null;
+}
+function closeVeil(v){
+  var btns = [].slice.call(v.querySelectorAll('button, [role="button"]')).filter(function(b){ return b.offsetParent !== null; });
+  var b = v.querySelector('[data-close], [data-cancel], #pvClose, #spvClose, #btnClose, #histClose, #pastClose, #savedClose, button[id$="Close"], button[id$="close"]');
+  if(!b || b.offsetParent === null) b = btns.filter(function(x){ return CLOSE_RE.test(String(x.textContent || '').replace(/\s/g, '')); })[0] || null;
+  if(b){ b.click(); return true; }
+  /* ボタンが見つからないときは Esc と同じ */
+  var e = new KeyboardEvent('keydown', { key:'Escape', code:'Escape', keyCode:27, bubbles:true, cancelable:true });
+  (document.activeElement || document.body).dispatchEvent(e);
+  return true;
+}
+var downOut = null;
+document.addEventListener('pointerdown', function(ev){ downOut = veilOf(ev.target) ? ev.target : null; }, true);
+document.addEventListener('click', function(ev){
+  var t = ev.target, v = veilOf(t);
+  if(!v || downOut !== t){ downOut = null; return; }
+  downOut = null;
+  if(v.id === 'wqup' || v.id === 'wqup-busy') return;
+  ev.preventDefault(); ev.stopPropagation();
+  closeVeil(v);
+}, true);
+/* 外側だと分かる印（カーソル） */
+document.addEventListener('pointerover', function(ev){ var t = ev.target; if(t && t.nodeType === 1 && !t.hasAttribute('data-lux-out') && veilOf(t)) t.setAttribute('data-lux-out', ''); }, { passive:true });
 
 /* ---------- 始める ---------- */
 function start(){
