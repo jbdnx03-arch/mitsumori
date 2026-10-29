@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-29 21:41-->
+<!--BUILD:2026-10-29 21:50-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -647,7 +647,7 @@ const XR = (function(){
     (v.rows || []).forEach((r, i) => {
       const R = R0 + i * P;
       if(KG){ add(5.0, R + 6.0, r.name, { sz: 9.96, w: 191, fit: 1 }); add(198.5, R + 10.5, r.code, { sz: 9.0 }); if(r.net) add(636.3, R + 10.5, comma(r.net), { sz: 9.0, al: 'r' }); if(r.tax) add(693.9, R + 10.5, comma(r.tax), { sz: 9.0, al: 'r' }); if(r.gross) add(750.3, R + 10.5, comma(r.gross), { sz: 9.0, al: 'r' }); return; }
-      if(r.total != null){ add(5.0, R + 6.0, '****御買上計****', { sz: 9.96 }); add(693.9, R + 1.0, comma(r.total), { sz: 9.0, al: 'r' }); return; }
+      if(r.total != null){ add(5.0, R + 6.0, r.label ? r.label : '****御買上計****', { sz: 9.96 }); add(693.9, R + (r.label ? 6.0 : 1.0), comma(r.total), { sz: 9.0, al: 'r' }); return; }
       add(5.0, R + 6.0, r.name, { sz: 9.96, w: 191, fit: 1 });
       add(198.5, R + 1.0, r.den, { sz: 9.0 }); add(198.5, R + 10.5, r.kanri, { sz: 9.0 });
       add(272.2, R + 6.0, r.kashi, { al: 'c' }); add(302.0, R + 6.0, r.start, { al: 'c' }); add(332.0, R + 6.0, r.end, { al: 'c' }); add(362.0, R + 6.0, r.ret, { al: 'c' });
@@ -961,6 +961,15 @@ const sheetById = id => S.sheets.find(s => s.id === id);
 const linesOf = sh => S.lines.filter(l => l.sheet === sh.id);
 const billOf = sh => linesOf(sh).filter(l => !l.nb);                 /* 請求書に出す行（「出さない」にした行を除く） */
 const sheetNet = sh => billOf(sh).reduce((a, l) => a + lineAmt(l), 0);
+/* 見出しごとの小計（2026-10-29）：見出し（【葛飾区堀切】【三軒茶屋事務所】など）が2つ以上ある現場は、次の見出しまでの合計を「小計」の行で紙に出す */
+function withSubs(ls){
+  if(S.opt.subTotals === false || ls.filter(l => l.head).length < 2) return ls;
+  const out = []; let cur = null, sum = 0, n = 0;
+  const flush = () => { if(cur && n) out.push({ sub: true, name: String(cur.name || '').replace(/^【|】$/g, '') + '　小計', amt: sum }); };
+  ls.forEach(l => { if(l.head){ flush(); cur = l; sum = 0; n = 0; out.push(l); return; } out.push(l); if(cur){ sum += lineAmt(l); n++; } });
+  flush();
+  return out;
+}
 /* ふだん請求書に出さない販売の品（設定の商品番号。いくつかなら 、か , で区切る） */
 const nbCodes = () => String(S.opt.nbCodes == null ? 'ETC888' : S.opt.nbCodes).normalize('NFKC').toUpperCase().split(/[,、\s]+/).filter(Boolean);
 const isNbCand = l => l.kb === '販売' && nbCodes().indexOf(String(l.shohin || '').normalize('NFKC').toUpperCase().trim()) >= 0;
@@ -1966,6 +1975,7 @@ function lineVals(v, l, r){
   const kan = kanOf(l);   /* 管理番号が空か W なら商品番号 */
   const dd = (a, b) => { if(!a || !b) return ''; return Math.round((Date.parse(b) - Date.parse(a)) / 864e5) + 1; };
   if(l.head){ v['C' + r] = l.name; return; }
+  if(l.sub){ v['C' + r] = '　' + l.name; v['AL' + r] = l.amt; return; }
   v['C' + r] = l.name; v['O' + r] = ret; v['O' + (r + 1)] = kan;
   v['S' + r] = l.kashi || ''; v['U' + r] = l.start || ''; v['W' + r] = l.end || ''; v['Y' + r] = l.cont || l.retd || '';
   v['Z' + r] = num(l.qty); v['AC' + r] = l.unit || ''; v['AD' + r] = dd(l.start, l.end); v['AE' + r] = num(l.kyu);
@@ -1987,7 +1997,7 @@ function sysRow(l){
 }
 function paperSheetSys(sh){
   const m = S.meta, n = sheetNet(sh), tx = tax(n), nm = sh.siteName || sh.name;
-  const rows = billOf(sh).map(sysRow);
+  const rows = withSubs(billOf(sh)).map(l => l.sub ? { total: l.amt, label: l.name } : sysRow(l));
   if(S.opt.sysTotal !== false) rows.push({ total: n });
   const pages = chunk(rows, 15, 22);
   const custNo = m.custCode + '-' + (m.custBr || '0');
@@ -1999,7 +2009,7 @@ function paperSheetSys(sh){
   }).join('');
 }
 function paperSheetXl(sh){
-  const m = S.meta, ls = billOf(sh), n = sheetNet(sh), nm = sh.siteName || sh.name;
+  const m = S.meta, ls = withSubs(billOf(sh)), n = sheetNet(sh), nm = sh.siteName || sh.name;
   const pages = chunk(ls, 15, 22);
   return pages.map((pg, pi) => {
     let v, r0;
@@ -2042,6 +2052,7 @@ function drawPaper(){
     (sk ? '<label><input type="checkbox" data-o="skCover"' + (o.skCover ? ' checked' : '') + '>三貴：請求書表紙</label><label><input type="checkbox" data-o="sk"' + (o.sk ? ' checked' : '') + '>三貴：請求書（指定用紙）</label>' : '') +
     '<label><input type="checkbox" data-o="zan"' + (o.zan ? ' checked' : '') + '>鑑に前回・入金・繰越を出す</label>' +
     '<label><input type="checkbox" data-o="sysTotal"' + (o.sysTotal !== false ? ' checked' : '') + '>明細の最後に「****御買上計****」</label>' +
+    '<label title="見出しが2つ以上ある現場（堀切・三軒茶屋事務所など）は、見出しごとに小計の行を出す"><input type="checkbox" data-o="subTotals"' + (o.subTotals !== false ? ' checked' : '') + '>見出しごとに小計</label>' +
     '<label><input type="checkbox" data-o="xlstyle"' + (o.style === 'excel' ? ' checked' : '') + '>Excelの書式で出す（前の形）</label>';
   const pv = $('#pv');
   pv.innerHTML = paperHtml();
@@ -2523,7 +2534,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-29 21:41';
+const BUILD = '2026-10-29 21:50';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6869,7 +6880,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 21:41';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 21:50';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
