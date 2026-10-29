@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-29 22:14-->
+<!--BUILD:2026-10-30 01:24-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-29 22:14';
+const BUILD = '2026-10-30 01:24';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6887,7 +6887,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 22:14';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 01:24';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -7444,7 +7444,8 @@ function flushIn(){
   var act = document.activeElement;
   batch.forEach(function(el, i){
     if(act && el.contains(act)) return;
-    el.style.setProperty('--ld', Math.min(i, 12) * (motion() === 'max' ? 45 : 30) + 'ms');
+    if(i >= 8) return;   /* L11 最初の8件だけ・1件30ms差（多いときは待たせない） */
+    el.style.setProperty('--ld', i * 30 + 'ms');
     el.classList.add('lux-in');
     setTimeout(function(){ el.classList.remove('lux-in'); el.style.removeProperty('--ld'); }, 1200 + Math.min(i, 12) * 50);
   });
@@ -7549,7 +7550,8 @@ function paintBtn(){ Array.prototype.forEach.call(document.querySelectorAll('[da
 function paintMenu(){
   var t = curTheme(), m = motion(), lite = root.classList.contains('lux-lite');
   menu.innerHTML = '<b>テーマ</b><div class="row"><button data-lt="dark" class="' + (t === 'dark' ? 'on' : '') + '">ダーク</button><button data-lt="light" class="' + (t === 'light' ? 'on' : '') + '">ライト</button></div>' +
-    '<b>動き・演出</b><div class="row"><button data-lm="max" class="' + (m === 'max' ? 'on' : '') + '">多め</button><button data-lm="std" class="' + (m === 'std' ? 'on' : '') + '">ふつう</button><button data-lm="off" class="' + (m === 'off' ? 'on' : '') + '">なし</button></div>' +
+    '<b>上品さの強さ（動き・光）</b><div class="row"><button data-lm="max" class="' + (m === 'max' ? 'on' : '') + '">多め</button><button data-lm="std" class="' + (m === 'std' ? 'on' : '') + '">ふつう</button><button data-lm="off" class="' + (m === 'off' ? 'on' : '') + '">なし</button></div>' +
+    '<b>音（保存・完了の小さな音）</b><div class="row"><button data-lsnd="1" class="' + (ls('wq.lux.sound') === '1' ? 'on' : '') + '">鳴らす</button><button data-lsnd="0" class="' + (ls('wq.lux.sound') !== '1' ? 'on' : '') + '">鳴らさない</button></div>' +
     '<b>背景の動き</b><div class="row"><button data-ll="0" class="' + (!lite ? 'on' : '') + '">動かす</button><button data-ll="1" class="' + (lite ? 'on' : '') + '">止める（軽く）</button></div>' +
     '<div class="row"><button class="wide" data-lgal="1">✦ お祝いの演出（64種）を見る・設定する</button></div>' +
     '<small>6つのアプリ全部に効きます（この端末で覚えます）。重いと感じたら「背景の動き：止める」に。重い端末では自動で止まります。紙の見積書・請求書は変わりません。</small>';
@@ -7559,6 +7561,7 @@ function openMenu(anchor){
     menu = document.createElement('div'); menu.id = 'lux-menu'; document.body.appendChild(menu);
     menu.addEventListener('click', function(ev){
       var a = ev.target.closest('[data-lt]'), b = ev.target.closest('[data-lm]'), c = ev.target.closest('[data-ll]'), g = ev.target.closest('[data-lgal]');
+      var sd = ev.target.closest('[data-lsnd]'); if(sd){ ls('wq.lux.sound', sd.getAttribute('data-lsnd') === '1' ? '1' : null); paintMenu(); return; }
       if(a){ applyTheme(a.getAttribute('data-lt')); setTimeout(startDots, 50); paintMenu(); return; }
       if(b){ ls(KM, b.getAttribute('data-lm')); setMotionClass(); startDots(); paintMenu(); paintBtn(); return; }
       if(c){ var on = c.getAttribute('data-ll') === '1'; root.classList.toggle('lux-lite', on); try{ sessionStorage.setItem('wq.lux.lite', on ? '1' : '0'); ls('wq.lux.liteFix', on ? '1' : null); }catch(e){} startDots(); paintMenu(); return; }
@@ -7596,6 +7599,7 @@ function closeVeil(v){
   if(b){ b.click(); return true; }
   /* ボタンが見つからないときは Esc と同じ */
   var e = new KeyboardEvent('keydown', { key:'Escape', code:'Escape', keyCode:27, bubbles:true, cancelable:true });
+  e.__lx = 1;
   (document.activeElement || document.body).dispatchEvent(e);
   return true;
 }
@@ -7612,6 +7616,7 @@ document.addEventListener('click', function(ev){
 /* 外側だと分かる印（カーソル） */
 document.addEventListener('pointerover', function(ev){ var t = ev.target; if(t && t.nodeType === 1 && !t.hasAttribute('data-lux-out') && veilOf(t)) t.setAttribute('data-lux-out', ''); }, { passive:true });
 
+try{ window.WQLUX.closeVeil = closeVeil; window.WQLUX.topVeilSel = VEIL_SEL; }catch(e){}
 /* ---------- 始める ---------- */
 function start(){
   inject(); ambient(); setInterval(ambient, 10 * 60 * 1000);
@@ -7631,6 +7636,654 @@ function start(){
   if(motion() === 'max') setTimeout(function(){ idle(function(){ loadFx().then(function(F){ F.boot && F.boot(); }).catch(function(){}); }); }, 2500);
 }
 if(document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
+
+/* ===== wqlux2：上品さの仕上げ（2026-10-29・提案 L1〜L101）=====
+   wqlux.js のあとに読む。6アプリ共通。紙（見積書・請求書のプレビューと印刷）には一切さわらない。
+   「動き・演出」を少なめ（off）にすると、動くものは全部止まる。 */
+(function(){
+'use strict';
+if(window.__wqlux2) return; window.__wqlux2 = 1;
+var APP = window.WQNAV_APP || '';
+var SMALL = /^(sharyo|meshitsu|zoto|rental)$/.test(APP);
+var root = document.documentElement;
+var X = window.WQLUX || {};
+function ls(k, v){ try{ if(v === undefined) return localStorage.getItem(k); if(v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){ return null; } }
+function mot(){ try{ return X.motion ? X.motion() : 'std'; }catch(e){ return 'std'; } }
+function moving(){ return mot() !== 'off'; }
+var PAPER = '#pvpaper, #paper, #print, .xp, .pp, .pw, .pg, .pgdoc, .pgatt, #xPdfWork, .sheet-paper, .paper, .pvwrap';
+var PAPER_IN = ':is(#pvpaper, #paper, #print, .xp, .pp, .pw, .pg, .pgdoc, .pgatt, #xPdfWork, .sheet-paper, .paper, .pvwrap)';
+function inPaper(el){ try{ return !!(el && el.closest && el.closest(PAPER)); }catch(e){ return false; } }
+var coarse = false; try{ coarse = matchMedia('(pointer: coarse)').matches; }catch(e){}
+var VEIL_SEL = '.modal, .dlg-veil, #ask, .spv, #pvPick, .sheetwrap';
+function visible(el){ return !!(el && !el.hidden && el.getClientRects().length && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden'); }
+function topVeil(){ var L = Array.prototype.slice.call(document.querySelectorAll(VEIL_SEL)).filter(function(v){ return v.id !== 'wq-home' && visible(v); }); return L.length ? L[L.length - 1] : null; }
+var today = (function(){ var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); })();
+
+/* ---------- 同じ日の2回目からは控えめ（L52） ---------- */
+var again = false;
+(function(){ var v = String(ls('wq.lux.day') || '').split('|'); var n = v[0] === today ? (+v[1] || 0) + 1 : 1; ls('wq.lux.day', today + '|' + n); again = n > 1; if(again) root.classList.add('lux-again'); })();
+
+/* ---------- 社名の細線マーク（L83）・アプリの色（L84） ---------- */
+var HUE = { mitsumori:'#3FC1C9', seikyu:'#7C8CF0', sharyo:'#5CC28A', zoto:'#E58FA6', rental:'#E3B95C', meshitsu:'#9AA9B3' };
+var ACC = HUE[APP] || '#3FC1C9';
+function mark(stroke, sw){
+  return '<svg viewBox="0 0 64 64" fill="none" stroke="' + stroke + '" stroke-width="' + (sw || 2) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<circle class="mk-c" cx="32" cy="32" r="29"/><path class="mk-w" d="M16 22 L24 44 L32 28 L40 44 L48 22"/></svg>';
+}
+(function favicon(){
+  try{
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0B1418"/><circle cx="32" cy="32" r="24" fill="none" stroke="' + ACC + '" stroke-width="2.5" opacity=".55"/><path d="M17 23 L24.5 43 L32 28.5 L39.5 43 L47 23" fill="none" stroke="#E3C77F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+    var l = document.querySelector('link[rel~="icon"]'); if(!l){ l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); }
+    l.type = 'image/svg+xml'; l.href = href;
+  }catch(e){}
+})();
+
+/* ---------- 見た目（CSS） ---------- */
+var SEASON = (function(){ var m = new Date().getMonth() + 1; return m >= 3 && m <= 5 ? '244,170,190' : m >= 6 && m <= 8 ? '63,193,201' : m >= 9 && m <= 11 ? '214,150,70' : '180,196,210'; })();
+var NOISE = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+var CHECK = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
+var CHECKD = CHECK.replace('white', '%231A1408');
+var EMPTY = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none' stroke='%23B9A777' stroke-width='1.2' stroke-linecap='round'%3E%3Crect x='9' y='7' width='30' height='36' rx='3'/%3E%3Cpath d='M15 16h18M15 22h18M15 28h11'/%3E%3Ccircle cx='34' cy='35' r='6' fill='none'/%3E%3Cpath d='M38.5 39.5l3 3'/%3E%3C/svg%3E\")";
+var CSS = [
+'@media screen{',
+':root{--lx-fast:120ms;--lx-std:220ms;--lx-slow:420ms;--lx-out:cubic-bezier(.2,.8,.2,1);--lx-in:cubic-bezier(.4,0,1,1);--lx-spring:cubic-bezier(.3,1.45,.55,1);--lx-gold:#E3C77F;--lx-gold-d:#C99A45;--lx-teal:#3FC1C9;--lx-up:#2E9E9A;--lx-down:#A23B4A;--lx-g1:#F4F6F6;--lx-g2:#DCE2E3;--lx-g3:#A7B3B6;--lx-g4:#6B7A7E;--lx-g5:#2E3A3D;--lx-acc:' + ACC + ';--lx-season:' + SEASON + '}',
+/* L54 スクロールバーの出入りで横幅が揺れない */
+/* L54：横幅の揺れはアプリごとに見て対処（scrollbar-gutter は帯がずれるのでやめた） */
+/* L4・L64 粒子と季節の差し色（背景の上・中身の下） */
+'#lux-noise{position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(70% 60% at 85% 0%, rgba(var(--lx-season),.05), transparent 70%),' + NOISE + ';background-size:auto,180px 180px;opacity:.55;mix-blend-mode:soft-light}',
+'html:not(.lux-dark) #lux-noise{opacity:.35;mix-blend-mode:multiply}',
+/* L1・L42・L45 文字 */
+'html.lux body{font-variant-numeric:tabular-nums;text-autospace:normal;line-break:strict;word-break:auto-phrase;overflow-wrap:break-word}',
+'html.lux :is(h1,h2,h3,h4,.hm-h,.card > h2,.subhead,.panel-head h2):not(' + PAPER_IN + ' *){font-feature-settings:"palt";letter-spacing:.06em;text-wrap:balance;text-spacing-trim:trim-start}',
+'html.lux :is(p,.cap,.sub,.note,.hint,small):not(' + PAPER_IN + ' *){text-wrap:pretty;hanging-punctuation:allow-end}',
+'html.lux :is(button,.btn,.tab,.wqn,[role="button"],[role="tab"],kbd,label > input + span){-webkit-user-select:none;user-select:none}',
+PAPER + '{word-break:normal;line-break:auto;overflow-wrap:normal;text-wrap:wrap;text-autospace:initial;font-variant-numeric:normal}',
+/* L3・L37・L39・L32 線・影・角 */
+'html.lux :is(.card,.panel,.box,.hm-card,.kpi,.tile,.sitecard):not(' + PAPER_IN + ', ' + PAPER_IN + ' *){border-radius:14px}',
+'html.lux :is(.card,.panel,.box) :is(.card,.box,.kpi,.tile){border-radius:10px}',
+'html.lux:not(.lux-dark) :is(.card,.panel,.hm-card,.kpi,.tile,.sitecard):not(' + PAPER_IN + ' *){box-shadow:1px 1px 2px rgba(12,28,32,.05),3px 10px 26px rgba(12,28,32,.07)}',
+'html.lux.lux-dark :is(.card,.panel,.hm-card,.kpi,.tile,.sitecard):not(' + PAPER_IN + ' *){box-shadow:inset 0 1px 0 rgba(255,255,255,.055),1px 2px 3px rgba(0,0,0,.35),4px 16px 34px rgba(0,0,0,.32)}',
+'html.lux .btn:not(' + PAPER_IN + ' *){border-radius:10px}',
+'html.lux :is(.tag,.chip,.pill):not(' + PAPER_IN + ' *){border-radius:999px}',
+'html.lux :is(#toast,.toast,.wq-toast){border-radius:12px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}',
+'html.lux :is(.modal > .box,.dlg-veil > .dlg,#ask > .askbox){border-radius:16px}',
+'#lux-menu{-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:16px}',
+/* L7・L9・L10 速さ・押し心地・ホバーの待ち */
+'html.lux .btn, html.lux .hm-btn, html.lux button{transition:translate var(--lx-fast) ease, scale .26s var(--lx-spring), box-shadow var(--lx-std) ease, border-color var(--lx-std) ease, background-color var(--lx-std) ease, color var(--lx-std) ease, opacity var(--lx-std) ease}',
+'html.lux:not(.lux-m-off) :is(button,.btn,.hm-btn,.wqn):not(:disabled):active{scale:.97;transition-duration:var(--lx-fast),70ms,var(--lx-std),var(--lx-std),var(--lx-std),var(--lx-std),var(--lx-std)}',
+'.lux-rip{background:radial-gradient(circle, rgba(255,255,255,.2), rgba(255,255,255,0) 62%) !important;animation-duration:.5s !important}',
+'html.lux.lux-dark .lux-glow::after{transition:opacity var(--lx-slow) ease var(--lx-fast) !important}',
+'html.lux .lux-glow{transition-delay:80ms}',
+'html.lux .lux-glow:not(:hover){transition-delay:0ms}',
+'html.lux-again .lux-in{animation-duration:.28s !important}',
+/* L13 スクロールで上の帯が少し透けて影が濃く */
+'html.lux #wqnav, html.lux .top, html.lux .topbar{transition:box-shadow var(--lx-slow) ease, -webkit-backdrop-filter var(--lx-slow) ease, backdrop-filter var(--lx-slow) ease}',
+'html.lux.lx-scrolled #wqnav, html.lux.lx-scrolled .top, html.lux.lx-scrolled .topbar{box-shadow:0 1px 0 rgba(227,199,127,.32), 0 18px 38px rgba(0,0,0,.28) !important;-webkit-backdrop-filter:saturate(1.25) blur(10px);backdrop-filter:saturate(1.25) blur(10px)}',
+/* L14 フォーカスの輪がすっと縮んで付く */
+'html.lux :focus-visible{outline:2px solid rgba(227,199,127,.85) !important;outline-offset:2px;animation:lxFocus var(--lx-std) var(--lx-out)}',
+'html:not(.lux-dark).lux :focus-visible{outline-color:rgba(20,100,110,.75) !important}',
+'@keyframes lxFocus{from{outline-offset:7px;outline-color:rgba(227,199,127,0)}}',
+/* L15 チェック・ラジオ：線が描かれる */
+':where(html.lux) input[type="checkbox"]:not([role="switch"]):not(' + PAPER_IN + ' *), :where(html.lux) input[type="radio"]:not(' + PAPER_IN + ' *){-webkit-appearance:none;appearance:none;width:1.05em;height:1.05em;margin:0 .3em 0 0;flex:0 0 auto;display:inline-block;vertical-align:-.16em;border:1.5px solid var(--lx-g3);border-radius:5px;background:transparent no-repeat center/0 100%;cursor:pointer;transition:background-color var(--lx-std) ease, border-color var(--lx-std) ease, background-size var(--lx-std) var(--lx-out), box-shadow var(--lx-std) ease}',
+':where(html.lux) input[type="radio"]{border-radius:50%}',
+':where(html.lux) input[type="checkbox"]:checked:not([role="switch"]){background-color:#14646E;border-color:#14646E;background-image:' + CHECK + ';background-size:100% 100%;background-position:left center}',
+':where(html.lux.lux-dark) input[type="checkbox"]:checked:not([role="switch"]){background-color:#D9B76A;border-color:#D9B76A;background-image:' + CHECKD + '}',
+':where(html.lux) input[type="radio"]:checked{border-color:#14646E;box-shadow:inset 0 0 0 .22em #fff, inset 0 0 0 1em #14646E}',
+':where(html.lux.lux-dark) input[type="radio"]:checked{border-color:#D9B76A;box-shadow:inset 0 0 0 .22em #0E171B, inset 0 0 0 1em #D9B76A}',
+':where(html.lux.lux-dark) input[type="checkbox"]:not(:checked), :where(html.lux.lux-dark) input[type="radio"]:not(:checked){border-color:rgba(255,255,255,.32)}',
+':where(html.lux) :is(input[type="checkbox"],input[type="radio"]):disabled{opacity:.45;cursor:not-allowed}',
+':where(html.lux) :is(input[type="checkbox"],input[type="radio"]):hover:not(:disabled){border-color:var(--lx-gold)}',
+/* L16 入力を確定すると金の下線が左から引かれる */
+'html.lux .lx-commit{background-image:linear-gradient(var(--lx-gold),var(--lx-gold)) !important;background-repeat:no-repeat !important;background-position:0 100% !important;background-size:100% 2px !important;animation:lxLine .55s var(--lx-out) both}',
+'@keyframes lxLine{from{background-size:0 2px}to{background-size:100% 2px}}',
+/* L17・L89 静かな「保存しました」 */
+'.lx-ok{display:inline-flex;align-items:center;gap:.3em;animation:lxOkIn .28s var(--lx-out) both}',
+'@keyframes lxOkIn{from{opacity:0;filter:blur(3px);transform:translateY(2px)}}',
+'html.lux .lx-sealed{background-image:linear-gradient(90deg,transparent,var(--lx-gold),transparent) !important;background-repeat:no-repeat !important;background-size:100% 1px !important;background-position:-200% 100% !important;animation:lxSeal 1.1s var(--lx-out) both}',
+'@keyframes lxSeal{to{background-position:200% 100%}}',
+/* L18 エラー：小さく2回揺れる */
+'.lx-shake{animation:lxShake .36s ease both}',
+'@keyframes lxShake{20%{translate:-4px 0}45%{translate:3px 0}70%{translate:-2px 0}100%{translate:0 0}}',
+/* L19 カーソル */
+'html.lux [draggable="true"]{cursor:grab}',
+'html.lux [draggable="true"]:active{cursor:grabbing}',
+'html.lux :is(button,.btn,input,select,textarea):disabled, html.lux [aria-disabled="true"]{cursor:not-allowed}',
+'html.lx-busy, html.lx-busy *{cursor:progress !important}',
+/* L20 押せる範囲を広く */
+'.lx-hit{position:relative}',
+'.lx-hit::after{content:"";position:absolute;inset:-8px;border-radius:inherit}',
+/* L22・L43・L44 数字・日付の細部 */
+'.lx-comma{font-size:.82em;opacity:.7;margin:0 .02em}',
+'.lx-sat{color:#4F8FD0}', '.lx-sun{color:#D0606A}',
+'html.lux .lx-yen{font-size:.55em;margin-left:.12em;letter-spacing:0;opacity:.8;font-family:inherit}',
+/* L24 読み込み待ち：形だけの帯（0.3秒たってから） */
+'.lx-skel{display:block;height:12px;border-radius:6px;margin:8px 0;background:linear-gradient(90deg,rgba(127,140,145,.12),rgba(227,199,127,.22),rgba(127,140,145,.12));background-size:200% 100%;animation:lxSkel 1.4s ease-in-out infinite, lxFadeIn .2s ease .3s both}',
+'@keyframes lxSkel{from{background-position:120% 0}to{background-position:-80% 0}}',
+'@keyframes lxFadeIn{from{opacity:0}}',
+'#wqup .wqup-w i{display:none}',
+'#wqup .wqup-w{flex-direction:column;align-items:stretch}',
+/* L26 横に続く表：端がうっすら消える */
+'.lx-hs.lx-hr:not(.lx-hl){-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}',
+'.lx-hs.lx-hl:not(.lx-hr){-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px);mask-image:linear-gradient(90deg,transparent,#000 28px)}',
+'.lx-hs.lx-hl.lx-hr{-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}',
+/* L27 読み込みの線（実際の進みに合わせ、終わったら右端で光って消える） */
+'#lx-load{position:fixed;left:0;top:0;height:2px;width:100%;z-index:2147483003;pointer-events:none;transform-origin:0 50%;transform:scaleX(0);opacity:0;background:linear-gradient(90deg,#3FC1C9,#E3C77F 70%,#FFF4CF);transition:transform .5s var(--lx-out), opacity .4s ease .1s}',
+'#lx-load.on{opacity:1}',
+'#lx-load.done{transform:scaleX(1) !important;opacity:0;transition:transform .25s ease, opacity .5s ease .25s;box-shadow:0 0 14px rgba(246,231,181,.9)}',
+/* L29 印刷：紙が一瞬持ち上がる */
+'.lx-lift{transition:transform .35s var(--lx-out), box-shadow .35s ease !important;transform:translateY(-6px) !important;box-shadow:0 26px 60px rgba(0,0,0,.28) !important}',
+/* L35 何もない画面 */
+'html.lux .lx-empty{display:flex;align-items:center;gap:10px;color:var(--ink-3,#7B898C);font-feature-settings:"palt";letter-spacing:.04em}',
+'html.lux .lx-empty::before{content:"";flex:0 0 auto;width:30px;height:30px;background:' + EMPTY + ' no-repeat center/contain;opacity:.85}',
+/* L36 大事な合計は明朝の札のように */
+'html.lux :is(.tot.grand,.grandmini,.lx-grand):not(' + PAPER_IN + ' *){font-family:"Shippori Mincho","Yu Mincho","YuMincho","Hiragino Mincho ProN",serif !important;font-weight:600;letter-spacing:.02em;font-feature-settings:"palt","lnum","tnum"}',
+/* L38 金はサテンのように（ゆっくり光が動く） */
+'html.lux-m-max.lux-dark :is(.wq-home .hm-hi b,.top h1,.topbar h1){background-size:220% 100% !important;animation:lxSatin 14s ease-in-out infinite alternate}',
+'@keyframes lxSatin{from{background-position:0% 50%}to{background-position:100% 50%}}',
+/* L47 窓は押した場所から開く */
+'html.lux :is(.modal > .box,.dlg-veil > .dlg,#ask > .askbox){transform-origin:var(--lx-ox,50%) var(--lx-oy,50%)}',
+/* L48・L49・L90 行の動き */
+'.lx-drop{animation:lxDrop .32s var(--lx-out) both}',
+'@keyframes lxDrop{from{opacity:0;transform:translateY(-8px)}}',
+'.lx-drag, .dragging, .sortable-chosen, [aria-grabbed="true"]{box-shadow:0 18px 40px rgba(0,0,0,.28) !important;scale:1.01;position:relative;z-index:5;transition:scale .18s var(--lx-spring), box-shadow .18s ease}',
+'.lx-put{animation:lxPut .3s var(--lx-spring)}',
+'@keyframes lxPut{40%{scale:.985}}',
+/* L50 スマホ：横に流す行は区切りで止まる */
+'@media (pointer:coarse){html.lux :is(.tabs,.chips,.kgtabs,.dailytabs){scroll-snap-type:x proximity}html.lux :is(.tabs,.chips,.kgtabs,.dailytabs) > *{scroll-snap-align:start}}',
+/* L51 数字を矢印・ホイールで変えた */
+'.lx-tick{box-shadow:0 0 0 3px rgba(227,199,127,.35) !important;transition:box-shadow .3s ease}',
+/* L53 スクロール中は光と浮きを止める */
+'html.lx-scrolling .lux-glow::after{opacity:0 !important}',
+'html.lx-scrolling .lux-glow:hover{translate:none !important}',
+/* L59 説明の吹き出し */
+'#lx-tip{position:fixed;z-index:2147483004;pointer-events:none;max-width:280px;padding:7px 10px;border-radius:9px;font:500 12px/1.5 "Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;letter-spacing:.02em;color:#EEF3F4;background:rgba(16,24,28,.96);border:1px solid rgba(227,199,127,.3);box-shadow:0 12px 30px rgba(0,0,0,.35);opacity:0;transform:translateY(4px);transition:opacity .16s ease, transform .2s var(--lx-out)}',
+'#lx-tip.on{opacity:1;transform:none}',
+'#lx-tip::after{content:"";position:absolute;left:var(--ax,50%);width:8px;height:8px;background:inherit;border:inherit;border-width:0 1px 1px 0;transform:translateX(-50%) rotate(45deg);bottom:-5px}',
+'#lx-tip.dn::after{bottom:auto;top:-5px;border-width:1px 0 0 1px}',
+/* L61 静かな帯 */
+'#lx-band{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));z-index:2147483004;transform:translate(-50%,20px);opacity:0;pointer-events:none;padding:8px 14px;border-radius:999px;font:600 12.5px/1.4 "Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;color:#EEF3F4;background:rgba(16,24,28,.92);border:1px solid rgba(227,199,127,.35);box-shadow:0 12px 30px rgba(0,0,0,.3);transition:opacity .3s ease, transform .4s var(--lx-out)}',
+'#lx-band.on{opacity:1;transform:translate(-50%,0)}',
+/* L65 締め日が近いと金の線がほんのり濃く */
+'html.lx-closing #lux-prog{opacity:1;filter:saturate(1.3) brightness(1.15)}',
+'html.lx-closing #wqnav{box-shadow:0 1px 0 rgba(227,199,127,.55), 0 10px 30px rgba(0,0,0,.35) !important}',
+/* L69 引っぱって最新版 */
+'#lx-pull{position:fixed;left:50%;top:calc(6px + env(safe-area-inset-top));z-index:2147483004;transform:translate(-50%,-60px);display:flex;align-items:center;gap:8px;padding:8px 14px 8px 10px;border-radius:999px;background:rgba(14,22,26,.95);color:#F2E6BF;border:1px solid rgba(227,199,127,.4);box-shadow:0 12px 30px rgba(0,0,0,.35);font:700 12.5px/1 "Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;pointer-events:none;opacity:0}',
+'#lx-pull svg{width:20px;height:20px}',
+'#lx-pull .arc{stroke-dasharray:57;stroke-dashoffset:57}',
+'#lx-pull.ready{color:#FFF4CF;border-color:#E3C77F}',
+'#lx-pull.go{transition:transform .3s var(--lx-out);}',
+'#lx-pull.go svg{animation:lxSpin .9s linear infinite}',
+'@keyframes lxSpin{to{transform:rotate(360deg)}}',
+'@media (pointer:coarse){html.lux{overscroll-behavior-y:contain}}',
+/* L71 向きを変えたとき */
+'html.lx-rot body{animation:lxFadeIn .28s ease both}',
+/* L34 起動のとき社名が描かれる */
+'#lx-boot{position:fixed;inset:0;z-index:2147483005;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;pointer-events:none;background:radial-gradient(60% 50% at 50% 45%, rgba(14,26,30,.92), rgba(5,9,12,.96));animation:lxBootOut .38s ease var(--bt,.75s) both}',
+'html:not(.lux-dark) #lx-boot{background:radial-gradient(60% 50% at 50% 45%, rgba(250,248,242,.95), rgba(242,239,231,.98))}',
+'#lx-boot svg{width:64px;height:64px}',
+'#lx-boot .mk-c{stroke-dasharray:183;stroke-dashoffset:183;animation:lxDraw .7s var(--lx-out) .05s forwards;opacity:.55}',
+'#lx-boot .mk-w{stroke-dasharray:110;stroke-dashoffset:110;animation:lxDraw .6s var(--lx-out) .18s forwards}',
+'#lx-boot b{font:600 11px/1 "Shippori Mincho","Yu Mincho",serif;letter-spacing:.5em;color:#C9B27A;opacity:0;animation:lxFadeIn .4s ease .35s reverse both}',
+'#lx-boot b{animation:lxBootTxt .5s ease .32s both}',
+'@keyframes lxBootTxt{from{opacity:0;letter-spacing:.8em}to{opacity:1;letter-spacing:.5em}}',
+'@keyframes lxDraw{to{stroke-dashoffset:0}}',
+'@keyframes lxBootOut{to{opacity:0;visibility:hidden}}',
+/* L78 グラフは最初だけ描かれる */
+'.lx-draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:lxDraw .9s var(--lx-out) .1s forwards}',
+/* L80・L81・L82 表 */
+'html.lux tbody tr:hover > td:not(' + PAPER_IN + ' *){background-image:linear-gradient(rgba(227,199,127,.055),rgba(227,199,127,.055))}',
+'html.lux :is(tr.total,tr.tot,tr.sum,tr.grand,tr.gt):not(' + PAPER_IN + ' *) > td{border-top:3px double rgba(127,140,145,.55) !important}',
+'html.lux :is(.pos,.plus,.up):not(' + PAPER_IN + ' *){color:var(--lx-up)}',
+'html.lux.lux-dark :is(.pos,.plus,.up):not(' + PAPER_IN + ' *){color:#5FD0C8}',
+/* L87・L88 請求ナビ */
+'.lx-closed{position:relative}',
+'.lx-closed::after{content:"締め完了";position:absolute;right:18px;top:-14px;padding:6px 12px 6px 14px;border-radius:999px;font:700 12px/1 "Shippori Mincho","Yu Mincho",serif;letter-spacing:.3em;color:#1A1408;background:linear-gradient(135deg,#F6E7B5,#D9B76A);box-shadow:0 8px 20px rgba(201,154,69,.35);animation:lxPop .5s var(--lx-spring) both}',
+'@keyframes lxPop{from{opacity:0;scale:.6}}',
+'html.lux .tabs .cnt.ok{animation:lxOkDot .5s var(--lx-out) both}',
+'@keyframes lxOkDot{from{opacity:0;scale:.4}}',
+/* L92 は売上ダッシュボード側 */
+'}',
+'@media (prefers-reduced-motion:reduce){#lx-boot{display:none}.lx-draw{animation:none;stroke-dashoffset:0}}',
+'html.lux-m-off #lx-boot{display:none}',
+'html.lux-m-off .lx-drop, html.lux-m-off .lx-shake, html.lux-m-off .lx-commit, html.lux-m-off .lx-sealed, html.lux-m-off .lx-put{animation:none !important}',
+'html.lux-m-off :focus-visible{animation:none}',
+'@media print{#lux-noise,#lx-load,#lx-tip,#lx-band,#lx-pull,#lx-boot{display:none !important}.lx-lift{transform:none !important;box-shadow:none !important}.lx-closed::after{display:none}.lx-comma{font-size:inherit;opacity:1}}'
+].join('\n');
+(function(){ var st = document.createElement('style'); st.id = 'lux2-css'; st.textContent = CSS; document.head.appendChild(st); })();
+/* L1 明朝（大事な合計と起動の文字だけ）。読めなければ端末の明朝 */
+(function(){ try{ if(!/^https?:$/.test(location.protocol)) return; var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&display=optional'; document.head.appendChild(l); }catch(e){} })();
+
+function ready(f){ if(document.body) f(); else document.addEventListener('DOMContentLoaded', f); }
+ready(function(){
+  /* L4・L64 */
+  if(!document.getElementById('lux-noise')){ var nz = document.createElement('div'); nz.id = 'lux-noise'; var bg = document.getElementById('lux-bg'); if(bg && bg.nextSibling) document.body.insertBefore(nz, bg.nextSibling); else document.body.insertBefore(nz, document.body.firstChild); }
+  /* L25 白は紙の白 */
+  paperWhite();
+  /* L34 起動 */
+  boot();
+  /* L65・L66 */
+  var d = new Date(), last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  if(d.getDate() >= last - 6) root.classList.add('lx-closing');
+  monthHello();
+  /* L30 電池が少ないときは背景を止める */
+  try{ if(navigator.getBattery) navigator.getBattery().then(function(b){ function chk(){ if(!b.charging && b.level <= .2) root.classList.add('lux-lite'); } chk(); b.addEventListener('levelchange', chk); b.addEventListener('chargingchange', chk); }); }catch(e){}
+  scan(document.body);
+  new MutationObserver(function(ms){
+    var adds = [];
+    for(var i = 0; i < ms.length; i++){ var m = ms[i];
+      if(m.type === 'childList'){ for(var j = 0; j < m.addedNodes.length; j++){ var n = m.addedNodes[j]; if(n.nodeType === 1 && !/^lx-|^lux-/.test(n.id || '')) adds.push(n); } dropIn(m); }
+    }
+    if(adds.length){ clearTimeout(scanT); pend = pend.concat(adds); scanT = setTimeout(function(){ var L = pend; pend = []; L.forEach(function(n){ if(n.isConnected) scan(n); }); }, 60); }
+  }).observe(document.body, { childList:true, subtree:true });
+  setTimeout(hsAll, 800); window.addEventListener('resize', function(){ clearTimeout(hsT); hsT = setTimeout(hsAll, 200); });
+  /* L97 ほかのアプリを先に読んでおく（ひまなときに） */
+  setTimeout(prefetch, 4000);
+});
+var scanT = 0, pend = [], hsT = 0;
+function paperWhite(){
+  try{ if(root.classList.contains('lux-dark')) { document.body.style.removeProperty('--lx-pw'); return; }
+    var c = getComputedStyle(document.body).backgroundColor;
+    var h = getComputedStyle(root).backgroundColor;
+    if(c === 'rgb(255, 255, 255)' || (c === 'rgba(0, 0, 0, 0)' && (h === 'rgb(255, 255, 255)' || h === 'rgba(0, 0, 0, 0)'))){ document.body.style.backgroundColor = '#F7F5F0'; document.body.dataset.lxPw = '1'; }
+  }catch(e){}
+}
+new MutationObserver(function(){ if(root.classList.contains('lux-dark') && document.body && document.body.dataset.lxPw){ document.body.style.backgroundColor = ''; delete document.body.dataset.lxPw; } else if(!root.classList.contains('lux-dark')) paperWhite(); }).observe(root, { attributes:true, attributeFilter:['class'] });
+
+function boot(){
+  try{
+    if(!moving()) return;
+    var k = 'wq.lux.boot', s = sessionStorage.getItem(k); if(s) return; sessionStorage.setItem(k, '1');
+    var el = document.createElement('div'); el.id = 'lx-boot';
+    el.innerHTML = mark('#E3C77F', 2) + '<b>WORKS</b>';
+    if(again) el.style.setProperty('--bt', '.32s');
+    document.body.appendChild(el); setTimeout(function(){ el.remove(); }, again ? 800 : 1300);
+  }catch(e){}
+}
+function band(msg, ms){
+  var b = document.getElementById('lx-band'); if(!b){ b = document.createElement('div'); b.id = 'lx-band'; b.setAttribute('role', 'status'); document.body.appendChild(b); }
+  b.textContent = msg; b.classList.add('on'); clearTimeout(b.__t); if(ms !== 0) b.__t = setTimeout(function(){ b.classList.remove('on'); }, ms || 3600);
+  return b;
+}
+function monthHello(){
+  try{ var d = new Date(), ym = d.getFullYear() + '-' + (d.getMonth() + 1); var v = ls('wq.lux.month'); if(v === ym) return; ls('wq.lux.month', ym); if(!v) return;
+    var pm = d.getMonth() === 0 ? 12 : d.getMonth();
+    setTimeout(function(){ band(pm + '月の締め、おつかれさまでした。', 4200); }, 2600);
+  }catch(e){}
+}
+
+/* ---------- 部品ごとの仕上げ（足されたものにだけ） ---------- */
+var HIT_SEL = 'button, .btn, [role="button"], .iconbtn, .wqn';
+function scan(r){
+  if(!r || !r.querySelectorAll || inPaper(r)) return;
+  try{
+    /* L20 小さいボタンの押せる範囲 */
+    var bs = r.matches && r.matches(HIT_SEL) ? [r] : []; bs = bs.concat(Array.prototype.slice.call(r.querySelectorAll(HIT_SEL)));
+    if(bs.length < 400) requestAnimationFrame(function(){ bs.forEach(function(b){ if(b.__lxh || inPaper(b)) return; b.__lxh = 1; var rc = b.getBoundingClientRect(); if(!rc.width || (rc.width >= 34 && rc.height >= 30)) return; var cs = getComputedStyle(b, '::after'); if(cs && cs.content && cs.content !== 'none') return; if(getComputedStyle(b).position === 'static') b.classList.add('lx-hit'); else { b.classList.add('lx-hit'); } }); });
+    /* L100 アイコンだけのボタンに名前 */
+    r.querySelectorAll('button:not([aria-label])').forEach(function(b){ var t = String(b.textContent || '').trim(); if((!t || t.length <= 1) && b.title) b.setAttribute('aria-label', b.title); });
+    r.querySelectorAll('th:not([scope])').forEach(function(th){ if(th.closest('thead')) th.setAttribute('scope', 'col'); });
+    /* L35 何もない画面 */
+    r.querySelectorAll('div.cap, p.cap, .empty, div.muted, p.muted').forEach(function(e){ if(e.__lxe || e.children.length > 1 || inPaper(e)) return; e.__lxe = 1; var t = String(e.textContent || '').trim(); if(t.length < 44 && /(まだ|は|が)?.*(ありません|ないです|なし)。?$/.test(t) && !/ので|けど/.test(t)) e.classList.add('lx-empty'); });
+    /* L22・L43・L36 数字 */
+    r.querySelectorAll('.kpi .v, .kpi b, .tot.grand, .grandmini').forEach(fmtNum);
+    /* L44 土日の色 */
+    if(r.querySelectorAll('td').length < 3000) r.querySelectorAll('td, th, .date').forEach(weekend);
+    /* L78 グラフ */
+    r.querySelectorAll('svg').forEach(drawSvg);
+    /* L87 請求ナビ：締め完了 */
+    if(APP === 'seikyu') r.querySelectorAll('.xboard').forEach(closedSeal);
+  }catch(e){}
+}
+function fmtNum(el){
+  if(!el || inPaper(el) || el.__lxn === el.textContent) return;
+  try{
+    if(el.children.length && !el.querySelector('.lx-comma, .lx-yen, small')) { /* 中に部品があるときは文字だけ */ }
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n, list = [];
+    while((n = walker.nextNode())) list.push(n);
+    list.forEach(function(t){
+      if(t.parentNode && t.parentNode.classList && (t.parentNode.classList.contains('lx-comma') || t.parentNode.classList.contains('lx-yen'))) return;
+      var s = t.nodeValue; if(!/\d/.test(s)) return;
+      var s2 = s.replace(/(^|[\s(（])-(?=\d)/g, '$1−');
+      if(!/,/.test(s2) && s2 === s && !/円$/.test(s2.trim())) return;
+      var frag = document.createDocumentFragment();
+      s2.split(/(,|円)/).forEach(function(p){ if(p === ',' ){ var c = document.createElement('span'); c.className = 'lx-comma'; c.textContent = ','; frag.appendChild(c); } else if(p === '円' && el.matches('.tot.grand, .grandmini')){ var y = document.createElement('span'); y.className = 'lx-yen'; y.textContent = '円'; frag.appendChild(y); } else if(p) frag.appendChild(document.createTextNode(p)); });
+      t.parentNode.replaceChild(frag, t);
+    });
+    el.__lxn = el.textContent;
+  }catch(e){}
+}
+var WK_RE = /([(（])(土|日)([)）])/;
+function weekend(el){
+  if(el.__lxw || inPaper(el) || el.children.length > 2) return; el.__lxw = 1;
+  try{ for(var i = 0; i < el.childNodes.length; i++){ var t = el.childNodes[i]; if(t.nodeType !== 3 || !WK_RE.test(t.nodeValue)) continue;
+    var m = WK_RE.exec(t.nodeValue), before = t.nodeValue.slice(0, m.index), after = t.nodeValue.slice(m.index + m[0].length);
+    var sp = document.createElement('span'); sp.className = m[2] === '土' ? 'lx-sat' : 'lx-sun'; sp.textContent = m[0];
+    var f = document.createDocumentFragment(); if(before) f.appendChild(document.createTextNode(before)); f.appendChild(sp); if(after) f.appendChild(document.createTextNode(after));
+    el.replaceChild(f, t); break; } }catch(e){}
+}
+var drawn = new Set();
+function drawSvg(svg){
+  if(svg.__lxd || inPaper(svg) || !moving()) return; svg.__lxd = 1;
+  try{ var rc = svg.getBoundingClientRect(); if(rc.width < 140) return;
+    var key = (svg.id || '') + '|' + location.pathname + '|' + rc.width.toFixed(0); try{ if(sessionStorage.getItem('wq.lx.draw.' + key)) return; sessionStorage.setItem('wq.lx.draw.' + key, '1'); }catch(e){}
+    svg.querySelectorAll('polyline, path').forEach(function(p){ var cs = getComputedStyle(p); if(cs.fill !== 'none' && cs.fill !== 'transparent' && p.getAttribute('fill') !== 'none') return; if(cs.stroke === 'none') return; var len = 0; try{ len = p.getTotalLength(); }catch(e){} if(len < 60) return; p.style.setProperty('--len', len); p.classList.add('lx-draw'); setTimeout(function(){ p.classList.remove('lx-draw'); p.style.removeProperty('--len'); }, 1300); });
+  }catch(e){}
+}
+function closedSeal(b){
+  try{ var tags = b.querySelectorAll('table.xlog .tag'); if(!tags.length) return;
+    var all = Array.prototype.every.call(tags, function(t){ return /送付済/.test(t.textContent); });
+    b.classList.toggle('lx-closed', all);
+    if(all && !b.__lxc){ b.__lxc = 1; } }catch(e){}
+}
+
+/* ---------- L13・L53 スクロール ---------- */
+var scT = 0, scR = 0;
+window.addEventListener('scroll', function(){
+  if(!scR) scR = requestAnimationFrame(function(){ scR = 0; root.classList.toggle('lx-scrolled', (window.scrollY || document.documentElement.scrollTop) > 6); });
+  root.classList.add('lx-scrolling'); clearTimeout(scT); scT = setTimeout(function(){ root.classList.remove('lx-scrolling'); }, 160);
+}, { passive:true });
+
+/* ---------- L26 横に続く表 ---------- */
+function hsOne(el){
+  if(inPaper(el) || el.querySelector(PAPER)) return;
+  var over = el.scrollWidth > el.clientWidth + 2;
+  el.classList.toggle('lx-hs', over);
+  if(!over){ el.classList.remove('lx-hl', 'lx-hr'); return; }
+  el.classList.toggle('lx-hl', el.scrollLeft > 2);
+  el.classList.toggle('lx-hr', el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  if(!el.__lxs){ el.__lxs = 1; el.addEventListener('scroll', function(){ hsOne(el); }, { passive:true }); }
+}
+function hsAll(){ try{ document.querySelectorAll('.tablebox, .tblwrap, .tbl-wrap, .tblbox, .scrollx, .x-scroll').forEach(hsOne); document.querySelectorAll('div').forEach(function(d){ if(d.__lxs || d.clientWidth < 120) return; var o = getComputedStyle(d).overflowX; if((o === 'auto' || o === 'scroll') && d.scrollWidth > d.clientWidth + 2) hsOne(d); }); }catch(e){} }
+
+/* ---------- L27・L28 読み込みの線・タブ名・処理中のカーソル ---------- */
+var inflight = 0, loadEl = null, busyT = 0;
+function loadBar(){ if(!loadEl){ loadEl = document.createElement('div'); loadEl.id = 'lx-load'; document.body.appendChild(loadEl); } return loadEl; }
+function startLoad(){
+  inflight++;
+  if(inflight === 1){ var b = loadBar(); b.classList.remove('done'); b.classList.add('on'); b.style.transform = 'scaleX(.08)'; setTimeout(function(){ if(inflight) b.style.transform = 'scaleX(.55)'; }, 60); setTimeout(function(){ if(inflight) b.style.transform = 'scaleX(.82)'; }, 1600);
+    clearTimeout(busyT); busyT = setTimeout(function(){ if(inflight){ root.classList.add('lx-busy'); title(); } }, 600); }
+}
+function endLoad(){
+  inflight = Math.max(0, inflight - 1);
+  if(!inflight){ clearTimeout(busyT); root.classList.remove('lx-busy'); title(); var b = loadBar(); b.classList.add('done'); setTimeout(function(){ b.classList.remove('on', 'done'); b.style.transform = 'scaleX(0)'; }, 800); }
+}
+try{
+  var of = window.fetch;
+  if(of && !of.__lx){ var nf = function(){ var a = arguments, u = String(a[0] && a[0].url || a[0] || ''); var same = !/^https?:/i.test(u) || u.indexOf(location.origin) === 0; var quiet = !same || /fonts\.g/.test(u) || (a[1] && a[1].headers && a[1].headers.Range); if(!quiet) startLoad(); return of.apply(this, a).then(function(r){ if(!quiet) endLoad(); return r; }, function(e){ if(!quiet) endLoad(); throw e; }); }; nf.__lx = 1; window.fetch = nf; }
+}catch(e){}
+var dirty = false, baseTitle = document.title;
+function title(){
+  try{ var t = document.title.replace(/^(● |… )+/, ''); if(t !== baseTitle && !/^(● |… )/.test(document.title)) baseTitle = t;
+    var want = (root.classList.contains('lx-busy') ? '… ' : '') + (dirty ? '● ' : '') + baseTitle; if(document.title !== want) document.title = want; }catch(e){}
+}
+document.addEventListener('input', function(ev){
+  var t = ev.target; if(!t || !t.matches || !t.matches('input, select, textarea') || inPaper(t) || t.closest('#lux-menu, #lx-tip, .wqnav, #wqnav')) return;
+  if(t.type === 'search' || /search|filter|find|q$/i.test(t.id || t.name || '') || /探す|検索|さがす|しぼり/.test(t.placeholder || '')) return;
+  dirty = true; dirtyAt = Date.now(); title();
+  /* L51 */
+  if(t.type === 'number' && (!ev.inputType || ev.inputType === 'insertReplacementText')){ t.classList.add('lx-tick'); clearTimeout(t.__lxt); t.__lxt = setTimeout(function(){ t.classList.remove('lx-tick'); }, 320); }
+}, true);
+var dirtyAt = 0;
+
+/* ---------- L16 確定で金の下線 ---------- */
+document.addEventListener('change', function(ev){
+  var t = ev.target; if(!moving() || !t || !t.matches || !t.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]), textarea') || inPaper(t)) return;
+  t.classList.remove('lx-commit'); void t.offsetWidth; t.classList.add('lx-commit'); clearTimeout(t.__lxc); t.__lxc = setTimeout(function(){ t.classList.remove('lx-commit'); }, 900);
+}, true);
+
+/* ---------- L18 エラーは小さく揺れる ---------- */
+function shake(el){ if(!el || !moving()) return; el.classList.remove('lx-shake'); void el.offsetWidth; el.classList.add('lx-shake'); setTimeout(function(){ el.classList.remove('lx-shake'); }, 420); }
+document.addEventListener('invalid', function(ev){ shake(ev.target); }, true);
+
+/* ---------- L17・L28・L31・L55・L67・L89 押したとき ---------- */
+var SAVE_RE = /^(💾\s*)?(上書き)?保存(する)?$|^控えに保存|^この端末に保存|^保存して/;
+var DO_RE = /保存|作る|作成|印刷|PDF|送付|送る|追加|足す|登録|取り込|読み込|更新|反映|確定/;
+var lastPress = new WeakMap();
+var actx = null;
+function tick(kind){
+  if(ls('wq.lux.sound') !== '1') return;
+  try{ actx = actx || new (window.AudioContext || window.webkitAudioContext)(); var o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+    o.type = 'sine'; o.frequency.setValueAtTime(kind === 'done' ? 1320 : 980, t); o.frequency.exponentialRampToValueAtTime(kind === 'done' ? 1760 : 1180, t + .05);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.045, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + .09);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + .1); }catch(e){}
+}
+function buzz(){ try{ if(navigator.vibrate && coarse) navigator.vibrate(8); }catch(e){} }
+document.addEventListener('click', function(ev){
+  var b = ev.target && ev.target.closest && ev.target.closest('button, .btn, [role="button"]'); if(!b || inPaper(b)) return;
+  var tx = String(b.textContent || '').replace(/\s+/g, '').trim();
+  /* L55 連打を止める（作る・保存・印刷などだけ。0.45秒以内の2回目） */
+  if(DO_RE.test(tx) && !b.hasAttribute('data-multi')){
+    var t0 = lastPress.get(b) || 0, now = Date.now();
+    if(now - t0 < 450){ ev.stopImmediatePropagation(); ev.preventDefault(); return; }
+    lastPress.set(b, now);
+  }
+  /* L29 印刷：紙が持ち上がる */
+  if(/印刷|PDF/.test(tx) && moving()){ document.querySelectorAll('#pvpaper, .pv .xp, .pv .pp, #pv .xp, .pp, .xp').forEach(function(p, i){ if(i > 2 || !visible(p)) return; p.classList.add('lx-lift'); setTimeout(function(){ p.classList.remove('lx-lift'); }, 520); }); }
+  if(SAVE_RE.test(tx)){
+    dirty = false; title(); buzz(); tick('save');
+    /* L89 合計の下に金の線 */
+    document.querySelectorAll('.tot.grand, .grandmini').forEach(function(g){ if(inPaper(g) || !moving()) return; g.classList.remove('lx-sealed'); void g.offsetWidth; g.classList.add('lx-sealed'); setTimeout(function(){ g.classList.remove('lx-sealed'); }, 1300); });
+    /* L17 ボタンの文字が✓に変わって戻る */
+    if(moving() && !b.__lxok && b.children.length <= 2){
+      var html = b.innerHTML, w = b.getBoundingClientRect().width; b.__lxok = 1;
+      setTimeout(function(){ if(!b.isConnected || b.disabled) { b.__lxok = 0; return; } b.style.minWidth = w + 'px'; b.innerHTML = '<span class="lx-ok">✓ 保存しました</span>';
+        setTimeout(function(){ if(b.isConnected && b.querySelector('.lx-ok')) b.innerHTML = html; b.style.minWidth = ''; b.__lxok = 0; }, 1200); }, 260);
+    }
+  }
+}, true);
+/* 知らせ（トースト）の中身で：完了なら音と振動 */
+(function(){
+  var OK = /(保存した|保存しました|送付済|受注|印刷した|PDFを|できた|完了|作りました|作った|入れた|更新した)/;
+  new MutationObserver(function(ms){ ms.forEach(function(m){ var t = m.target.nodeType === 1 ? m.target : m.target.parentElement; t = t && t.closest ? t.closest('#toast, .toast, .wq-toast') : null; if(!t || t.hidden) return; var tx = String(t.textContent || ''); if(OK.test(tx) && !/できな|失敗|エラー/.test(tx)){ if(/保存/.test(tx)){ dirty = false; title(); } if(t.__lxs !== tx){ t.__lxs = tx; buzz(); tick(/完了|送付済|受注/.test(tx) ? 'done' : 'save'); } } }); })
+    .observe(document.documentElement, { subtree:true, childList:true, characterData:true });
+})();
+
+/* ---------- L47 窓は押した場所から開く ---------- */
+var lastPt = null;
+document.addEventListener('pointerdown', function(ev){ lastPt = { x:ev.clientX, y:ev.clientY, t:Date.now() }; }, true);
+function originFor(v){
+  try{ var box = v.querySelector(':scope > .box, :scope > .dlg, :scope > .askbox'); if(!box || !lastPt || Date.now() - lastPt.t > 1500) return;
+    var r = box.getBoundingClientRect(); if(!r.width) return;
+    box.style.setProperty('--lx-ox', Math.max(-40, Math.min(r.width + 40, lastPt.x - r.left)) + 'px'); box.style.setProperty('--lx-oy', Math.max(-40, Math.min(r.height + 40, lastPt.y - r.top)) + 'px'); }catch(e){}
+}
+new MutationObserver(function(ms){ ms.forEach(function(m){
+  if(m.type === 'attributes' && m.target.matches && m.target.matches(VEIL_SEL) && !m.target.hidden) originFor(m.target);
+  if(m.type === 'childList') for(var i = 0; i < m.addedNodes.length; i++){ var n = m.addedNodes[i]; if(n.nodeType === 1 && n.matches && n.matches(VEIL_SEL)) originFor(n); }
+}); }).observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['hidden'] });
+
+/* ---------- L48・L90 行の動き（並べ替え・削除はすっと、足した行は静かに置かれる） ---------- */
+var flip = null;
+function rowsOf(c){ return Array.prototype.slice.call(c.children).filter(function(x){ return x.nodeType === 1; }); }
+function keyOf(el){ return String(el.textContent || '').replace(/\s+/g, '').slice(0, 48); }
+document.addEventListener('pointerdown', function(ev){
+  if(!moving()) return;
+  var row = ev.target && ev.target.closest && ev.target.closest('tbody > tr, ul > li, .rows > *, .list > *');
+  if(!row || inPaper(row)) return;
+  var c = row.parentElement; var L = rowsOf(c); if(L.length > 160 || L.length < 2) return;
+  var map = new Map(); L.forEach(function(r){ var k = keyOf(r); if(!map.has(k)) map.set(k, r.getBoundingClientRect().top); });
+  flip = { c:c, map:map, t:Date.now() };
+}, true);
+document.addEventListener('click', function(){
+  if(!flip) return; var F = flip; flip = null;
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){
+    if(Date.now() - F.t > 2500) return;
+    var c = F.c.isConnected ? F.c : null; if(!c) return;
+    rowsOf(c).forEach(function(r){ var k = keyOf(r), top0 = F.map.get(k); if(top0 == null) return; var dy = top0 - r.getBoundingClientRect().top; if(Math.abs(dy) < 2 || Math.abs(dy) > 900) return;
+      r.animate([{ transform:'translateY(' + dy + 'px)' }, { transform:'none' }], { duration:260, easing:'cubic-bezier(.2,.8,.2,1)' }); });
+  }); });
+}, true);
+function dropIn(m){
+  if(!moving() || !m.addedNodes.length || m.addedNodes.length > 3) return;
+  var c = m.target; if(!c || !c.matches || !c.matches('tbody, ul, ol, .rows, .list, .items') || inPaper(c)) return;
+  if(rowsOf(c).length - m.addedNodes.length < 1) return;   /* はじめて描くときは動かさない */
+  for(var i = 0; i < m.addedNodes.length; i++){ var n = m.addedNodes[i]; if(n.nodeType !== 1) continue; n.classList.add('lx-drop'); (function(n){ setTimeout(function(){ n.classList.remove('lx-drop'); }, 400); })(n); }
+}
+/* L49 ドラッグ */
+document.addEventListener('dragstart', function(ev){ var r = ev.target && ev.target.closest && ev.target.closest('tr, li, .row, [draggable="true"]'); if(r && !inPaper(r)){ r.classList.add('lx-drag'); } }, true);
+document.addEventListener('dragend', function(ev){ document.querySelectorAll('.lx-drag').forEach(function(r){ r.classList.remove('lx-drag'); if(moving()){ r.classList.add('lx-put'); setTimeout(function(){ r.classList.remove('lx-put'); }, 320); } }); }, true);
+
+/* ---------- L23 タブを行き来してもスクロール位置を覚える ---------- */
+var TAB_SEL = '.tabs button, [role="tab"], .kgtabs button, .tabbar button';
+var tabPos = {};
+function tabKey(b){ return (b.dataset && (b.dataset.tab || b.dataset.t)) || String(b.textContent || '').trim().slice(0, 12); }
+document.addEventListener('click', function(ev){
+  var b = ev.target && ev.target.closest && ev.target.closest(TAB_SEL); if(!b || inPaper(b)) return;
+  var bar = b.parentElement, cur = bar && bar.querySelector('.on, .cur, [aria-selected="true"], [aria-pressed="true"]');
+  if(cur && cur !== b) tabPos[tabKey(cur)] = window.scrollY;
+  var k = tabKey(b);
+  if(tabPos[k] != null) setTimeout(function(){ window.scrollTo(0, tabPos[k]); }, 40);
+}, true);
+
+/* ---------- L56 Esc で上の窓から1つずつ閉じる（アプリが閉じなかったときだけ） ---------- */
+document.addEventListener('keydown', function(ev){
+  if(ev.key !== 'Escape' || ev.__lx) return;
+  var v = topVeil(); if(!v) return;
+  setTimeout(function(){ if(v.isConnected && visible(v) && topVeil() === v){ try{ if(X.closeVeil) X.closeVeil(v); }catch(e){} } }, 60);
+});
+
+/* ---------- L57 表をコピーすると Excel でセルに分かれる ---------- */
+document.addEventListener('copy', function(ev){
+  try{
+    var sel = window.getSelection(); if(!sel || sel.isCollapsed) return;
+    var a = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement), tb = a && a.closest && a.closest('table');
+    if(!tb || inPaper(tb)) return;
+    var rows = Array.prototype.filter.call(tb.rows, function(r){ return sel.containsNode(r, true); }); if(rows.length < 2) return;
+    var tsv = rows.map(function(r){ return Array.prototype.map.call(r.cells, function(c){ return String(c.innerText || '').replace(/\s*\n\s*/g, ' ').trim(); }).join('\t'); }).join('\n');
+    var html = '<table>' + rows.map(function(r){ return '<tr>' + Array.prototype.map.call(r.cells, function(c){ return '<td>' + String(c.innerText || '').replace(/[&<>]/g, function(m){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m]; }).replace(/\n/g, ' ') + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+    ev.clipboardData.setData('text/plain', tsv); ev.clipboardData.setData('text/html', html); ev.preventDefault();
+  }catch(e){}
+});
+
+/* ---------- L59 説明の吹き出し ---------- */
+var tipEl = null, tipT = 0, tipFor = null;
+function tipShow(el){
+  var tx = el.getAttribute('data-lx-title'); if(!tx) return;
+  if(!tipEl){ tipEl = document.createElement('div'); tipEl.id = 'lx-tip'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
+  tipEl.textContent = tx; tipEl.classList.remove('on', 'dn'); tipEl.style.left = '0px'; tipEl.style.top = '-999px';
+  var r = el.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  var x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - h - 10, dn = false;
+  if(y < 8){ y = r.bottom + 10; dn = true; }
+  tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px'; tipEl.style.setProperty('--ax', (r.left + r.width / 2 - x) + 'px'); tipEl.classList.toggle('dn', dn);
+  requestAnimationFrame(function(){ tipEl.classList.add('on'); });
+}
+function tipHide(){ clearTimeout(tipT); tipFor = null; if(tipEl) tipEl.classList.remove('on'); }
+if(!coarse){
+  document.addEventListener('pointerover', function(ev){
+    var el = ev.target && ev.target.closest && ev.target.closest('[title], [data-lx-title]'); if(!el || inPaper(el) || el === tipFor) return;
+    if(el.closest('svg') && !el.matches('svg')) return;
+    if(el.hasAttribute('title')){ var t = el.getAttribute('title'); if(!t){ return; } el.setAttribute('data-lx-title', t); el.removeAttribute('title'); }
+    tipHide(); tipFor = el; tipT = setTimeout(function(){ if(tipFor === el && el.isConnected) tipShow(el); }, 400);
+  }, true);
+  document.addEventListener('pointerout', function(ev){ if(tipFor && (!ev.relatedTarget || !tipFor.contains(ev.relatedTarget))) tipHide(); }, true);
+  document.addEventListener('pointerdown', tipHide, true); window.addEventListener('scroll', tipHide, { passive:true, capture:true });
+  /* アプリが title を読み直すことがあるので、title を探す人のために戻す道を残す */
+  try{ var gA = Element.prototype.getAttribute; Element.prototype.getAttribute = function(n){ var v = gA.call(this, n); if(v == null && n === 'title'){ var d = gA.call(this, 'data-lx-title'); if(d != null) return d; } return v; }; }catch(e){}
+}
+
+/* ---------- L61 オフラインは静かな帯で ---------- */
+window.addEventListener('offline', function(){ band('電波がありません（入力はこの端末に残ります）', 0); });
+window.addEventListener('online', function(){ band('つながりました', 1800); });
+
+/* ---------- L62 未保存のまま閉じようとしたら一度だけ聞く（小さいアプリ） ---------- */
+if(SMALL) window.addEventListener('beforeunload', function(ev){ if(dirty && Date.now() - dirtyAt < 20 * 60 * 1000){ ev.preventDefault(); ev.returnValue = ''; return ''; } });
+
+/* ---------- L68・L72 スマホ：下の固定バーとキーボード ---------- */
+function safeBottom(){ try{ document.querySelectorAll('body *').forEach(function(el){ if(el.__lxsb || el.children.length > 60) return; var cs = getComputedStyle(el); if(cs.position === 'fixed' && cs.bottom === '0px' && el.offsetHeight < 140 && el.offsetWidth > innerWidth * .6){ el.__lxsb = 1; el.style.paddingBottom = 'max(' + cs.paddingBottom + ', env(safe-area-inset-bottom))'; } }); }catch(e){} }
+if(coarse) setTimeout(safeBottom, 1500);
+document.addEventListener('focusin', function(ev){
+  var t = ev.target; if(!t || !t.matches || !t.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea') || t.__lxk) return; t.__lxk = 1;
+  try{
+    if(!t.hasAttribute('enterkeyhint') && t.tagName === 'INPUT'){ var f = t.form || t.closest('.card, .box, .sheet, section, .modal, .dlg') || document.body; var ins = Array.prototype.filter.call(f.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea'), visible); t.setAttribute('enterkeyhint', ins.indexOf(t) === ins.length - 1 ? 'done' : 'next'); }
+    if(t.type === 'text' && !t.hasAttribute('inputmode') && /金額|単価|数量|台数|円|千円|率|日数/.test((t.placeholder || '') + (t.getAttribute('aria-label') || '') + (t.name || '') + (t.id || ''))) t.setAttribute('inputmode', 'decimal');
+  }catch(e){}
+}, true);
+
+/* ---------- L69 下に引っぱって最新版 ---------- */
+if(coarse){
+  var pull = null, py0 = 0, pd = 0, pulling = false;
+  var pel = document.createElement('div'); pel.id = 'lx-pull';
+  pel.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#E3C77F" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9" opacity=".25"/><circle class="arc" cx="12" cy="12" r="9" transform="rotate(-90 12 12)"/></svg><span>引っぱって最新版</span>';
+  ready(function(){ document.body.appendChild(pel); });
+  function canPull(t){
+    if((window.scrollY || document.documentElement.scrollTop) > 0) return false;
+    if(topVeil() || !window.WQUP) return false;
+    if(t && t.closest && t.closest('input, textarea, select, [contenteditable="true"], canvas, .kgta, #lux-menu')) return false;
+    for(var el = t; el && el !== document.body; el = el.parentElement){ if(el.scrollTop > 0) return false; var o = getComputedStyle(el).overflowY; if((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight + 2 && el.scrollTop > 0) return false; }
+    return true;
+  }
+  document.addEventListener('touchstart', function(ev){ if(ev.touches.length !== 1){ pulling = false; return; } pulling = canPull(ev.target); py0 = ev.touches[0].clientY; pd = 0; }, { passive:true });
+  document.addEventListener('touchmove', function(ev){
+    if(!pulling) return; pd = ev.touches[0].clientY - py0;
+    if(pd <= 0 || (window.scrollY || 0) > 0){ pel.style.opacity = 0; pel.style.transform = 'translate(-50%,-60px)'; return; }
+    var p = Math.min(1, pd / 110), off = Math.min(70, pd * .45) - 60;
+    pel.style.opacity = Math.min(1, pd / 40); pel.style.transform = 'translate(-50%,' + off + 'px)';
+    pel.querySelector('.arc').style.strokeDashoffset = 57 - 57 * p;
+    pel.classList.toggle('ready', p >= 1); pel.querySelector('span').textContent = p >= 1 ? '離すと最新版にします' : '引っぱって最新版';
+  }, { passive:true });
+  document.addEventListener('touchend', function(){
+    if(!pulling) return; pulling = false;
+    if(pd >= 110){ pel.classList.add('go'); pel.style.transform = 'translate(-50%,10px)'; pel.querySelector('span').textContent = '最新版をしらべています…'; buzz();
+      try{ window.WQUP.check().then(function(){ window.WQUP.run(); }, function(){ window.WQUP.run(); }); }catch(e){ location.reload(); }
+    } else { pel.style.transition = 'transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s ease'; pel.style.opacity = 0; pel.style.transform = 'translate(-50%,-60px)'; setTimeout(function(){ pel.style.transition = ''; }, 320); }
+  }, { passive:true });
+}
+
+/* ---------- L70 下から出た窓を指で下げて閉じる ---------- */
+if(coarse){
+  var sw = null;
+  document.addEventListener('touchstart', function(ev){
+    var v = topVeil(); if(!v || ev.touches.length !== 1) return;
+    var box = v.querySelector(':scope > .box, :scope > .dlg, :scope > .askbox, :scope > .sheet, :scope > .wqup-c') || (v.matches('.sheetwrap') ? v.querySelector('.sheethead') && v : null); if(!box) return;
+    var head = ev.target.closest && ev.target.closest('.sheethead, .box > h3, .dlg > h3, .dlg-h, .kghead, .wqup-h'); if(!head || !box.contains(head)) return;
+    if(ev.target.closest('button, input, select, textarea, a')) return;
+    sw = { v:v, box:box, y0:ev.touches[0].clientY, dy:0 };
+  }, { passive:true });
+  document.addEventListener('touchmove', function(ev){ if(!sw) return; sw.dy = Math.max(0, ev.touches[0].clientY - sw.y0); sw.box.style.transition = 'none'; sw.box.style.transform = 'translateY(' + sw.dy + 'px)'; }, { passive:true });
+  document.addEventListener('touchend', function(){
+    if(!sw) return; var s = sw; sw = null;
+    s.box.style.transition = 'transform .28s cubic-bezier(.2,.8,.2,1)';
+    if(s.dy > 110){ s.box.style.transform = 'translateY(100vh)'; setTimeout(function(){ s.box.style.transform = ''; s.box.style.transition = ''; try{ if(X.closeVeil) X.closeVeil(s.v); }catch(e){} }, 200); }
+    else { s.box.style.transform = ''; setTimeout(function(){ s.box.style.transition = ''; }, 300); }
+  }, { passive:true });
+}
+
+/* ---------- L71 向きを変えたとき ---------- */
+window.addEventListener('orientationchange', function(){ if(!moving()) return; root.classList.add('lx-rot'); setTimeout(function(){ root.classList.remove('lx-rot'); }, 400); });
+
+/* ---------- L97 ほかのアプリを先に読む ---------- */
+function prefetch(){
+  try{ if(!/^https?:$/.test(location.protocol) || (navigator.connection && (navigator.connection.saveData || /2g/.test(navigator.connection.effectiveType || '')))) return;
+    ['index.html', 'seikyu.html', 'sharyo.html', 'zoto.html', 'rental.html', 'meshitsu.html'].forEach(function(f){ if(location.pathname.endsWith('/' + f)) return; var l = document.createElement('link'); l.rel = 'prefetch'; l.href = './' + f; document.head.appendChild(l); });
+  }catch(e){}
+}
+
+/* ---------- L33 アプリを行き来しても上の帯は動かない（同じ場所のページどうし） ---------- */
+(function(){ try{ var st = document.createElement('style'); st.textContent = '@view-transition{navigation:auto}#wqnav{view-transition-name:wqnav}::view-transition-old(root),::view-transition-new(root){animation-duration:.24s}@media (prefers-reduced-motion:reduce){::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important}}'; document.head.appendChild(st); }catch(e){} })();
+
+/* ---------- L8 合計・数字が変わったら：増えたら一瞬青緑、減ったら灰の残光 ---------- */
+(function(){
+  var NUM_SEL = '.kpi .v, .kpi b, .tot.grand, .grandmini, .tot b, .sum b, .total b';
+  var last = new WeakMap();
+  function val(el){ var m = String(el.textContent || '').replace(/[,，\s]/g, '').replace(/−/g, '-').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
+  function look(el){
+    if(!el || inPaper(el)) return; var v = val(el); if(v == null) return;
+    var p = last.get(el); last.set(el, v); if(p == null || p === v || !moving()) return;
+    el.classList.remove('lx-nup', 'lx-ndn'); void el.offsetWidth; el.classList.add(v > p ? 'lx-nup' : 'lx-ndn');
+    clearTimeout(el.__lxn2); el.__lxn2 = setTimeout(function(){ el.classList.remove('lx-nup', 'lx-ndn'); }, 900);
+  }
+  var st = document.createElement('style');
+  st.textContent = '.lx-nup{animation:lxNup .9s ease both}.lx-ndn{animation:lxNdn .9s ease both}@keyframes lxNup{0%{text-shadow:0 0 0 rgba(63,193,201,0)}20%{text-shadow:0 0 14px rgba(63,193,201,.75);scale:1.005}100%{text-shadow:0 0 0 rgba(63,193,201,0)}}@keyframes lxNdn{0%{opacity:1}25%{opacity:.62}100%{opacity:1}}';
+  document.head.appendChild(st);
+  ready(function(){
+    document.querySelectorAll(NUM_SEL).forEach(function(el){ last.set(el, val(el)); });
+    new MutationObserver(function(ms){ var seen = new Set(); ms.forEach(function(m){ var t = m.target.nodeType === 1 ? m.target : m.target.parentElement; var el = t && t.closest ? t.closest(NUM_SEL) : null; if(el && !seen.has(el)){ seen.add(el); look(el); } }); })
+      .observe(document.body, { subtree:true, childList:true, characterData:true });
+  });
+})();
+
+window.WQLUX2 = { shake:shake, band:band, mark:mark, dirty:function(v){ dirty = !!v; title(); }, load:{ start:startLoad, end:endLoad } };
 })();
 
 </script>
