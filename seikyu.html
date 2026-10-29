@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-28 21:46-->
+<!--BUILD:2026-10-29 20:07-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2523,7 +2523,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-28 21:46';
+const BUILD = '2026-10-29 20:07';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6005,6 +6005,350 @@ drawChecks = function(){
   });
 })();
 
+/* ====================== 請求書チェックリスト（PDF）に赤入れ（2026-10-29） ======================
+   システムから出した「請求書チェックリスト」のPDFを入れると、行を読んで、気になるところに赤枠・番号・短い注記を書き込み、
+   最後に「チェック結果」のページを足したPDFを作る（Claudeが手でやっていた赤入れと同じ形）。
+   Wレンタル売上リスト（売上）のPDFも入れると、その得意先の分を拾って「仕入の数量ちがい・赤字・粗利30%未満」も見る。
+   いつものチェック（CSVから）とは別もの。紙にも何も出ない。 */
+(function(){
+const X3_RENT = ['日極', '月極'];
+const x3num = s => { const v = Number(String(s == null ? '' : s).replace(/[,，]/g, '').replace(/^[△▲]/, '-')); return isFinite(v) ? v : 0; };
+const x3isNum = s => /^-?[\d,]+(\.\d+)?$/.test(String(s || ''));
+const x3ck = s => String(s || '').normalize('NFKC').replace(/株式会社|有限会社|合同会社|\(株\)|\(有\)|㈱|㈲|\s/g, '').toLowerCase();
+const x3nm = s => String(s || '').normalize('NFKC').replace(/\d{4}\/\d\d\/\d\d$/, '').replace(/【[^】]*】?/g, '').replace(/[\s　]/g, '');
+const x3base = s => x3nm(s).replace(/\*[A-Za-z歴月]+$/, '').replace(/\([^)]*\)?/g, '');
+const x3hosho = s => { const m = /【([^】]*保証[^】]*)】/.exec(String(s || '')); return m ? m[1] : ''; };
+const fy = v => '¥' + Math.round(v).toLocaleString('ja-JP');
+const TOOL_RE = /ﾄﾞﾘﾙ|ドリル|ｸﾞﾗｲﾝﾀﾞ|グラインダ|ｻﾝﾀﾞｰ|サンダー|ﾊﾝﾏ|ハンマ|ｶｯﾀｰ|カッター|ﾌﾞﾚｰｶｰ|ブレーカー|溶接機|切断機|丸ﾉｺ|丸ノコ|ｲﾝﾊﾟｸﾄ|インパクト|ﾁｯﾊﾟｰ|チッパー|電動|充電式/;
+const CDN_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', CDN_PDFJSW = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const CDN_CMAPS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/';
+const CDN_PDFLIB = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', CDN_FONTKIT = 'https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js';
+
+async function pdfjs(){ if(!window.pdfjsLib){ await loadJs(CDN_PDFJS); window.pdfjsLib.GlobalWorkerOptions.workerSrc = CDN_PDFJSW; } return window.pdfjsLib; }
+/* PDF → ページごとの「行」（y でまとめ、x の間がほぼ無い文字はつなぐ）。各行は { y, h, toks:[{s,x0,x1}] } */
+async function readLines(f){
+  const L = await pdfjs();
+  const doc = await L.getDocument({ data: new Uint8Array(await f.arrayBuffer()), cMapUrl: CDN_CMAPS, cMapPacked: true }).promise;
+  const pages = [];
+  for(let i = 1; i <= doc.numPages; i++){
+    const pg = await doc.getPage(i); const tc = await pg.getTextContent(); const vp = pg.getViewport({ scale: 1 });
+    const items = tc.items.map(t => ({ s: t.str, x: t.transform[4], y: t.transform[5], w: t.width || 0, h: t.height || 0 })).filter(t => t.s.trim());
+    const ys = []; items.forEach(t => { let r = ys.find(r => Math.abs(r.y - t.y) <= 2.5); if(!r){ r = { y: t.y, its: [] }; ys.push(r); } r.its.push(t); });
+    ys.sort((a, b) => b.y - a.y);
+    const lines = ys.map(r => {
+      const ts = r.its.sort((a, b) => a.x - b.x); const toks = [];
+      ts.forEach(t => { const last = toks[toks.length - 1]; const gap = last ? t.x - last.x1 : 99;
+        /* 金額のあとに文字がぴったり続くとき（金額列のとなりが備考）は分ける */
+        if(last && gap <= 2.5 && !(x3isNum(last.s.trim()) && (last.s.indexOf(',') >= 0 || last.s.length >= 4) && !/^[\d,.]/.test(t.s.trim()))){ last.s += t.s; last.x1 = t.x + t.w; }
+        else toks.push({ s: t.s, x0: t.x, x1: t.x + t.w }); });
+      toks.forEach(t => { t.s = t.s.replace(/\s+/g, ' ').trim(); });
+      return { y: r.y, h: Math.max(6, ...r.its.map(t => t.h || 8)), toks: toks.filter(t => t.s) };
+    });
+    pages.push({ no: i, w: vp.width, h: vp.height, lines });
+  }
+  return { pages, numPages: doc.numPages };
+}
+/* ---------- 請求書チェックリストを読む ---------- */
+function parseChecklist(P){
+  const rows = [], sites = {}; const meta = { custCode: '', custName: '', date: '', made: '' };
+  let curSite = null;   /* 現場はページをまたいで続く */
+  P.pages.forEach(pg => {
+    const txt0 = pg.lines.map(l => l.toks.map(t => t.s).join(' ')).join('\n');
+    if(pg.no === 1){
+      const m = /請求先：\s*(\d+)\s+(.+?)\s+請求日：\s*([\d\/]+)/.exec(txt0); if(m){ meta.custCode = m[1]; meta.custName = m[2].trim(); meta.date = m[3]; }
+      const m2 = /作成日\s*：\s*([\d\/]+ [\d:]+)/.exec(txt0); if(m2) meta.made = m2[1];
+    }
+    const hdr = pg.lines.find(l => l.toks.some(t => t.s === '商品名') && l.toks.some(t => t.s === '契約'));
+    if(!hdr) return;
+    const col = {}; hdr.toks.forEach(t => { col[t.s] = t; });
+    const xName = (col['商品名'] || {}).x0 || 168, xK = (col['契約'] || {}).x0 || 304, xQ = (col['数量'] || {}).x1 || 431, xLend = (col['貸出'] || {}).x1 || 452, xReq = (col['請求'] || {}).x1 || 474;
+    /* 右そろえの数字の列（見出しの右端）：単価 金額 補日 単価 金額 単価 金額 売上金額 */
+    const nums = hdr.toks.filter(t => /^(単価|金額|補日|売上金額)$/.test(t.s)).map(t => ({ n: t.s, x: t.x1 })).sort((a, b) => a.x - b.x);
+    const colNames = ['lu', 'la', 'sd', 'su', 'sa', 'bu', 'ba', 'tot'];
+    const numCols = nums.map((c, i) => ({ k: colNames[i] || ('n' + i), x: c.x }));
+    pg.lines.forEach(l => {
+      if(l.y >= hdr.y - 1) return;
+      const toks = l.toks; if(!toks.length) return;
+      const t0 = toks[0];
+      /* 現場の見出し：「5 葛飾区堀切」（番号と名前が1つの塊のことも、別のことも） */
+      const sm = /^(\d+)\s+(\S.*)$/.exec(t0.s);
+      const siteHead = t0.x0 < 70 && !toks.some(t => /^\d{4}\/\d\d\/\d\d$/.test(t.s) || /^(日極|月極|販売|配送|出庫|修理|整備|一式|燃料|訂正)$/.test(t.s)) && (sm || (/^\d+$/.test(t0.s) && toks.length >= 2 && !x3isNum(toks[1].s)));
+      if(siteHead){
+        const code = sm ? sm[1] : t0.s, name = sm ? sm[2] : toks[1].s;
+        curSite = { code, name, page: pg.no, y: l.y, h: l.h }; sites[code] = curSite; return;
+      }
+      if(toks.some(t => t.s === '現場計')){ if(curSite){ curSite.totalY = l.y; curSite.totalH = l.h; const v = toks.filter(t => x3isNum(t.s)); curSite.total = v.length ? x3num(v[v.length - 1].s) : null; } return; }
+      const nameT = toks.filter(t => t.x0 >= xName - 2 && t.x0 < xK - 2 && !x3isNum(t.s));
+      if(!nameT.length) return;
+      const r = { page: pg.no, y: l.y, h: l.h, site: curSite ? curSite.code : '', siteName: curSite ? curSite.name : '', date: '', kind: '', den: '', mg: '', name: nameT.map(t => t.s).join(' '), kb: '', lend: '', s: '', e: '', qty: 0, kdays: 0, days: 0, lu: 0, la: 0, sd: 0, su: 0, sa: 0, bu: 0, ba: 0, tot: 0 };
+      toks.forEach(t => {
+        if(t.x1 < xName - 2){
+          if(/^\d{4}\/\d\d\/\d\d$/.test(t.s)) r.date = t.s; else if(/^(貸出|返却|訂正|売上)$/.test(t.s)) r.kind = t.s; else if(/^\d{5}$/.test(t.s)) r.den = t.s; else if(t.x0 > 100) r.mg = t.s;
+          return;
+        }
+        if(t.x0 >= xName - 2 && t.x0 < xK - 2) return;
+        if(/^(日極|月極|販売|配送|出庫|修理|整備|一式|燃料|訂正|補償|その他)$/.test(t.s)){ r.kb = t.s; return; }
+        if(/^\d\d\/\d\d$/.test(t.s)){ if(!r.lend) r.lend = t.s; else if(!r.s) r.s = t.s; else r.e = t.s; return; }
+        if(x3isNum(t.s)){
+          if(Math.abs(t.x1 - xQ) < 6 && /\./.test(t.s)){ r.qty = x3num(t.s); return; }
+          if(Math.abs(t.x1 - xLend) < 6){ r.kdays = x3num(t.s); return; }
+          if(Math.abs(t.x1 - xReq) < 6){ r.days = x3num(t.s); return; }
+          let best = null; numCols.forEach(c => { const d = Math.abs(t.x1 - c.x); if(best == null || d < best.d) best = { k: c.k, d }; });
+          if(best && best.d < 12) r[best.k] = x3num(t.s);
+        }
+      });
+      r.shohin = (r.mg || '').split('-')[0] || ''; r.W = /-W$/.test(r.mg || '');
+      rows.push(r);
+    });
+  });
+  let cd = '', cdate = '', ck = '', csite = '';
+  rows.forEach(r => { if(r.site !== csite){ cd = ''; cdate = ''; ck = ''; csite = r.site; } if(r.den) cd = r.den; else r.den = cd; if(r.date) cdate = r.date; else r.date = cdate; if(r.kind) ck = r.kind; else r.kind = ck; });
+  return { rows, sites, meta };
+}
+/* ---------- Wレンタル売上リスト（売上）を読む：この得意先の分だけ ---------- */
+function parseWList(P, custName){
+  const cust = x3ck(custName), rows = []; let inCust = false, den = '', pendName = '', lastSale = null;
+  P.pages.forEach(pg => {
+    pg.lines.forEach(l => {
+      const ln = l.toks.map(t => t.s).join(' ');
+      if(/^Wレンタル売上リスト|^仕入先：|^管理営業店 |^伝票番号 |作成日 ：|ページ ：/.test(ln)) return;
+      if(/得意先計/.test(ln)){ inCust = false; lastSale = null; pendName = ''; return; }
+      const toks = ln.split(' ');
+      const hm = /^([^\s\d]+)\s+\d{4}\/\d\d\/\d\d\s+\d\s+(貸出|返却)\s*(.*)$/.exec(ln);
+      if(hm){ inCust = !!cust && x3ck(hm[3]).indexOf(cust) >= 0; lastSale = null; pendName = ''; }
+      const si = toks.findIndex((t, k) => /^(日極|月極|販売|配送|出庫|修理|整備|一式|燃料|訂正|その他)$/.test(t) && toks.slice(k + 1).length === 7 && toks.slice(k + 1).every(x3isNum));
+      if(si >= 0){ if(!inCust){ lastSale = null; return; } const n = toks.slice(si + 1).map(x3num); lastSale = { kb: toks[si], su: n[0], sa: n[1], stot: n[5], margin: n[6] }; pendName = ''; return; }
+      if(!inCust){ lastSale = null; return; }
+      let k = toks.length; while(k > 0 && x3isNum(toks[k - 1])) k--;
+      const nums = toks.slice(k);
+      let head = toks.slice(0, k); if(head.length && /^\d{4}\/\d\d\/\d\d$/.test(head[head.length - 1])) head = head.slice(0, -1);
+      let j = 0; if(head[j] && /^\d{5}$/.test(head[j])){ den = head[j]; j++; }
+      while(j < head.length && (/^\d{4}\/\d\d\/\d\d$/.test(head[j]) || /^\d{1,6}$/.test(head[j]))) j++;
+      const nm = head.slice(j).join(' ').trim();
+      if(nums.length >= 8 && lastSale){
+        const q = nums.slice(-8);
+        rows.push({ den, name: nm || pendName, kb: lastSale.kb, su: lastSale.su, sa: lastSale.sa, stot: lastSale.stot, qty: x3num(q[0]), bu: x3num(q[1]), ba: x3num(q[2]), btot: x3num(q[6]), margin: x3num(q[7]) });
+        lastSale = null; pendName = '';
+      } else if(lastSale && nm){ pendName = nm; }
+    });
+  });
+  return rows;
+}
+/* ---------- 見る ---------- */
+function findings(C, W){
+  const F = [];
+  const R = C.rows.filter(r => r.name && !/小計|合計/.test(r.name));
+  const siteName = code => (C.sites[code] || {}).name || code;
+  const add = (title, text, marks) => { F.push({ no: F.length + 1, title, text, marks: marks || [] }); };
+  const nm = r => r.name.replace(/【[^】]*】/g, '');
+  const dkey = (den, name) => String(den || '') + '|' + x3nm(name).slice(0, 10);
+  /* ① 今月のCSVとの差 */
+  if(window.S && S.lines && S.lines.length && S.meta && String(S.meta.custCode || '') === String(C.meta.custCode || '')){
+    const inC = new Set(R.map(r => dkey(r.den, r.name)));
+    const inL = new Set(S.lines.filter(l => !l.head && !l.manual).map(l => dkey(l.den || l.ret0, l.name)));
+    const onlyCsv = S.lines.filter(l => !l.head && !l.manual && !inC.has(dkey(l.den || l.ret0, l.name)) && !inC.has(dkey(l.ret0 || l.den, l.name)));
+    const onlyChk = R.filter(r => !inL.has(dkey(r.den, r.name)));
+    if(onlyCsv.length || onlyChk.length){
+      const marks = [], bySite = {};
+      onlyCsv.forEach(l => { const sc = String(l.site || ''); (bySite[sc] = bySite[sc] || []).push(l); });
+      Object.keys(bySite).forEach(sc => { const st = C.sites[sc], ls = bySite[sc]; const amt = ls.reduce((a, l) => a + (typeof lineAmt === 'function' ? lineAmt(l) : 0), 0);
+        if(st && st.totalY != null) marks.push({ page: st.page, y: st.totalY, h: st.totalH, note: 'CSVにはあるのにこのリストに無い行 ' + ls.length + '（' + fy(amt) + '）：' + ls.slice(0, 2).map(l => nm(l)).join('・') }); });
+      onlyChk.forEach(r => marks.push({ row: r, note: 'この行は今月のCSVに無い' }));
+      add('今月のデータ（CSV）とチェックリストの行がちがう', 'CSVにあってチェックリストに無い：' + (onlyCsv.length ? onlyCsv.map(l => siteName(String(l.site)) + ' ' + l.name + '（伝票' + (l.den || '') + '）').join('、') : 'なし') + '。チェックリストにあってCSVに無い：' + (onlyChk.length ? onlyChk.map(r => r.siteName + ' ' + r.name).join('、') : 'なし') + '。作成時刻のちがい（消した・売上計上がまだ）を確かめて。運賃だけ残って機械代が無い形になっていないか。', marks);
+    }
+  }
+  /* ② 運賃だけで品の行が無い */
+  { const marks = [];
+    R.filter(r => r.kb === '配送' || /運賃|配送料/.test(r.name)).forEach(r => {
+      const isRet = /返却|引取|回収/.test(r.name), d = r.lend; if(!d) return;
+      const inner = (/[(（](.+?)[)）]?$/.exec(r.name) || [])[1] || '', k = x3base(inner.replace(/他$/, ''));
+      const hit = R.some(m => m !== r && m.site === r.site && m.kb !== '配送' && !/運賃|配送料/.test(m.name) && ((isRet ? (m.e === d && m.kind === '返却') : m.lend === d) || (k && k.length >= 3 && x3base(m.name).indexOf(k) >= 0)));
+      if(!hit) marks.push({ row: r, note: '運賃だけで、' + d + 'に' + (isRet ? '返却' : '納入') + 'した品の行が無い' });
+    });
+    if(marks.length) add('運賃の行だけあって、品の行が無い', marks.map(m => m.row.siteName + ' ' + m.row.name + '（' + m.row.lend + '）').join('、') + '。賃料の行が消えていないか（システムの売上計上）確かめて。お客さんに「運賃だけで機械代が無い」と聞かれる形。', marks); }
+  /* ③ 同じ品なのに単価がちがう */
+  { const g = {}; R.filter(r => X3_RENT.includes(r.kb) && r.qty).forEach(r => { const k = r.kb + '|' + x3base(r.name); (g[k] = g[k] || []).push(r); });
+    const marks = [], lines = [];
+    Object.values(g).forEach(rs => { const ps = Array.from(new Set(rs.map(r => r.lu))); if(ps.length < 2) return;
+      ps.sort((a, b) => a - b); lines.push(nm(rs[0]) + '：' + ps.map(p => fy(p) + '（' + Array.from(new Set(rs.filter(r => r.lu === p).map(r => r.siteName))).join('・') + '）').join('／'));
+      rs.forEach(r => marks.push({ row: r, note: '同じ品で単価ちがい：' + ps.map(p => fy(p)).join('／') + (r.lu === 0 ? '。ここは0円' : '') })); });
+    if(lines.length) add('同じ品なのに単価がちがう', lines.join('。 ') + '。得意先の中で単価をそろえるか、理由（機種ちがい・サービス）があるか確かめて。0円の現場は取り忘れかも。', marks); }
+  /* ④ 同じ品なのに保証の表記がちがう */
+  { const g = {}; R.filter(r => X3_RENT.includes(r.kb)).forEach(r => { const k = x3base(r.name); (g[k] = g[k] || []).push(r); });
+    const marks = [], lines = [];
+    Object.values(g).forEach(rs => { const hs = Array.from(new Set(rs.map(r => x3hosho(r.name)).filter(Boolean))); if(hs.length < 2) return;
+      lines.push(nm(rs[0]) + '：' + hs.map(h => '【' + h + '】（' + Array.from(new Set(rs.filter(r => x3hosho(r.name) === h).map(r => r.siteName))).join('・') + '）').join('／'));
+      const minor = hs.slice().sort((a, b) => rs.filter(r => x3hosho(r.name) === a).length - rs.filter(r => x3hosho(r.name) === b).length)[0];
+      rs.filter(r => x3hosho(r.name) === minor).forEach(r => marks.push({ row: r, note: '同じ品で保証表記ちがい（他は' + hs.filter(h => h !== minor).map(h => '【' + h + '】').join('') + '）' })); });
+    if(lines.length) add('同じ品なのに保証の表記がちがう', lines.join('。 ') + '。商品マスタの登録ちがい。', marks); }
+  /* ⑤ 日数 */
+  { const marks = [];
+    R.forEach(r => { if(!X3_RENT.includes(r.kb)) return;
+      if(r.kdays && r.days && r.kdays !== r.days && !(r.kb === '月極' && r.days === 30 && r.kdays === 31)) marks.push({ row: r, note: '貸出 ' + r.kdays + '日・請求 ' + r.days + '日' });
+      if(r.sa && r.sd && r.days && r.sd !== r.days) marks.push({ row: r, note: '請求 ' + r.days + '日なのに補償日数 ' + r.sd + '日（' + fy(r.sa) + '）' }); });
+    if(marks.length) add('日数が合わない', marks.map(m => m.row.siteName + ' ' + nm(m.row) + '：' + m.note).join('、') + '。補償は出庫日から数えているなら仕入先の計算どおりかもしれないが要確認。', marks); }
+  /* ⑥ 商品番号が空欄 */
+  { const marks = R.filter(r => X3_RENT.includes(r.kb) && !r.mg).map(r => ({ row: r, note: '商品番号・管理番号が空欄' }));
+    if(marks.length) add('商品番号が空欄', marks.map(m => m.row.siteName + ' ' + nm(m.row)).join('、') + '。システム側で商品が結びついていない。', marks); }
+  /* ⑦ 日極・月極の切りかえ */
+  { const marks = [];
+    R.forEach(r => { if(r.kb === '日極' && r.days > 20 && TOOL_RE.test(r.name)) marks.push({ row: r, note: '工具の日極が' + r.days + '日。月極では？' });
+      if(r.kb === '月極' && r.days > 0 && r.days <= 7 && r.kind === '返却') marks.push({ row: r, note: '月極で' + r.days + '日で返却。日極では？' }); });
+    if(marks.length) add('日極・月極の切りかえ', marks.map(m => m.row.siteName + ' ' + nm(m.row) + '：' + m.note).join('、') + '。決まり：工具は日極20日を超えたら月極。', marks); }
+  /* ⑧ ふだん出さない販売の品（ETC888 など） */
+  { const codes = (typeof nbCodes === 'function' ? nbCodes() : ['ETC888']);
+    const rs = R.filter(r => codes.includes(String(r.shohin || '').toUpperCase()));
+    if(rs.length){ const sum = rs.reduce((a, r) => a + r.tot, 0);
+      add(codes.join('・') + ' の販売の品が ' + rs.length + ' 行（' + fy(sum) + '）', rs.map(r => r.siteName + ' ' + r.name + ' ' + fy(r.tot)).join('、') + '。決まりでは基本請求書に出さない品。出すかどうか確認。', rs.map(r => ({ row: r, note: codes[0] + 'の販売：出す？' }))); } }
+  /* ⑨ 続いている品に基本料（絶対ダメ）：貸出日が今回の開始日より前 */
+  { const mon = +((C.meta.date || '').split('/')[1] || 0);
+    const marks = R.filter(r => X3_RENT.includes(r.kb) && r.ba > 0 && r.lend && mon && +r.lend.split('/')[0] !== mon).map(r => ({ row: r, note: '前から続いている品に基本料 ' + fy(r.ba) + '（絶対ダメ）' }));
+    if(marks.length) add('続いている品に基本料が入っている（絶対ダメ）', marks.map(m => m.row.siteName + ' ' + nm(m.row) + '：貸出 ' + m.row.lend + '・今回 ' + m.row.s + 'から、基本料 ' + fy(m.row.ba)).join('、') + '。基本料は貸し始めの月だけ。', marks); }
+  /* ⑩ W仕入との突き合わせ */
+  if(W && W.length){
+    const used = new Set(); let matched = 0; const pairs = [];
+    W.forEach(w => { const wn = x3nm(w.name).slice(0, 8);
+      const c = R.filter(r => !used.has(r) && r.den === w.den && (!wn || x3nm(r.name).indexOf(wn) === 0 || wn.indexOf(x3nm(r.name).slice(0, 8)) === 0) && (!r.kb || r.kb === w.kb));
+      let hit = c[0]; if(c.length > 1) hit = c.find(r => r.qty === w.qty && r.lu === w.su) || c.find(r => r.la === w.sa) || c[0];
+      if(!hit){ const c2 = R.filter(r => !used.has(r) && r.kb === w.kb && r.la === w.sa && wn && x3nm(r.name).indexOf(wn) === 0); if(c2.length === 1) hit = c2[0]; }
+      if(hit){ used.add(hit); w.ok = true; matched++; pairs.push([hit, w]); } else w.ok = false; });
+    const mq = [], mneg = [], mlow = [];
+    pairs.forEach(([r, w]) => {
+      const dd = w.kb === '月極' ? (r.days || 30) / 30 : w.kb === '日極' ? (r.days || 1) : 1, exp = w.bu * w.qty * dd, ratio = exp > 0 ? w.ba / exp : 1;
+      if(exp > 0 && Math.abs(ratio - 1) > 0.06) mq.push({ row: r, w, ratio, note: 'W仕入が売上 ' + w.qty + ' に対し約 ' + Math.round(w.qty * ratio) + ' 個分（' + fy(w.ba) + '）→粗利 ' + fy(w.margin) });
+      else if(w.margin < 0) mneg.push({ row: r, w, note: '仕入 ' + fy(w.btot) + ' が売上 ' + fy(w.stot) + ' より高い→粗利 ' + fy(w.margin) });
+      else if(X3_RENT.includes(w.kb) && w.stot > 0 && (w.stot - w.btot) / w.stot < 0.30) mlow.push({ row: r, w, note: 'W粗利 ' + Math.round((w.stot - w.btot) / w.stot * 100) + '%（仕入 ' + fy(w.btot) + '）' });
+    });
+    if(mq.length) add('W仕入の数量が売上と合っていない（粗利がおかしくなる）', mq.map(m => m.row.siteName + ' ' + nm(m.row) + '：売上 ' + m.w.qty + ' に対し仕入が約 ' + Math.round(m.w.qty * m.ratio) + ' 個分（' + fy(m.w.ba) + '）、粗利 ' + fy(m.w.margin)).join('、') + '。返却後に仕入側の数量を減らしていない・桁ちがいの入力。お客さんの請求は正しいが、仕入先への支払いと粗利がおかしくなる。', mq);
+    if(mneg.length) add('仕入が売上より高い（赤字）', mneg.map(m => m.row.siteName + ' ' + nm(m.row) + '：' + m.note).join('、') + '。リースアップの品なら意図どおり。', mneg);
+    if(mlow.length) add('レンタルでW粗利が30%未満', mlow.map(m => m.row.siteName + ' ' + nm(m.row) + '：売上 ' + fy(m.w.stot) + '／仕入 ' + fy(m.w.btot) + '＝' + Math.round((m.w.stot - m.w.btot) / m.w.stot * 100) + '%').join('、') + '。決まりは30%以上。', mlow);
+    const un = W.filter(w => !w.ok);
+    if(un.length) add('Wレンタル売上リストにあって、チェックリストに当たらない行：' + un.length + ' 行', un.map(w => w.den + ' ' + w.name + '（' + w.kb + ' ' + fy(w.stot) + '）').join('、') + '。チェックリストに無い（消えた）か、伝票番号・品名が合わないか。', []);
+    F.wInfo = 'Wレンタル売上リスト：この得意先の行 ' + W.length + '・突き合わせできた ' + matched;
+  }
+  return F;
+}
+/* ---------- 赤入れしたPDFを作る ---------- */
+async function annotate(f, C, F){
+  if(!window.PDFLib) await loadJs(CDN_PDFLIB);
+  if(!window.fontkit) await loadJs(CDN_FONTKIT);
+  if(!window.WQ_PDFFONT) await loadJs('./pdffont.js');
+  const { PDFDocument, rgb } = window.PDFLib;
+  const doc = await PDFDocument.load(await f.arrayBuffer());
+  doc.registerFontkit(window.fontkit);
+  const fb = Uint8Array.from(atob(window.WQ_PDFFONT), c => c.charCodeAt(0));
+  const font = await doc.embedFont(fb, { subset: false });
+  const RED = rgb(0.85, 0.1, 0.1), WHITE = rgb(1, 1, 1), BLACK = rgb(0, 0, 0), GRAY = rgb(0.3, 0.3, 0.3);
+  const pages = doc.getPages();
+  const circled = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+  const freeGap = (P, y) => { const L = (P.lines || []).find(l => Math.abs(l.y - y) <= 2.5); const xs = L ? L.toks.filter(t => t.x0 > 280).map(t => [t.x0, t.x1]).sort((a, b) => a[0] - b[0]) : []; let x = 300; const gaps = []; xs.forEach(([a, b]) => { if(a - x >= 70) gaps.push([x, a]); x = Math.max(x, b); }); const W = P.w - 30; if(W - x >= 70) gaps.push([x, W]); return gaps.length ? gaps.reduce((m, g) => (g[1] - g[0] > m[1] - m[0] ? g : m)) : [600, 760]; };
+  const used = new Map();
+  F.forEach(fi => {
+    fi.marks.forEach(m => {
+      const pno = m.row ? m.row.page : m.page, y = m.row ? m.row.y : m.y, h = m.row ? m.row.h : m.h;
+      const P = C.pages.find(p => p.no === pno), page = pages[pno - 1]; if(!P || !page) return;
+      const top = y + (h || 8) * 0.95 + 1.5, bottom = y - 2.2;
+      page.drawRectangle({ x: 50, y: bottom, width: P.w - 30 - 50, height: top - bottom, borderColor: RED, borderWidth: 0.9 });
+      const k = pno + '|' + Math.round(y); const n = (used.get(k) || 0); used.set(k, n + 1);
+      const cx = n === 0 ? P.w - 18 : P.w - 6.5, cy = (top + bottom) / 2, rad = n === 0 ? 5.6 : 4.8, fsz = n === 0 ? 7 : 6;
+      page.drawCircle({ x: cx, y: cy, size: rad, borderColor: RED, borderWidth: 0.8, color: WHITE });
+      const lab = String(fi.no); page.drawText(lab, { x: cx - font.widthOfTextAtSize(lab, fsz) / 2, y: cy - fsz * 0.36, size: fsz, font, color: RED });
+      if(m.note && n === 0){ const g = freeGap(P, y); const w = g[1] - g[0] - 4; let fs = 6.4; const txt = circled[fi.no - 1] + m.note; while(fs > 4.6 && font.widthOfTextAtSize(txt, fs) > w) fs -= 0.3; page.drawText(txt, { x: g[0] + 2, y: y, size: fs, font, color: RED }); }
+    });
+  });
+  const W0 = pages[0].getWidth(), H0 = pages[0].getHeight();
+  const custFull = String(C.meta.custName || '').replace(/㈱/g, '株式会社').replace(/㈲/g, '有限会社').replace(/\(株\)/g, '株式会社').replace(/\s+/g, '');
+  let p = doc.addPage([W0, H0]); let y = H0 - 40;
+  const wrap = (t, fs, w) => { const out = []; let cur = ''; for(const ch of t){ if(font.widthOfTextAtSize(cur + ch, fs) > w){ out.push(cur); cur = ch; } else cur += ch; } if(cur) out.push(cur); return out; };
+  const line = (t, fs, col, indent) => { wrap(t, fs, W0 - 80 - (indent || 0)).forEach(s => { if(y < 36){ p = doc.addPage([W0, H0]); y = H0 - 40; } p.drawText(s, { x: 40 + (indent || 0), y, size: fs, font, color: col || BLACK }); y -= fs * 1.55; }); };
+  const now = new Date(); const stamp = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  line('請求書チェックリスト ' + custFull + ' ' + (C.meta.date || '') + '締め ― チェック結果（' + stamp + ' 請求ナビ）', 12, RED); y -= 6;
+  line('チェックリスト（作成 ' + (C.meta.made || '') + '）' + (F.wInfo ? '・' + F.wInfo : '') + (window.S && S.lines && S.lines.length ? '・今月のCSV（' + S.lines.length + ' 行）' : '') + ' を突き合わせた。番号は各ページの赤丸と同じ。', 9, null); y -= 4;
+  if(!F.length) line('気になるところは見つからなかった。', 10, null);
+  F.forEach(fi => { line(circled[fi.no - 1] + ' ' + fi.title, 10, RED); line(fi.text, 9, null, 14); y -= 3; });
+  y -= 6;
+  line('見たこと：貸出日数＝請求日数、補償日数＝請求日数、同じ品の単価・保証表記（現場またぎ）、商品番号の空欄、運賃だけで品の行が無い、工具の日極20日超・月極の短期返却、ETC888の販売、続いている品の基本料、今月のCSVとの行の差' + (F.wInfo ? '、W仕入の数量・赤字・粗利30%未満' : '') + '。', 8.5, GRAY);
+  return await doc.save();
+}
+/* ---------- 画面 ---------- */
+const state = { chk: null, w: null };
+async function run(btn){
+  const rowEl = btn && btn.closest ? btn.closest('[data-x3row]') : null;
+  const q = k => (rowEl || document).querySelector('[data-x3="' + k + '"]');
+  const msg = t => { const e = q('msg'); if(e) e.textContent = t; };
+  if(!state.chk){ toast('請求書チェックリストのPDFを入れて'); return; }
+  try{
+    msg('チェックリストを読んでいます…');
+    const P = await readLines(state.chk); const C = parseChecklist(P); C.pages = P.pages;
+    if(!C.rows.length) throw new Error('これは「請求書チェックリスト」のPDFではなさそう（明細の行が読めない）');
+    let W = null;
+    if(state.w){ msg('Wレンタル売上リストを読んでいます…（200ページあると1分ほど）'); const PW = await readLines(state.w); W = parseWList(PW, C.meta.custName); if(!W.length) toast('Wレンタル売上リストに、この得意先（' + C.meta.custName + '）の行が見つからなかった'); }
+    msg('見ています…');
+    const F = findings(C, W);
+    msg('赤入れしたPDFを作っています…');
+    const bytes = await annotate(state.chk, C, F);
+    const ym = (C.meta.date || '').replace(/\//g, '-').slice(0, 7);
+    const custFull = String(C.meta.custName || '').replace(/㈱/g, '株式会社').replace(/㈲/g, '有限会社').replace(/\s+/g, '');
+    const name = '請求書チェックリスト_' + custFull + '_' + ym + '_チェック済.pdf';
+    const blob = new Blob([bytes], { type: 'application/pdf' }); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
+    const box = q('out'); if(box){ box.innerHTML = '<div style="margin-top:8px"><b>' + esc(name) + '</b>（ダウンロードした）　読んだ行 ' + C.rows.length + (F.wInfo ? '　' + esc(F.wInfo) : '') + '</div><ol style="margin:6px 0 0 18px;padding:0;font-size:12.5px;line-height:1.6">' + (F.length ? F.map(fi => '<li><b>' + esc(fi.title) + '</b>　<span class="muted">' + esc(fi.text) + '</span></li>').join('') : '<li>気になるところは見つからなかった</li>') + '</ol>'; }
+    msg('できた：' + F.length + ' 件を書き込んだ');
+    toast('チェックリストに赤入れした（' + F.length + ' 件）');
+    state.last = { C, F, bytes };
+  }catch(e){ console.error(e); msg('できなかった：' + (e && e.message || e)); toast('赤入れできなかった'); }
+}
+function rowHtml(sfx){
+  return '<b style="font-size:12px;color:var(--ink2)">請求書チェックリストに赤入れ：</b> <span class="muted">システムから出した「請求書チェックリスト」のPDFを入れると、気になる行に赤枠と注記を書き込み、最後に「チェック結果」のページを足したPDFを返します。Wレンタル売上リスト（売上）のPDFも入れると仕入との突き合わせ（数量ちがい・赤字・粗利30%未満）も入ります。</span>'
+    + '<div class="row" style="margin-top:6px;gap:8px;flex-wrap:wrap;align-items:center"><label class="btn sm" style="cursor:pointer">チェックリスト（PDF）<input type="file" data-x3="chk" accept=".pdf,application/pdf" hidden></label><span class="muted" data-x3="chkN">まだ</span>'
+    + '<label class="btn sm" style="cursor:pointer">Wレンタル売上リスト（PDF・あれば）<input type="file" data-x3="w" accept=".pdf,application/pdf" hidden></label><span class="muted" data-x3="wN">なし</span>'
+    + '<button class="btn sm primary" data-x3="go" type="button">赤入れしたPDFを作る</button><span class="muted" data-x3="msg"></span></div><div data-x3="out"></div>';
+}
+function paintNames(){ document.querySelectorAll('[data-x3="chkN"]').forEach(e => { e.textContent = state.chk ? state.chk.name : 'まだ'; }); document.querySelectorAll('[data-x3="wN"]').forEach(e => { e.textContent = state.w ? state.w.name : 'なし'; }); }
+function install(){
+  const hosts = [];
+  const co = $('#carryOpt'); if(co && !co.parentNode.querySelector('[data-x3row]')) hosts.push({ el: co, how: 'after' });
+  const ck = $('#chkList'); if(ck && !ck.parentNode.querySelector('[data-x3row]')) hosts.push({ el: ck, how: 'before' });
+  hosts.forEach(h => {
+    const row = document.createElement('div'); row.setAttribute('data-x3row', '1'); row.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px' + (h.how === 'before' ? ';border-top:0;padding-top:0;margin:0 0 12px' : '');
+    row.innerHTML = rowHtml();
+    if(h.how === 'after') h.el.insertAdjacentElement('afterend', row); else h.el.insertAdjacentElement('beforebegin', row);
+  });
+  if(!install.bound){
+    install.bound = true;
+    document.addEventListener('change', ev => { const k = ev.target.getAttribute && ev.target.getAttribute('data-x3'); if(k !== 'chk' && k !== 'w') return; const f = ev.target.files[0]; ev.target.value = ''; if(!f) return; state[k] = f; paintNames(); });
+    document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-x3="go"]'); if(!b) return; run(b); });
+  }
+}
+
+/* ====================== 同じ現場名で、もう1枚に分ける（恵比寿西のハッチ関係のように、別の請求書ページにしたいとき） ====================== */
+function splitSheet(){
+  const sh = (typeof sheetById === 'function') ? sheetById(S.cur) : null; if(!sh) return;
+  let nm = sh.name + '②', i = 3; while(S.sheets.some(x => x.name === nm)) nm = sh.name + '③④⑤⑥⑦⑧⑨'[i++ - 3] || (sh.name + i);
+  const n = { id: uid(), name: nm, code: sh.code, siteName: sh.siteName, csvSite: sh.csvSite, kouji: sh.kouji || '', inKagami: true, memo: '', split: true, splitOf: sh.id };
+  const ix = S.sheets.indexOf(sh); S.sheets.splice(ix + 1, 0, n);
+  save(); S.cur = n.id; S.bulkRows = ''; S.bulkSel = null; drawSites();
+  toast('「' + nm + '」を足した（現場名は同じ「' + (sh.siteName || sh.name) + '」）。元の現場で行を選んで「移す先…」で ' + nm + ' に移して。呼び名は上の欄で変えられる', 7000);
+}
+function addSplitBtn(){
+  try{
+    const sh = (typeof sheetById === 'function') ? sheetById(S.cur) : null, head = document.querySelector('#shead .sh'); if(!sh || !head || head.querySelector('[data-x3split]')) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.setAttribute('data-x3split', '1'); b.textContent = '同じ現場名でもう1枚に分ける';
+    b.title = 'この現場と同じ現場名のページをもう1枚作る（例：恵比寿西の避難ハッチ関係だけ別の請求書にする）。作ったら、行を選んで「移す先…」で移す';
+    b.addEventListener('click', splitSheet);
+    head.appendChild(b);
+    if(sh.split){ const tag = document.createElement('span'); tag.className = 'muted'; tag.style.cssText = 'font-size:11px;margin-left:6px'; tag.textContent = '（同じ現場名の2枚目。鑑には別の行で出ます）'; head.appendChild(tag); }
+  }catch(e){ console.error(e); }
+}
+const _drawSitesG = drawSites;
+drawSites = function(){ _drawSitesG(); addSplitBtn(); };
+/* ほかの部品が描き直しても消えないように */
+try{ new MutationObserver(() => { if(document.querySelector('#shead .sh') && !document.querySelector('[data-x3split]')) addSplitBtn(); }).observe(document.body, { childList: true, subtree: true }); }catch(e){}
+document.addEventListener('DOMContentLoaded', () => setTimeout(install, 300));
+setTimeout(install, 1200);
+window.x3 = { readLines, parseChecklist, parseWList, findings, annotate, run, state };
+})();
+
 window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!important}@media (min-width:901px){.sites{top:calc(76px + var(--wqnav-h,0px))!important;max-height:calc(100vh - 92px - var(--wqnav-h,0px))!important}.shead{top:calc(var(--toph,56px) + var(--wqnav-h,0px))!important}}";
 /* ===== wqnav：どのアプリでも、いちばん上に「ホーム＋★よく使う」の帯を出す =====
    ・web見積で ★ を付けた並び（wq.nav.items）を、請求ナビ・滅失申請・車両管理などでも同じに出す
@@ -6015,7 +6359,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-28 21:46';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-29 20:07';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
