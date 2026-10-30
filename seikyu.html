@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 12:16-->
+<!--BUILD:2026-10-30 14:01-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 12:16';
+const BUILD = '2026-10-30 14:01';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6363,11 +6363,32 @@ function findings(C, W){
   /* ⑥ 商品番号が空欄 */
   { const marks = R.filter(r => X3_RENT.includes(r.kb) && !r.mg).map(r => ({ row: r, note: '商品番号・管理番号が空欄' }));
     if(marks.length) add('商品番号が空欄', marks.map(m => m.row.siteName + ' ' + nm(m.row)).join('、') + '。システム側で商品が結びついていない。', marks); }
-  /* ⑦ 日極・月極の切りかえ */
+  /* ⑦ 日極・月極の切りかえ：今月の日数ではなく、貸出日から返却（今回の終わり）までの通算で見る（2026-10-30 本人指摘） */
   { const marks = [];
-    R.forEach(r => { if(r.kb === '日極' && r.days > 20 && TOOL_RE.test(r.name)) marks.push({ row: r, note: '工具の日極が' + r.days + '日。月極では？' });
-      if(r.kb === '月極' && r.days > 0 && r.days <= 7 && r.kind === '返却') marks.push({ row: r, note: '月極で' + r.days + '日で返却。日極では？' }); });
-    if(marks.length) add('日極・月極の切りかえ', marks.map(m => m.row.siteName + ' ' + nm(m.row) + '：' + m.note).join('、') + '。決まり：工具は日極20日を超えたら月極。', marks); }
+    const baseY = +((C.meta.date || C.meta.to || '').slice(0, 4)) || new Date().getFullYear(), baseM = +((C.meta.date || C.meta.to || '').slice(5, 7)) || 12;
+    const full = md => { if(!md) return ''; if(/^\d{4}\//.test(md)) return md; const m = +md.slice(0, 2); return (m > baseM ? baseY - 1 : baseY) + '/' + md; };
+    const lentOn = {}; if(C.type === 'sales') R.forEach(r => { if(r.kind === '貸出' && r.den && r.date && !lentOn[r.den]) lentOn[r.den] = r.date; });
+    const lendOf = r => {
+      if(C.type !== 'sales') return r.lend ? full(r.lend) : '';
+      const d = lentOn[r.lno]; const end = r.efull || r.sfull || '';
+      if(d && (!end || d <= end)) return d;                       /* 今月の貸出伝票がこのリストにある */
+      if(r.sfull && !/\/01$/.test(r.sfull)) return r.sfull;       /* 今回の開始が月の途中＝その日に貸した */
+      return '';                                                  /* 前の月から続いている（貸出日はこのリストに無い） */
+    };
+    const endOf = r => C.type === 'sales' ? (r.efull || '') : full(r.e);
+    const span = (a, b) => (a && b) ? Math.round((new Date(b.replace(/\//g, '-')) - new Date(a.replace(/\//g, '-'))) / 864e5) + 1 : null;
+    R.forEach(r => {
+      if(!X3_RENT.includes(r.kb)) return;
+      const ld = lendOf(r), ed = endOf(r), tot = span(ld, ed);
+      const md = d => d ? (+d.slice(5, 7)) + '/' + (+d.slice(8, 10)) : '';
+      if(r.kb === '日極' && TOOL_RE.test(r.name)){
+        const t = tot != null ? tot : (r.kdays || r.days);
+        if(t > 20) marks.push({ row: r, note: '工具の日極が' + (tot != null ? '通算' + t + '日（' + md(ld) + '〜' + md(ed) + '）' : (ld ? t + '日' : '今回' + t + '日・前月から続き')) + '。月極では？' });
+      }
+      if(r.kb === '月極' && r.kind === '返却' && tot != null && tot > 0 && tot <= 7)
+        marks.push({ row: r, note: '月極で貸出' + md(ld) + '〜返却' + md(ed) + 'の' + tot + '日。日極では？' });
+    });
+    if(marks.length) add('日極・月極の切りかえ', marks.map(m => m.row.siteName + ' ' + nm(m.row) + '：' + m.note).join('、') + '。貸出日から返却までの通算で見ている（前の月から続いている品は短期返却に入れない）。決まり：工具は日極20日を超えたら月極。', marks); }
   /* ⑧ ふだん出さない販売の品（ETC888 など） */
   { const codes = (typeof nbCodes === 'function' ? nbCodes() : ['ETC888']);
     const rs = R.filter(r => codes.includes(String(r.shohin || '').toUpperCase()));
@@ -7147,7 +7168,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 12:16';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 14:01';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
