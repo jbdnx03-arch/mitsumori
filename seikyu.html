@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 08:05-->
+<!--BUILD:2026-10-30 10:17-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 08:05';
+const BUILD = '2026-10-30 10:17';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6887,7 +6887,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 08:05';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 10:17';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -8054,7 +8054,8 @@ document.addEventListener('click', function(ev){
   var b = ev.target && ev.target.closest && ev.target.closest('button, .btn, [role="button"]'); if(!b || inPaper(b)) return;
   var tx = String(b.textContent || '').replace(/\s+/g, '').trim();
   /* L55 連打を止める（作る・保存・印刷などだけ。0.45秒以内の2回目） */
-  if(DO_RE.test(tx) && !b.hasAttribute('data-multi')){
+  /* ラベル（中のファイル選択）は止めない：ラベルを押すと中の input にもう1回クリックが届くため（10/30 赤入れの「チェックリスト（PDF）」が開かなかった） */
+  if(DO_RE.test(tx) && !b.hasAttribute('data-multi') && b.tagName !== 'LABEL' && !(ev.target && ev.target.matches && ev.target.matches('input, label, label *')) && !b.querySelector('input[type="file"]')){
     var t0 = lastPress.get(b) || 0, now = Date.now();
     if(now - t0 < 450){ ev.stopImmediatePropagation(); ev.preventDefault(); return; }
     lastPress.set(b, now);
