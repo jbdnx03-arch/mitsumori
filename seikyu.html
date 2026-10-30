@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 10:17-->
+<!--BUILD:2026-10-30 10:22-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 10:17';
+const BUILD = '2026-10-30 10:22';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6042,6 +6042,7 @@ drawChecks = function(){
    システムから出した「請求書チェックリスト」のPDFを入れると、行を読んで、気になるところに赤枠・番号・短い注記を書き込み、
    最後に「チェック結果」のページを足したPDFを作る（Claudeが手でやっていた赤入れと同じ形）。
    Wレンタル売上リスト（売上）のPDFも入れると、その得意先の分を拾って「仕入の数量ちがい・赤字・粗利30%未満」も見る。
+   Wレンタル売上リストは全得意先ぶんなので、1回入れたらこの端末にしまっておき、どの得意先の赤入れでも使う（入れ直し・外すもできる）。
    いつものチェック（CSVから）とは別もの。紙にも何も出ない。 */
 (function(){
 const X3_RENT = ['日極', '月極'];
@@ -6140,7 +6141,8 @@ function parseChecklist(P){
 }
 /* ---------- Wレンタル売上リスト（売上）を読む：この得意先の分だけ ---------- */
 function parseWList(P, custName){
-  const cust = x3ck(custName), rows = []; let inCust = false, den = '', pendName = '', lastSale = null;
+  const all = custName == null;
+  const cust = x3ck(custName), rows = []; let inCust = false, den = '', pendName = '', lastSale = null, curCust = '', curDate = '';
   P.pages.forEach(pg => {
     pg.lines.forEach(l => {
       const ln = l.toks.map(t => t.s).join(' ');
@@ -6148,7 +6150,7 @@ function parseWList(P, custName){
       if(/得意先計/.test(ln)){ inCust = false; lastSale = null; pendName = ''; return; }
       const toks = ln.split(' ');
       const hm = /^([^\s\d]+)\s+\d{4}\/\d\d\/\d\d\s+\d\s+(貸出|返却)\s*(.*)$/.exec(ln);
-      if(hm){ inCust = !!cust && x3ck(hm[3]).indexOf(cust) >= 0; lastSale = null; pendName = ''; }
+      if(hm){ curCust = hm[3].trim(); const dm = /\d{4}\/\d\d\/\d\d/.exec(ln); curDate = dm ? dm[0] : curDate; inCust = all ? !!curCust : (!!cust && x3ck(hm[3]).indexOf(cust) >= 0); lastSale = null; pendName = ''; }
       const si = toks.findIndex((t, k) => /^(日極|月極|販売|配送|出庫|修理|整備|一式|燃料|訂正|その他)$/.test(t) && toks.slice(k + 1).length === 7 && toks.slice(k + 1).every(x3isNum));
       if(si >= 0){ if(!inCust){ lastSale = null; return; } const n = toks.slice(si + 1).map(x3num); lastSale = { kb: toks[si], su: n[0], sa: n[1], stot: n[5], margin: n[6] }; pendName = ''; return; }
       if(!inCust){ lastSale = null; return; }
@@ -6160,7 +6162,7 @@ function parseWList(P, custName){
       const nm = head.slice(j).join(' ').trim();
       if(nums.length >= 8 && lastSale){
         const q = nums.slice(-8);
-        rows.push({ den, name: nm || pendName, kb: lastSale.kb, su: lastSale.su, sa: lastSale.sa, stot: lastSale.stot, qty: x3num(q[0]), bu: x3num(q[1]), ba: x3num(q[2]), btot: x3num(q[6]), margin: x3num(q[7]) });
+        rows.push({ cust: curCust, ck: x3ck(curCust), date: curDate, den, name: nm || pendName, kb: lastSale.kb, su: lastSale.su, sa: lastSale.sa, stot: lastSale.stot, qty: x3num(q[0]), bu: x3num(q[1]), ba: x3num(q[2]), btot: x3num(q[6]), margin: x3num(q[7]) });
         lastSale = null; pendName = '';
       } else if(lastSale && nm){ pendName = nm; }
     });
@@ -6303,6 +6305,32 @@ async function annotate(f, C, F){
   line('見たこと：貸出日数＝請求日数、補償日数＝請求日数、同じ品の単価・保証表記（現場またぎ）、商品番号の空欄、運賃だけで品の行が無い、工具の日極20日超・月極の短期返却、ETC888の販売、続いている品の基本料、今月のCSVとの行の差' + (F.wInfo ? '、W仕入の数量・赤字・粗利30%未満' : '') + '。', 8.5, GRAY);
   return await doc.save();
 }
+/* ---------- Wレンタル売上リストは全得意先ぶん。1回読んだらこの端末にしまっておき、どの得意先の赤入れでも使う（2026-10-30） ---------- */
+const WDB = { db: null,
+  open(){ if(this.db) return Promise.resolve(this.db); return new Promise((ok, ng) => { const r = indexedDB.open('seikyu-x3w', 1); r.onupgradeneeded = () => r.result.createObjectStore('w'); r.onsuccess = () => { this.db = r.result; ok(this.db); }; r.onerror = () => ng(r.error); }); },
+  async get(){ const d = await this.open(); return new Promise(ok => { const t = d.transaction('w').objectStore('w').get('cur'); t.onsuccess = () => ok(t.result || null); t.onerror = () => ok(null); }); },
+  async put(v){ const d = await this.open(); return new Promise((ok, ng) => { const t = d.transaction('w', 'readwrite'); t.objectStore('w').put(v, 'cur'); t.oncomplete = () => ok(true); t.onerror = () => ng(t.error); }); },
+  async del(){ const d = await this.open(); return new Promise(ok => { const t = d.transaction('w', 'readwrite'); t.objectStore('w').delete('cur'); t.oncomplete = () => ok(true); t.onerror = () => ok(false); }); } };
+let wStore = null;   /* { name, at, rows, n, nCust, from, to } */
+window.__x3w = () => wStore;
+WDB.get().then(v => { wStore = v; paintNames(); }).catch(() => {});
+async function loadW(f){
+  const tellAll = t => document.querySelectorAll('[data-x3="wN"]').forEach(e => { e.textContent = t; });
+  try{
+    tellAll('読んでいます…（200ページあると1分ほど）');
+    const PW = await readLines(f); const rows = parseWList(PW, null);
+    if(!rows.length) throw new Error('Wレンタル売上リストの行が読めない');
+    const ds = rows.map(r => r.date).filter(Boolean).sort();
+    const v = { name: f.name, at: new Date().toISOString(), rows, n: rows.length, nCust: new Set(rows.map(r => r.ck)).size, from: ds[0] || '', to: ds[ds.length - 1] || '' };
+    await WDB.put(v); wStore = v; paintNames();
+    toast('Wレンタル売上リストを入れた（' + v.n + '行）。どの得意先の赤入れでも使います', 4500);
+  }catch(e){ console.error(e); tellAll('読めなかった：' + (e && e.message || e)); toast('Wレンタル売上リストを読めなかった'); }
+}
+function wFor(custName, ym){ if(!wStore || !wStore.rows) return null; const c = x3ck(custName); if(!c) return [];
+  const L = wStore.rows.filter(r => r.ck && r.ck.indexOf(c) >= 0);
+  /* チェックリストの月のぶんだけ（ちがう月のリストを入れたままのとき、まちがって照らさない） */
+  if(ym){ const M = L.filter(r => !r.date || r.date.slice(0, 7) === ym); if(M.length || L.length) return M; }
+  return L; }
 /* ---------- 画面 ---------- */
 const state = { chk: null, w: null };
 async function run(btn){
@@ -6315,7 +6343,8 @@ async function run(btn){
     const P = await readLines(state.chk); const C = parseChecklist(P); C.pages = P.pages;
     if(!C.rows.length) throw new Error('これは「請求書チェックリスト」のPDFではなさそう（明細の行が読めない）');
     let W = null;
-    if(state.w){ msg('Wレンタル売上リストを読んでいます…（200ページあると1分ほど）'); const PW = await readLines(state.w); W = parseWList(PW, C.meta.custName); if(!W.length) toast('Wレンタル売上リストに、この得意先（' + C.meta.custName + '）の行が見つからなかった'); }
+    if(wStore && wStore.rows){ const ym = String(C.meta.date || '').slice(0, 7); W = wFor(C.meta.custName, ym);
+      if(!W.length){ const any = (wFor(C.meta.custName) || []).length; toast(any ? '入れてあるWレンタル売上リストは別の月のもの（' + ym + 'の行がない）。その月のリストを入れ直して' : '入れてあるWレンタル売上リストに、この得意先（' + C.meta.custName + '）の行が見つからなかった', 5000); } }
     msg('見ています…');
     const F = findings(C, W);
     msg('赤入れしたPDFを作っています…');
@@ -6334,10 +6363,12 @@ async function run(btn){
 function rowHtml(sfx){
   return '<b style="font-size:12px;color:var(--ink2)">請求書チェックリストに赤入れ：</b> <span class="muted">システムから出した「請求書チェックリスト」のPDFを入れると、気になる行に赤枠と注記を書き込み、最後に「チェック結果」のページを足したPDFを返します。Wレンタル売上リスト（売上）のPDFも入れると仕入との突き合わせ（数量ちがい・赤字・粗利30%未満）も入ります。</span>'
     + '<div class="row" style="margin-top:6px;gap:8px;flex-wrap:wrap;align-items:center"><label class="btn sm" style="cursor:pointer">チェックリスト（PDF）<input type="file" data-x3="chk" accept=".pdf,application/pdf" hidden></label><span class="muted" data-x3="chkN">まだ</span>'
-    + '<label class="btn sm" style="cursor:pointer">Wレンタル売上リスト（PDF・あれば）<input type="file" data-x3="w" accept=".pdf,application/pdf" hidden></label><span class="muted" data-x3="wN">なし</span>'
+    + '<label class="btn sm" style="cursor:pointer" title="全得意先ぶんのPDF。月に1回入れれば、どの得意先の赤入れでも使います">Wレンタル売上リスト（全得意先・PDF）<input type="file" data-x3="w" accept=".pdf,application/pdf" hidden></label><span class="muted" data-x3="wN">なし</span><button class="btn sm" data-x3="wdel" type="button" hidden>外す</button>'
     + '<button class="btn sm primary" data-x3="go" type="button">赤入れしたPDFを作る</button><span class="muted" data-x3="msg"></span></div><div data-x3="out"></div>';
 }
-function paintNames(){ document.querySelectorAll('[data-x3="chkN"]').forEach(e => { e.textContent = state.chk ? state.chk.name : 'まだ'; }); document.querySelectorAll('[data-x3="wN"]').forEach(e => { e.textContent = state.w ? state.w.name : 'なし'; }); }
+function wLabel(){ if(!wStore) return 'なし（入れると、どの得意先にも使える）'; const md = s => s ? (+s.slice(5, 7)) + '/' + (+s.slice(8, 10)) : ''; const at = wStore.at ? new Date(wStore.at) : null;
+  return '入れてある：' + (wStore.from ? md(wStore.from) + '〜' + md(wStore.to) + '・' : '') + '全得意先 ' + wStore.n + '行' + (at ? '（' + (at.getMonth() + 1) + '/' + at.getDate() + ' に入れた・' + wStore.name + '）' : ''); }
+function paintNames(){ document.querySelectorAll('[data-x3="chkN"]').forEach(e => { e.textContent = state.chk ? state.chk.name : 'まだ'; }); document.querySelectorAll('[data-x3="wN"]').forEach(e => { e.textContent = wLabel(); }); document.querySelectorAll('[data-x3="wdel"]').forEach(e => { e.hidden = !wStore; }); }
 function install(){
   const hosts = [];
   const co = $('#carryOpt'); if(co && !co.parentNode.querySelector('[data-x3row]')) hosts.push({ el: co, how: 'after' });
@@ -6347,9 +6378,11 @@ function install(){
     row.innerHTML = rowHtml();
     if(h.how === 'after') h.el.insertAdjacentElement('afterend', row); else h.el.insertAdjacentElement('beforebegin', row);
   });
+  try{ paintNames(); }catch(e){}
   if(!install.bound){
     install.bound = true;
-    document.addEventListener('change', ev => { const k = ev.target.getAttribute && ev.target.getAttribute('data-x3'); if(k !== 'chk' && k !== 'w') return; const f = ev.target.files[0]; ev.target.value = ''; if(!f) return; state[k] = f; paintNames(); });
+    document.addEventListener('change', ev => { const k = ev.target.getAttribute && ev.target.getAttribute('data-x3'); if(k !== 'chk' && k !== 'w') return; const f = ev.target.files[0]; ev.target.value = ''; if(!f) return; if(k === 'w'){ loadW(f); return; } state[k] = f; paintNames(); });
+    document.addEventListener('click', async ev => { const b = ev.target.closest && ev.target.closest('[data-x3="wdel"]'); if(!b) return; await WDB.del(); wStore = null; paintNames(); toast('入れてあったWレンタル売上リストを外した'); });
     document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-x3="go"]'); if(!b) return; run(b); });
   }
 }
@@ -6887,7 +6920,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 10:17';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 10:22';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
