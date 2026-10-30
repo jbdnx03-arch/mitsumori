@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 15:40-->
+<!--BUILD:2026-10-30 16:14-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -964,6 +964,41 @@ function calcLine(l){
   noBaseFix(l);
   l.ba = Math.floor(num(l.bu) * q + 1e-9);
 }
+/* 前月から持ってきた手入力の行をととのえる（開いたとき・照らし直し・前月の行を足したあと）
+   ① 同じ行が2つ以上 → 1つだけ残して「消した行」へ　② 前月だけの運賃・販売（今回の期間より前）→「消した行」へ（絶対ダメ）
+   ③ 続いているレンタルの期間が前月のまま → 今回の期間にして計算し直す　④ 基本料は外す */
+function carryTidy(){
+  const r = { dup: 0, one: 0, roll: 0, base: 0 };
+  if(!S.meta || !S.meta.seikyuDate || S.sameMonth) return r;
+  const ps = periodStartOf(S.meta.seikyuDate), pe = S.meta.seikyuDate; if(!ps) return r;
+  const day = v => String(v || '').slice(0, 10);
+  const nk = v => String(v || '').normalize('NFKC').replace(/\s/g, '');
+  const prevOf = sh => { const P = S.prev; const pss = P && P.sheets ? P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code)) : null; return pss ? (pss.lines || []) : (sh.prev && sh.prev.lines) || []; };
+  const trash = (l, why) => { const ls0 = linesOf(sheetById(l.sheet)), ix0 = ls0.indexOf(l); (S.trash = S.trash || []).push({ line: l, afterId: ix0 > 0 ? ls0[ix0 - 1].id : '', beforeId: ls0[ix0 + 1] ? ls0[ix0 + 1].id : '', at: new Date().toISOString(), why }); S.lines.splice(S.lines.indexOf(l), 1); };
+  S.sheets.forEach(sh => {
+    const pl = prevOf(sh);
+    const fromPrev = l => !!l.pmKey || pl.some(L => !L.key && !L.head && nk(L.name) === nk(l.name) && String(L.den || '') === String(l.den || ''));
+    /* ① 同じ行（品名・伝票・数量・単価・区分・貸出日が同じ手入力の行） */
+    const seen = {};
+    linesOf(sh).filter(l => l.manual && !l.head).sort((a, b) => (b.pmKey ? 1 : 0) - (a.pmKey ? 1 : 0)).forEach(l => {
+      const k = [nk(l.name), l.den || '', num(l.qty), num(l.lu), l.kb || '', day(l.kashi)].join('|');
+      if(!fromPrev(l)) return;
+      if(seen[k]){ if(l.pmKey && !seen[k].pmKey) seen[k].pmKey = l.pmKey; trash(l, '前月の手入力の行が2つ入っていた'); r.dup++; return; }
+      seen[k] = l;
+    });
+    linesOf(sh).filter(l => l.manual && !l.head && fromPrev(l)).forEach(l => {
+      const rent = l.kb === '日極' || l.kb === '月極';
+      /* ② 前月だけの運賃・販売：貸出日・期間・返却日がどれも今回の期間より前 */
+      if(!rent){ const d = [day(l.kashi), day(l.start), day(l.end), day(l.retd)].filter(Boolean); if(d.length && d.every(x => x < ps)){ trash(l, '前月だけの運賃・販売（今月は請求しない）'); r.one++; } return; }
+      /* ③ 続いているレンタルなのに期間が前月のまま */
+      if(day(l.end) && day(l.end) < ps && !day(l.retd)){ l.start = ps; l.end = pe; l.days = 0; daysFromPeriod(l); if(num(l.su)) l.sdays = l.days; calcLine(l); r.roll++; }
+      /* ④ 基本料 */
+      if(noBaseFix(l)) r.base++;
+    });
+  });
+  return r;
+}
+function carryTidyMsg(r){ const t = []; if(r.dup) t.push('二重に入っていた前月の行 ' + r.dup); if(r.one) t.push('前月だけの運賃・販売 ' + r.one + '（今月は請求しない）'); if(r.roll) t.push('期間を今月にした継続の行 ' + r.roll); if(r.base) t.push('基本料を外した行 ' + r.base); return t.length ? '前月から持ってきた手入力の行を直した：' + t.join('・') + '（外した行は「消した行」からもどせる）' : ''; }
 function noBaseFix(l){
   if(!l || !l.manual || l.head || !(l.kb === '日極' || l.kb === '月極') || !(num(l.bu) || num(l.ba)) || !l.kashi || typeof S === 'undefined' || !S.meta || !S.meta.seikyuDate) return false;
   const ps = periodStartOf(S.meta.seikyuDate); if(!ps || String(l.kashi).slice(0, 10) >= ps) return false;
@@ -1455,7 +1490,7 @@ function openWork(o){
   }
   if(autoRe) setTimeout(() => toast('新しい版に合わせて、前月を照らし直した（手直しの候補 ' + autoRe.sg + '・並べ直した行 ' + autoRe.mv + (autoRe.lay ? '・前月と同じ見出し／重ねた行 ' + autoRe.lay : '') + '）', 6000), 600);
   /* 前月から続いている品（手で足した行）に入っていた基本料を外す（基本料は貸し始めの月だけ。絶対ダメ） */
-  { const nb = S.lines.filter(l => noBaseFix(l)).length; if(nb){ save(); setTimeout(() => toast('前月から続いている手入力の行 ' + nb + ' 行に基本料が入っていたので外した（基本料は貸し始めの月だけ）', 7000), 900); } }
+  { const nb = S.lines.filter(l => noBaseFix(l)).length, ct = carryTidy(); ct.base += nb; const msg = carryTidyMsg(ct); if(msg){ save(); setTimeout(() => toast(msg, 9000), 900); } }
   /* 「前月に手で足した行」の ✓ は、いまのシートに本当にその行があるときだけ（消していたら、また足せるように） */
   S.sheets.forEach(sh => (sh.prevManual || []).forEach(p => {
     const has = linesOf(sh).some(l => l.manual && ((p.pmKey && l.pmKey === p.pmKey) || (!p.pmKey && l.name === p.name && num(l.qty) === num(p.qty))));
@@ -1660,7 +1695,7 @@ function drawSite(){
   const others = S.sheets.filter(s => s.id !== sh.id);
   const prevBox = sh.prev ? '<div class="prev"><b>前月（' + esc(sh.prev.name) + '）</b>　請求 ' + yen(sh.prev.total) +
       (sh.prev.fur && sh.prev.fur.length ? '　ふりかえ ' + sh.prev.fur.map(f => (f.amt > 0 ? '+' : '') + yen(f.amt) + (f.memo ? '（' + esc(f.memo) + '）' : '')).join('、') : '') +
-      (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => p.added ? '<span class="tag ok">✓ ' + esc(p.name) + '</span>' : (/^(日極|月極)$/.test(String(p.kb || '')) ? '<button class="btn sm" data-addprev="' + i + '" title="前月から続く品：基本料は入れません">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa) + (num(p.ba) ? '<small style="opacity:.7">（前月の基本料 ' + yen(p.ba) + ' は入れない）</small>' : '') + '</button>' : '<button class="btn sm" data-addprev="' + i + '" title="運賃・販売など前月だけの品。今月もかかるときだけ足して" style="opacity:.75">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '<small>（前月だけの品？）</small></button>')).join(' ') + '</span>' : '') + relinkBtn() + '</div>' : (S.prev ? '<div class="prev">' + relinkBtn() + '</div>' : '');
+      (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => p.added ? '<span class="tag ok">✓ ' + esc(p.name) + '</span>' : (/^(日極|月極)$/.test(String(p.kb || '')) ? '<button class="btn sm" data-addprev="' + i + '" title="前月から続く品：基本料は入れません">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa) + (num(p.ba) ? '<small style="opacity:.7">（前月の基本料 ' + yen(p.ba) + ' は入れない）</small>' : '') + '</button>' : (S.sameMonth ? '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>' : '<span class="tag" title="運賃・販売は前月だけの請求。今月もかかるときは「行を足す」で今月の日付で入れて" style="opacity:.6">前月だけ：' + esc(p.name) + '（足さない）</span>'))).join(' ') + '</span>' : '') + relinkBtn() + '</div>' : (S.prev ? '<div class="prev">' + relinkBtn() + '</div>' : '');
   B.innerHTML = '<div class="card">' + '<div class="shead" id="shead">' +
     '<div class="sh"><div class="nm"><input id="shName" value="' + esc(sh.name) + '" aria-label="呼び名"><div class="full">' + esc(sh.siteName) + (sh.csvSite && sh.csvSite !== sh.siteName ? '<small class="muted">（CSVは「' + esc(sh.csvSite) + '」・前月の請求書と同じ名前にしている）</small>' : '') + '　現場コード ' + esc(sh.code) + '</div></div>' +
     '<label class="fld">工事番号（三貴）<input id="shKouji" value="' + esc(sh.kouji) + '" placeholder="T-0000"></label>' +
@@ -1776,7 +1811,7 @@ function onLineInput(ev){
 function onSiteClick(ev){
   const sb = ev.target.closest('.site'); if(sb){ if(S.cur !== sb.dataset.id){ S.bulkRows = ''; S.bulkSel = null; bulkLast = 0; } S.cur = sb.dataset.id; save(); drawSites(); return; }
   const ap = ev.target.closest('[data-addprev]');
-  if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; if(p.added || linesOf(sh).some(l => l.manual && p.pmKey && l.pmKey === p.pmKey)){ p.added = true; drawSites(); toast('もう足してあります'); return; } const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p); delete n.key; delete n.added; delete n.after; delete n.before; delete n.pos; delete n.ownerSaiban; n.retd = ''; n.cont = String(p.ret || ''); const rent = /^(日極|月極)$/.test(String(p.kb || '')); if(rent){ n.bu = 0; n.ba = 0; } calcLine(n); if(lineAmt(n) !== p.la + p.sa + (rent ? 0 : p.ba)){ n.la = p.la; n.sa = p.sa; n.ba = rent ? 0 : p.ba; } placeLine(sh, n, p);   /* 前月から続く行に基本料は絶対に入れない（基本料は貸し始めの月だけ） */ p.added = true; save(); drawSites(); const no = linesOf(sh).indexOf(n) + 1; toast(p.after ? '前月の行を足した（' + no + ' 行目・前月と同じ場所）' : '前月の行を足した（' + no + ' 行目）。前の版で作った作業なので前月の場所がわからない：読み込みに前月のファイルを入れて「照らし直す」と、前月と同じ場所に並べ直す', p.after ? 2600 : 8000); setTimeout(() => { const tr = $('tr[data-id="' + n.id + '"]'); if(tr){ tr.scrollIntoView({ block:'center' }); tr.classList.add('flash'); } }, 50); return; }
+  if(ap){ const sh = sheetById(S.cur); const p = sh.prevManual[+ap.dataset.addprev]; if(p.added || linesOf(sh).some(l => l.manual && p.pmKey && l.pmKey === p.pmKey)){ p.added = true; drawSites(); toast('もう足してあります'); return; } const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p); delete n.key; delete n.added; delete n.after; delete n.before; delete n.pos; delete n.ownerSaiban; n.retd = ''; n.cont = String(p.ret || ''); const rent = /^(日極|月極)$/.test(String(p.kb || '')); if(!rent && !S.sameMonth){ toast('「' + p.name + '」は前月だけの運賃・販売なので足さない（今月もかかるときは「行を足す」で今月の日付で入れて）', 7000); return; } if(rent){ n.bu = 0; n.ba = 0; } calcLine(n); if(lineAmt(n) !== p.la + p.sa + (rent ? 0 : p.ba)){ n.la = p.la; n.sa = p.sa; n.ba = rent ? 0 : p.ba; } placeLine(sh, n, p);   /* 前月から続く行に基本料は絶対に入れない（基本料は貸し始めの月だけ） */ p.added = true; { const ct = carryTidy(); if(ct.dup || ct.roll) setTimeout(() => toast(carryTidyMsg(ct), 6000), 2700); } save(); drawSites(); const no = linesOf(sh).indexOf(n) + 1; toast(p.after ? '前月の行を足した（' + no + ' 行目・前月と同じ場所）' : '前月の行を足した（' + no + ' 行目）。前の版で作った作業なので前月の場所がわからない：読み込みに前月のファイルを入れて「照らし直す」と、前月と同じ場所に並べ直す', p.after ? 2600 : 8000); setTimeout(() => { const tr = $('tr[data-id="' + n.id + '"]'); if(tr){ tr.scrollIntoView({ block:'center' }); tr.classList.add('flash'); } }, 50); return; }
   const ut = ev.target.closest('[data-untrash]'); if(ut){ untrash(+ut.dataset.untrash); return; }
   if(ev.target.closest('[data-relink]')){
     if(S.prevPack){ const P = unpackPrev(S.prevPack); if(P){ const r = relinkPrev(P); drawSites(); toast('照らし直した：前月とつながった行 ' + r.pv + '・手直しの候補 ' + r.sg + '・並べ直した行 ' + r.mv + (r.dup ? '・二重に足していた行 ' + r.dup + ' を消した（「消した行」からもどせる）' : ''), 7000); setTimeout(askCarrySugg, 300); return; } }
@@ -2485,6 +2520,7 @@ function relinkPrev(P){
     if(l.sugg && !l.sugg.vers) delete l.sugg;
     if(e.edited && !l.carried && !l.edited && !(l.sugg && l.sugg.vers)){ l.sugg = suggOf(l, e, sh, fz ? '伝票番号か貸出日が前月とちがう同じ品' : ''); l.suggDec = false; if(suggSame(l)) delete l.sugg; else r.sg++; }
   });
+  { const ct = carryTidy(); r.dup = (r.dup || 0) + ct.dup; r.mv += ct.roll; r.nb = (r.nb || 0) + ct.base; r.one = ct.one; }
   save(); return r;
 }
 function bindDrop(el, input, fn){
@@ -2589,7 +2625,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 15:40';
+const BUILD = '2026-10-30 16:14';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7236,7 +7272,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 15:40';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 16:14';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
