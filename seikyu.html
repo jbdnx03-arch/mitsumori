@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 16:27-->
+<!--BUILD:2026-10-30 17:01-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -978,13 +978,19 @@ function carryTidy(){
   S.sheets.forEach(sh => {
     const pl = prevOf(sh);
     const fromPrev = l => !!l.pmKey || pl.some(L => !L.key && !L.head && nk(L.name) === nk(l.name) && String(L.den || '') === String(l.den || ''));
-    /* ① 同じ行（品名・伝票・数量・単価・区分・貸出日が同じ手入力の行） */
-    const seen = {};
-    linesOf(sh).filter(l => l.manual && !l.head).sort((a, b) => (b.pmKey ? 1 : 0) - (a.pmKey ? 1 : 0)).forEach(l => {
-      const k = [nk(l.name), l.den || '', num(l.qty), num(l.lu), l.kb || '', day(l.kashi)].join('|');
-      if(!fromPrev(l)) return;
-      if(seen[k]){ if(l.pmKey && !seen[k].pmKey) seen[k].pmKey = l.pmKey; trash(l, '前月の手入力の行が2つ入っていた'); r.dup++; return; }
-      seen[k] = l;
+    /* ① 同じ行（品名・伝票・数量・単価・区分・貸出日が同じ手入力の行）が、前月にあった数より多いときだけ、多いぶんを外す
+          （前月に同じ行が2つあったなら2つのままでいい：2026-10-30 親綱・緊張器を消しすぎた） */
+    const kOf = l => [nk(l.name), l.den || '', num(l.qty), num(l.lu), l.kb || '', day(l.kashi)].join('|');
+    const prevG = {}; pl.forEach((L, i) => { if(!L.key && !L.head && (num(L.la) + num(L.sa) + num(L.ba)) !== 0) (prevG[kOf(L)] = prevG[kOf(L)] || []).push('pm:' + i); });
+    const nowG = {}; linesOf(sh).filter(l => l.manual && !l.head && fromPrev(l)).forEach(l => { (nowG[kOf(l)] = nowG[kOf(l)] || []).push(l); });
+    Object.keys(nowG).forEach(k => {
+      const L = nowG[k], keys = prevG[k] || []; if(!keys.length) return;          /* 前月と中身を変えた行はさわらない */
+      L.sort((a, b) => (keys.includes(b.pmKey) ? 1 : 0) - (keys.includes(a.pmKey) ? 1 : 0));
+      const keep = L.slice(0, keys.length), extra = L.slice(keys.length);
+      const used = new Set(), need = [];
+      keep.forEach(l => { if(keys.includes(l.pmKey) && !used.has(l.pmKey)) used.add(l.pmKey); else need.push(l); });
+      need.forEach(l => { const f = keys.find(x => !used.has(x)); if(f){ l.pmKey = f; used.add(f); } });
+      extra.forEach(l => { trash(l, '前月の手入力の行が2つ入っていた'); r.dup++; });
     });
     linesOf(sh).filter(l => l.manual && !l.head && fromPrev(l)).forEach(l => {
       const rent = l.kb === '日極' || l.kb === '月極';
@@ -1250,7 +1256,7 @@ function build(){
   const D = readCsv(csvText);
   if(prevCustNg(prevData, D.meta.custCode)) throw new Error('前月のファイルは別の得意先（' + prevData.cust + '）のものです。' + D.meta.custName + '（' + D.meta.custCode + '）の前月のファイルを入れ直して');
   S.meta = D.meta; S.sheets = []; S.lines = []; S.prev = prevData; S.built = true; S.trash = []; undoReset();
-  S.prevPack = prevData ? packPrev(prevData) : null; S.relinkVer = RELINK_VER;
+  S.prevPack = prevData ? packPrev(prevData) : null; S.relinkVer = RELINK_VER; S.tidyVer = 2;
   const P = prevData;
   const sheetFor = {};
   const mk = (name, code, siteName, kouji) => {
@@ -1333,7 +1339,7 @@ const workIdOf = m => (m && m.custCode ? String(m.custCode) + '-' + String(m.cus
 function snapshot(){
   const net = S.sheets.filter(s => s.inKagami).reduce((a, s) => a + sheetNet(s), 0);
   return { id: S.workId, v: 1, meta: S.meta, sheets: S.sheets.map(s => Object.assign({}, s, { prev: s.prev ? { name: s.prev.name, total: s.prev.total, fur: s.prev.fur, kouji: s.prev.kouji } : null })),
-    lines: S.lines, trash: S.trash || [], prevPack: S.prevPack || null, relinkVer: S.relinkVer || 0, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
+    lines: S.lines, trash: S.trash || [], prevPack: S.prevPack || null, relinkVer: S.relinkVer || 0, tidyVer: S.tidyVer || 0, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
     savedAt: new Date().toISOString(), custCode: S.meta.custCode, custName: S.meta.custName, seikyuDate: S.meta.seikyuDate, net, sysNet: S.meta.sysNet != null && S.meta.sysNet !== '' ? num(S.meta.sysNet) : S.lines.reduce((a, l) => a + sysAmt(l), 0), nLines: S.lines.length, sites: S.sheets.length,
     tax: S.sheets.filter(s => s.inKagami).reduce((a, s) => a + tax(sheetNet(s)), 0), status: S.status || 'draft', printedAt: S.printedAt || '',
     siteNames: S.sheets.filter(s => s.inKagami).map(s => s.name + (s.siteName && s.siteName !== s.name ? '（' + s.siteName + '）' : '')).join('／').slice(0, 600) };
@@ -1486,7 +1492,7 @@ function openWork(o){
   S.cur = o.cur || (S.sheets[0] && S.sheets[0].id); S.prev = o.prevLabel ? { label: o.prevLabel, byKey:{}, continuing:new Set() } : null; S.sameMonth = !!o.sameMonth;
   S.built = true; S.bulkRows = ''; S.bulkSel = null; S.status = o.status || 'draft'; S.printedAt = o.printedAt || '';
   /* 前月のデータが作業に入っていれば、前月のファイルを入れなくても使える。古い作り方の作業なら、ここで自動で照らし直す */
-  S.prevPack = o.prevPack || null; S.relinkVer = o.relinkVer || 0;
+  S.prevPack = o.prevPack || null; S.relinkVer = o.relinkVer || 0; S.tidyVer = o.tidyVer || 0;
   let autoRe = null;
   if(S.prevPack){
     const P = unpackPrev(S.prevPack);
@@ -1494,6 +1500,16 @@ function openWork(o){
   }
   if(autoRe) setTimeout(() => toast('新しい版に合わせて、前月を照らし直した（手直しの候補 ' + autoRe.sg + '・並べ直した行 ' + autoRe.mv + (autoRe.lay ? '・前月と同じ見出し／重ねた行 ' + autoRe.lay : '') + '）', 6000), 600);
   /* 前月から続いている品（手で足した行）に入っていた基本料を外す（基本料は貸し始めの月だけ。絶対ダメ） */
+  if((S.tidyVer || 0) < 2){
+    /* 前の版（16:14〜16:56）が「二重」として消しすぎた前月の行を、いったん元の場所へもどす（このあと本当に多いぶんだけ外し直す） */
+    const T = S.trash || [];
+    for(let i = T.length - 1; i >= 0; i--){ const o = T[i]; if(!o || o.why !== '前月の手入力の行が2つ入っていた') continue;
+      const l = o.line, sh = sheetById(l.sheet); if(!sh){ continue; }
+      const a = S.lines.find(x => x.id === o.afterId && x.sheet === sh.id), b2 = S.lines.find(x => x.id === o.beforeId && x.sheet === sh.id);
+      if(a) S.lines.splice(S.lines.indexOf(a) + 1, 0, l); else if(b2) S.lines.splice(S.lines.indexOf(b2), 0, l); else S.lines.push(l);
+      T.splice(i, 1); }
+    S.tidyVer = 2;
+  }
   { const nb = S.lines.filter(l => noBaseFix(l)).length, ct = carryTidy(); ct.base += nb; const msg = carryTidyMsg(ct); if(msg){ save(); setTimeout(() => toast(msg, 9000), 900); } }
   /* 「前月に手で足した行」の ✓ は、いまのシートに本当にその行があるときだけ（消していたら、また足せるように） */
   S.sheets.forEach(sh => (sh.prevManual || []).forEach(p => {
@@ -2629,7 +2645,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 16:27';
+const BUILD = '2026-10-30 17:01';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6771,6 +6787,98 @@ setTimeout(install, 1200);
 window.x3 = { readLines, parseChecklist, parseSales, isSalesChk, parseWList, findings, annotate, run, state };
 })();
 
+/* ====================== チェックを現場ごとに見る（2026-10-30） ======================
+   ・チェックの画面：上に「全部／鑑・全体／各現場」の切りかえ（まだ直していない件数つき）
+   ・現場の画面：見出しの下に「この現場のチェック ○件」。開くと一覧、押すとその行へ */
+(function(){
+const done = x => { try{ return window.seikyuExt && window.seikyuExt.chkDone ? window.seikyuExt.chkDone(x) : false; }catch(e){ return false; } };
+const todoOf = c => (c || []).filter(x => !done(x) && x.lv !== 'sales');
+let chkSite = '';            /* '' 全部 ／ '_all' 現場に関係ない（鑑・全体）／ 現場ID */
+const st = document.createElement('style');
+st.textContent = '.xchksite{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.xchksite button{font:600 12px/1 inherit;padding:6px 10px;border-radius:999px;border:1px solid var(--line,#DCE4E5);background:transparent;color:inherit;cursor:pointer}.xchksite button b{margin-left:5px;font-weight:800}.xchksite button.on{background:var(--brand,#14646E);border-color:var(--brand,#14646E);color:#fff}.xchksite button.z{opacity:.55}'
+  + '.xsitechk{margin:8px 0 0;font-size:12.5px}.xsitechk summary{cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:700}.xsitechk summary .tag{font-size:11px}.xsitechk ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}.xsitechk li{display:flex;gap:8px;align-items:baseline;padding:6px 8px;border-radius:8px;border:1px solid var(--line,#DCE4E5);cursor:pointer}.xsitechk li:hover{border-color:var(--brand,#14646E)}.xsitechk li .s{color:var(--ink3,#7A8B8E);font-size:11.5px}';
+document.head.appendChild(st);
+
+/* ---- チェックの画面：現場で絞る ---- */
+function filterList(){
+  const c = window.__chk || [];
+  document.querySelectorAll('#chkList > li[data-i]').forEach(li => {
+    const x = c[+li.dataset.i]; if(!x) return;
+    const hit = !chkSite || (chkSite === '_all' ? !x.sh : x.sh === chkSite);
+    li.style.display = hit ? '' : 'none';
+  });
+}
+const _dc = drawChecks;
+drawChecks = function(){
+  _dc();
+  const L = $('#chkList'); if(!L || !S.built) return;
+  const c = window.__chk || [], todo = todoOf(c);
+  document.querySelectorAll('.xchksite').forEach(x => x.remove());
+  const cnt = k => todo.filter(x => k === '_all' ? !x.sh : x.sh === k).length;
+  if(chkSite && chkSite !== '_all' && !S.sheets.some(s => s.id === chkSite)) chkSite = '';
+  const bar = document.createElement('div'); bar.className = 'xchksite';
+  const btn = (k, label, n) => '<button type="button" data-cs="' + k + '" class="' + (chkSite === k ? 'on' : '') + (n ? '' : ' z') + '">' + esc(label) + '<b>' + n + '</b></button>';
+  bar.innerHTML = btn('', '全部', todo.length) + btn('_all', '鑑・全体', cnt('_all'))
+    + S.sheets.map(s => btn(s.id, s.name, cnt(s.id))).join('');
+  L.insertAdjacentElement('beforebegin', bar);
+  bar.onclick = ev => { const b = ev.target.closest('[data-cs]'); if(!b) return; chkSite = b.dataset.cs; bar.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.cs === chkSite)); filterList(); };
+  filterList();
+};
+
+/* ---- 現場の画面：この現場のチェック ---- */
+let siteT = 0, openSite = {};
+function siteChecks(){
+  const head = document.getElementById('shead'); if(!head || !S.built || !S.cur) return;
+  let c = []; try{ c = checks(); window.__chkSite = c; }catch(e){ return; }
+  const mine = todoOf(c).filter(x => x.sh === S.cur);
+  head.querySelectorAll('.xsitechk').forEach(x => x.remove());
+  const d = document.createElement('details'); d.className = 'xsitechk'; if(openSite[S.cur]) d.open = true;
+  const ng = mine.filter(x => x.never || x.lv === 'warn').length;
+  d.innerHTML = '<summary>' + (mine.length ? '<span class="tag ' + (ng ? 'ng' : '') + '">' + mine.length + '</span>この現場のチェック ' + mine.length + ' 件' + (ng ? '（要確認 ' + ng + '）' : '') : '<span class="tag ok">OK</span>この現場のチェックはなし') + '</summary>'
+    + (mine.length ? '<ul>' + mine.map(x => '<li data-id="' + esc(x.id || '') + '"><span class="tag ' + (x.never ? 'ng' : x.lv === 'warn' ? 'ng' : '') + '">' + (x.never ? '絶対ダメ' : x.lv === 'warn' ? '要確認' : '気になる') + '</span><span>' + esc(x.t) + (x.s ? '<br><span class="s">' + esc(x.s) + '</span>' : '') + '</span></li>').join('') + '</ul>' : '');
+  head.appendChild(d);
+  d.addEventListener('toggle', () => { openSite[S.cur] = d.open; });
+  d.onclick = ev => { const li = ev.target.closest('li[data-id]'); if(!li || !li.dataset.id) return; const tr = document.querySelector('tr[data-id="' + li.dataset.id + '"]'); if(tr){ tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); } };
+}
+/* ---- 現場の合計：システムとの差の内わけ（手打ちでいくら増えたか・手直し・出さない） ---- */
+function diffParts(sh){
+  const ls = linesOf(sh).filter(l => !l.head);
+  const man = ls.filter(l => l.manual && !l.nb), manAmt = man.reduce((a, l) => a + lineAmt(l), 0);
+  const edAmt = ls.filter(l => !l.manual && !l.nb && l.sys).reduce((a, l) => a + lineAmt(l) - sysAmt(l), 0);
+  const nbAmt = ls.filter(l => l.nb && !l.manual).reduce((a, l) => a + sysAmt(l), 0);
+  return { manN: man.length, manAmt, edAmt, nbAmt };
+}
+function diffHtml(sh){
+  const d = diffParts(sh), sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(v)), parts = [];
+  if(d.manN) parts.push('手打ち <b>' + sg(d.manAmt) + '</b>（' + d.manN + '行）');
+  if(d.edAmt) parts.push('手直し <b>' + sg(d.edAmt) + '</b>');
+  if(d.nbAmt) parts.push('出さない <b>' + sg(-d.nbAmt) + '</b>');
+  return parts.length ? '<span class="xdiffp" title="システム（CSV）との差の内わけ">うち ' + parts.join('／') + '</span>' : '';
+}
+st.textContent += '.xdiffp{font-size:12px;color:var(--ink2,#3E5A60);margin-left:6px}.xdiffp b{font-weight:800;color:inherit}';
+function siteDiff(){
+  const sh = (typeof sheetById === 'function') ? sheetById(S.cur) : null, t = document.querySelector('#shead .tot'); if(!sh || !t) return;
+  t.querySelectorAll('.xdiffp').forEach(x => x.remove());
+  const h = diffHtml(sh); if(h) t.insertAdjacentHTML('beforeend', h);
+}
+/* 全体（鑑）のタイル「システムとの差」にも内わけ */
+const _dk2 = drawKpis;
+drawKpis = function(){
+  _dk2.apply(this, arguments);
+  try{
+    const tile = [...document.querySelectorAll('#kpis .kpi')].find(k => /システムとの差/.test(k.textContent)); if(!tile) return;
+    tile.querySelectorAll('.xdiffp').forEach(x => x.remove());
+    let man = 0, n = 0, ed = 0, nb = 0, off = 0;
+    S.sheets.forEach(sh => { if(!sh.inKagami){ off += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } const d = diffParts(sh); man += d.manAmt; n += d.manN; ed += d.edAmt; nb += d.nbAmt; });
+    const sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(v)), parts = [];
+    if(n) parts.push('手打ち <b>' + sg(man) + '</b>（' + n + '行）'); if(ed) parts.push('手直し <b>' + sg(ed) + '</b>'); if(nb) parts.push('出さない <b>' + sg(-nb) + '</b>'); if(off) parts.push('鑑から外した現場 <b>' + sg(-off) + '</b>');
+    if(parts.length) tile.insertAdjacentHTML('beforeend', '<div class="xdiffp" style="margin:4px 0 0">うち ' + parts.join('／') + '</div>');
+  }catch(e){}
+};
+const _ds = drawSites;
+drawSites = function(){ _ds.apply(this, arguments); try{ siteDiff(); }catch(e){} clearTimeout(siteT); siteT = setTimeout(siteChecks, 120); };
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -7276,7 +7384,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 16:27';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 17:01';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
