@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 21:21-->
+<!--BUILD:2026-10-30 22:27-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -854,8 +854,8 @@ function readPrevBook(buf){
       lines.push(L);
     }
     const total = lines.reduce((a, l) => a + l.la + l.sa + l.ba, 0);
-    const t12 = cell(ws, 'E', 12);
-    const sh = { name, code, kouji, lines, fur, total, siteName: '', title: typeof t12 === 'string' ? t12.trim() : '' };
+    const t12 = cell(ws, 'E', 12), t10 = cell(ws, 'E', 10), s7 = cell(ws, 'F', 7), s8 = cell(ws, 'E', 8);
+    const sh = { name, code, kouji, lines, fur, total, siteName: '', title: typeof t12 === 'string' ? t12.trim() : '', cust10: typeof t10 === 'string' ? t10.trim() : '', zip7: s7 == null ? '' : String(s7).trim(), addr8: s8 == null ? '' : String(s8).trim() };
     P.sheets.push(sh);
     if(code && !P.codeSheet[code]) P.codeSheet[code] = name;
   });
@@ -898,7 +898,7 @@ function finishPrev(P){
 function packPrev(P){
   if(!P) return null;
   let ex = []; try{ ex = typeof prevExcluded === 'function' ? prevExcluded(P) : (P.excluded || []); }catch(e){ ex = P.excluded || []; }
-  return JSON.parse(JSON.stringify({ label: P.label || '', cust: P.cust || '', excluded: ex, fromJson: !!P.fromJson, kouji: P.kouji || {}, sheets: P.sheets.map(sh => ({ name: sh.name, code: sh.code, kouji: sh.kouji, total: sh.total, fur: sh.fur || [], inKagami: sh.inKagami, lines: sh.lines || [], title: sh.title || '' })) }));
+  return JSON.parse(JSON.stringify({ label: P.label || '', cust: P.cust || '', excluded: ex, fromJson: !!P.fromJson, kouji: P.kouji || {}, sheets: P.sheets.map(sh => ({ name: sh.name, code: sh.code, kouji: sh.kouji, total: sh.total, fur: sh.fur || [], inKagami: sh.inKagami, lines: sh.lines || [], title: sh.title || '', cust10: sh.cust10 || '', zip7: sh.zip7 || '', addr8: sh.addr8 || '' })) }));
 }
 function unpackPrev(pk){
   if(!pk || !pk.sheets) return null;
@@ -967,6 +967,53 @@ function calcLine(l){
 /* 前月から持ってきた手入力の行をととのえる（開いたとき・照らし直し・前月の行を足したあと）
    ① 同じ行が2つ以上 → 1つだけ残して「消した行」へ　② 前月だけの運賃・販売（今回の期間より前）→「消した行」へ（絶対ダメ）
    ③ 続いているレンタルの期間が前月のまま → 今回の期間にして計算し直す　④ 基本料は外す */
+/* Yours：8月の請求書（26.08.31）どおりにする（2026-10-30 指示「9月のファイルが間違ってた。8月のとおりに」）
+   ①堀切の【三軒茶屋事務所】の下は、8月と同じ品・同じ数量・同じ単価で重ねて請求し、伝票番号は 692212
+   ②川越事務所は 株式会社荒川建設 宛（9月の請求書もそう）
+   2026年10月締めの作業だけ。11月からは、この作業を前月として同じに続く */
+const YOURS_AUG = { head: '【三軒茶屋事務所】', den: '692212', rows: [
+  ['無線ﾏｳｽ･ﾜｲﾔﾚｽｷｰﾎﾞｰﾄﾞ', '04-04', 2, 900], ['ﾌﾟﾛｯﾀｰ(SC-T3150)', '02-04', 1, 12000], ['ﾌﾟﾛｯﾀｰｽﾀﾝﾄﾞ', '02-04', 1, 900],
+  ['ﾌﾞﾛｰﾄﾞﾊﾞﾝﾄﾞﾙｰﾀｰ', '02-04', 1, 1200], ['HUB8ﾎﾟｰﾄ', '02-04', 1, 600], ['複合FAXｺﾋﾟｰ機', '02-04', 1, 9000],
+  ['42ｲﾝﾁ ﾓﾆﾀｰ(TR-KT)', '05-14', 2, 28800], ['ﾓﾆﾀｰ用卓上ｽﾀﾝﾄﾞ', '05-14', 2, 6300], ['無線ﾏｳｽ･ﾜｲﾔﾚｽｷｰﾎﾞｰﾄﾞ', '10-21', 1, 900],
+  ['ｳｨﾙｽ対策ｿﾌﾄ *歴月', '10-21', 2, 2100]   /* 10/30：ウイルス対策ソフトは2台でいい */ ] };
+function yoursAugFix(){
+  const r = { rows: 0, add: 0, del: 0, miss: [], cust: '' };
+  if(!(window.seikyuExt && seikyuExt.isYours && seikyuExt.isYours()) || (S.yfVer || 0) >= 2) return r;
+  const sd = String(S.meta.seikyuDate || ''); if(sd < '2026-10-01' || sd > '2026-10-31'){ S.yfVer = 2; return r; }
+  const nk = x => String(x || '').normalize('NFKC').replace(/\(TR-KT\)/g, '').replace(/\*\s*歴月/g, '').replace(/\*\s*S\b/g, '').replace(/[\s　]+S$/, '').replace(/[\s　]/g, '');
+  S.sheets.forEach(sh => {
+    if(!sh.custName && (String(sh.code) === '22' || /川越新築.*【事務所】/.test(String(sh.siteName || '').normalize('NFKC')))){ sh.custName = '株式会社荒川建設'; sh.custZip = ''; sh.custAddr = ''; r.cust = sh.name; }
+    const ls = linesOf(sh); const hi = ls.findIndex(l => l.head && rawNm(l.name) === rawNm(YOURS_AUG.head)); if(hi < 0) return;
+    let end = ls.findIndex((l, i) => i > hi && l.head); if(end < 0) end = ls.length;
+    const head = ls[hi], under = ls.slice(hi + 1, end), oldOv = under.filter(l => l.ovl), used = new Set(), out = [];
+    const bases = ls.filter((l, i) => (i < hi || i >= end) && !l.head && !l.ovl && !l.manual && l.sys && !l.nb);
+    YOURS_AUG.rows.forEach(([nm, mmdd, qty, lu]) => {
+      /* 貸出日が空の行（CSVで空）は、同じ伝票のほかの行の貸出日で見る */
+      const kOf = b => b.kashi || (bases.find(x => x.kashi && String(denSys(x)) === String(denSys(b))) || {}).kashi || '';
+      const base = bases.find(b => nk(b.name) === nk(nm) && String(kOf(b)).slice(5) === mmdd) || bases.find(b => nk(b.sys && b.sys.name) === nk(nm) && String(kOf(b)).slice(5) === mmdd);
+      if(!base){ r.miss.push(nm + ' ' + mmdd.replace('-', '/')); return; }
+      let c = oldOv.find(o => !used.has(o) && o.ovlOf === base.id);
+      if(!c){ c = Object.assign({}, base, { id: uid(), dup: true, ovl: true, ovlOf: base.id, sugg: null, suggDec: false, pv: null, luDec: true, nbDec: true }); delete c.pmKey; r.add++; }
+      used.add(c);
+      if(!c.kashi) c.kashi = kOf(base);
+      Object.assign(c, { name: nm, qty, lu, su: 0, bu: 0, ba: 0, denW: YOURS_AUG.den, edited: true, carried: '8月の請求書と同じく重ねて請求（' + YOURS_AUG.head + '）。CSVでは「' + base.sys.name + '」の1行' });
+      calcLine(c); c.bu = 0; c.ba = 0;   /* 前月から続く品に基本料は入れない */
+      out.push(c); r.rows++;
+    });
+    if(!out.length) return;
+    /* 8月にない重ねた行は「消した行」へ（もどせる） */
+    oldOv.filter(o => !used.has(o)).forEach(l => { const ls0 = linesOf(sh), ix0 = ls0.indexOf(l); (S.trash = S.trash || []).push({ line: l, afterId: ix0 > 0 ? ls0[ix0 - 1].id : '', beforeId: ls0[ix0 + 1] ? ls0[ix0 + 1].id : '', at: new Date().toISOString(), why: '8月の請求書の【三軒茶屋事務所】にない行' }); S.lines.splice(S.lines.indexOf(l), 1); r.del++; });
+    /* 8月と同じ並びで、見出しのすぐ下に */
+    out.forEach(c => { const i = S.lines.indexOf(c); if(i >= 0) S.lines.splice(i, 1); });
+    S.lines.splice(S.lines.indexOf(head) + 1, 0, ...out.map(c => Object.assign(c, { sheet: sh.id })));
+  });
+  S.yfVer = 2;
+  return r;
+}
+function yoursAugMsg(r){
+  if(!r || (!r.rows && !r.cust)) return '';
+  return '8月の請求書どおりにした：' + (r.rows ? '【三軒茶屋事務所】' + r.rows + '行・伝票 ' + YOURS_AUG.den + (r.del ? '（8月にない行 ' + r.del + ' 行は「消した行」へ）' : '') : '') + (r.cust ? (r.rows ? '／' : '') + r.cust + 'の宛名を株式会社荒川建設に' : '') + (r.miss.length ? '／CSVに見つからない品：' + r.miss.join('・') : '');
+}
 function carryTidy(){
   const r = { dup: 0, one: 0, roll: 0, base: 0 };
   if(!S.meta || !S.meta.seikyuDate || S.sameMonth) return r;
@@ -1050,7 +1097,8 @@ function luInfo(l){
   return { months: Math.max(1, m), mon, cum: mon * Math.max(1, m) };
 }
 /* 紙と同じ「伝票番号・管理番号」の出し方（返却伝票があればそちら／管理番号が空か W なら商品番号） */
-const denOf = l => num(l.ret0) >= 1 ? l.ret0 : (l.den || '');
+const denSys = l => num(l.ret0) >= 1 ? l.ret0 : (l.den || '');
+const denOf = l => l.denW || denSys(l);   /* denW：紙に出す伝票番号を手で変えた（【三軒茶屋事務所】の 692212 など） */
 const kanOf = l => l.kanri && l.kanri !== 'W' ? l.kanri : (l.shohin || '');
 const sheetSys = sh => linesOf(sh).reduce((a, l) => a + sysAmt(l), 0);
 const tax = n => Math.floor(n * 0.1);
@@ -1225,6 +1273,7 @@ function applyLayout(sh, exact){
     if(T.some(l => l.ovl && l.ovlOf === base.id)) return;                                 /* 消した（いらないと決めた） */
     const c = Object.assign({}, base, { id: uid(), dup: true, ovl: true, ovlOf: base.id, pmKey: p.pmKey, name: p.name, qty: p.qty, unit: p.unit || base.unit, lu: p.lu, su: p.su, bu: p.bu, sugg: null, suggDec: false, pv: null, edited: true, luDec: true, nbDec: true });   /* 出す／出さないは元の行で決める */
     if(p.kb) c.kb = p.kb;
+    if(p.denW) c.denW = p.denW; else delete c.denW;
     if(exact){ ['start', 'end', 'days', 'sdays', 'la', 'sa', 'ba'].forEach(f => { if(p[f] != null && p[f] !== '') c[f] = p[f]; }); }
     else { if(contRental(c)) c.bu = num(base.sys && base.sys.bu); if(!num(base.sys.sdays) && num(p.sdays) && num(p.su)) c.sdays = spanDays(base); calcLine(c); }
     c.carried = '前月と同じく重ねて請求' + (p.hd ? '（' + p.hd + '）' : '') + '。CSVでは「' + base.sys.name + '」の1行';
@@ -1251,12 +1300,22 @@ function useTitle(sh, ps){
   if(!sh.csvSite) sh.csvSite = sh.siteName;
   sh.siteName = t; return true;
 }
+/* 前月の請求書の宛名（得意先名）が、CSVの得意先名とちがっていたら（川越事務所 → 株式会社荒川建設 のように）、今月も同じ宛名にする */
+const rnN = s => String(s || '').normalize('NFKC').replace(/\s/g, '');
+function useCust(sh, ps){
+  const c = ps && ps.cust10, m = S.meta || {};
+  if(!c || !m.custName || rnN(c) === rnN(m.custName)){ return false; }
+  sh.custName = c; sh.custZip = ps.zip7 || ''; sh.custAddr = ps.addr8 || ''; return true;
+}
+const custOf = sh => (sh && sh.custName) || S.meta.custName;
+const zipOf = sh => sh && sh.custName ? (sh.custZip || '') : S.meta.zip;
+const addrOf = sh => sh && sh.custName ? (sh.custAddr || '') : S.meta.addr;
 function prevCustNg(P, code){ return !!(P && P.cust && code && String(P.cust).split('-')[0] !== String(code).split('-')[0]); }
 function build(){
   const D = readCsv(csvText);
   if(prevCustNg(prevData, D.meta.custCode)) throw new Error('前月のファイルは別の得意先（' + prevData.cust + '）のものです。' + D.meta.custName + '（' + D.meta.custCode + '）の前月のファイルを入れ直して');
   S.meta = D.meta; S.sheets = []; S.lines = []; S.prev = prevData; S.built = true; S.trash = []; undoReset();
-  S.prevPack = prevData ? packPrev(prevData) : null; S.relinkVer = RELINK_VER; S.tidyVer = 2;
+  S.prevPack = prevData ? packPrev(prevData) : null; S.relinkVer = RELINK_VER; S.tidyVer = 2; S.yfVer = 0;
   const P = prevData;
   const sheetFor = {};
   const mk = (name, code, siteName, kouji) => {
@@ -1269,7 +1328,7 @@ function build(){
     P.sheets.forEach(ps => {
       if(!D.sites[ps.code] && !(ps.lines || []).some(l => l.key && (D.lines.some(x => x.key === l.key)))) return;
       const sh = mk(ps.name, ps.code, D.sites[ps.code] ? D.sites[ps.code].name : '', ps.kouji);
-      sh.prev = ps; sheetFor[ps.name] = sh; useTitle(sh, ps);
+      sh.prev = ps; sheetFor[ps.name] = sh; useTitle(sh, ps); useCust(sh, ps);
     });
   }
   const same = !!(P && P.label && D.meta.seikyuDate && P.label === D.meta.seikyuDate);   /* 前月ではなく、同じ締めのExcelを入れたとき */
@@ -1329,6 +1388,7 @@ function build(){
   S.sheets.forEach(sh => { if(!S.lines.some(l => l.sheet === sh.id)){ sh.inKagami = false; sh.emptyNow = true; } });
   S.sheets.sort((a, b) => (a.emptyNow ? 1 : 0) - (b.emptyNow ? 1 : 0));
   S.cur = S.sheets[0] ? S.sheets[0].id : null;
+  { const ya = yoursAugFix(), ym = yoursAugMsg(ya); if(ym) setTimeout(() => toast(ym, 10000), 1500); }
   save();
 }
 
@@ -1339,7 +1399,7 @@ const workIdOf = m => (m && m.custCode ? String(m.custCode) + '-' + String(m.cus
 function snapshot(){
   const net = S.sheets.filter(s => s.inKagami).reduce((a, s) => a + sheetNet(s), 0);
   return { id: S.workId, v: 1, meta: S.meta, sheets: S.sheets.map(s => Object.assign({}, s, { prev: s.prev ? { name: s.prev.name, total: s.prev.total, fur: s.prev.fur, kouji: s.prev.kouji } : null })),
-    lines: S.lines, trash: S.trash || [], prevPack: S.prevPack || null, relinkVer: S.relinkVer || 0, tidyVer: S.tidyVer || 0, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
+    lines: S.lines, trash: S.trash || [], prevPack: S.prevPack || null, relinkVer: S.relinkVer || 0, tidyVer: S.tidyVer || 0, yfVer: S.yfVer || 0, seq: S.seq, opt: S.opt, cur: S.cur, prevLabel: S.prev ? S.prev.label : '', sameMonth: !!S.sameMonth,
     savedAt: new Date().toISOString(), custCode: S.meta.custCode, custName: S.meta.custName, seikyuDate: S.meta.seikyuDate, net, sysNet: S.meta.sysNet != null && S.meta.sysNet !== '' ? num(S.meta.sysNet) : S.lines.reduce((a, l) => a + sysAmt(l), 0), nLines: S.lines.length, sites: S.sheets.length,
     tax: S.sheets.filter(s => s.inKagami).reduce((a, s) => a + tax(sheetNet(s)), 0), status: S.status || 'draft', printedAt: S.printedAt || '',
     siteNames: S.sheets.filter(s => s.inKagami).map(s => s.name + (s.siteName && s.siteName !== s.name ? '（' + s.siteName + '）' : '')).join('／').slice(0, 600) };
@@ -1492,7 +1552,7 @@ function openWork(o){
   S.cur = o.cur || (S.sheets[0] && S.sheets[0].id); S.prev = o.prevLabel ? { label: o.prevLabel, byKey:{}, continuing:new Set() } : null; S.sameMonth = !!o.sameMonth;
   S.built = true; S.bulkRows = ''; S.bulkSel = null; S.status = o.status || 'draft'; S.printedAt = o.printedAt || '';
   /* 前月のデータが作業に入っていれば、前月のファイルを入れなくても使える。古い作り方の作業なら、ここで自動で照らし直す */
-  S.prevPack = o.prevPack || null; S.relinkVer = o.relinkVer || 0; S.tidyVer = o.tidyVer || 0;
+  S.prevPack = o.prevPack || null; S.relinkVer = o.relinkVer || 0; S.tidyVer = o.tidyVer || 0; S.yfVer = o.yfVer || 0;
   let autoRe = null;
   if(S.prevPack){
     const P = unpackPrev(S.prevPack);
@@ -1511,6 +1571,7 @@ function openWork(o){
     S.tidyVer = 2;
   }
   { const nb = S.lines.filter(l => noBaseFix(l)).length, ct = carryTidy(); ct.base += nb; const msg = carryTidyMsg(ct); if(msg){ save(); setTimeout(() => toast(msg, 9000), 900); } }
+  { const ya = yoursAugFix(), ym = yoursAugMsg(ya); if(ya.rows || ya.cust || S.yfVer){ save(); } if(ym) setTimeout(() => toast(ym, 10000), 1500); }
   /* 「前月に手で足した行」の ✓ は、いまのシートに本当にその行があるときだけ（消していたら、また足せるように） */
   S.sheets.forEach(sh => (sh.prevManual || []).forEach(p => {
     const has = linesOf(sh).some(l => l.manual && ((p.pmKey && l.pmKey === p.pmKey) || (!p.pmKey && l.name === p.name && num(l.qty) === num(p.qty))));
@@ -1717,7 +1778,7 @@ function drawSite(){
       (sh.prev.fur && sh.prev.fur.length ? '　ふりかえ ' + sh.prev.fur.map(f => (f.amt > 0 ? '+' : '') + yen(f.amt) + (f.memo ? '（' + esc(f.memo) + '）' : '')).join('、') : '') +
       (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => p.added ? '<span class="tag ok">✓ ' + esc(p.name) + '</span>' : (/^(日極|月極)$/.test(String(p.kb || '')) ? '<button class="btn sm" data-addprev="' + i + '" title="前月から続く品：基本料は入れません">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa) + (num(p.ba) ? '<small style="opacity:.7">（前月の基本料 ' + yen(p.ba) + ' は入れない）</small>' : '') + '</button>' : (S.sameMonth ? '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>' : '<span class="tag" title="運賃・販売は前月だけの請求。今月もかかるときは「行を足す」で今月の日付で入れて" style="opacity:.6">前月だけ：' + esc(p.name) + '（足さない）</span>'))).join(' ') + '</span>' : '') + relinkBtn() + '</div>' : (S.prev ? '<div class="prev">' + relinkBtn() + '</div>' : '');
   B.innerHTML = '<div class="card">' + '<div class="shead" id="shead">' +
-    '<div class="sh"><div class="nm"><input id="shName" value="' + esc(sh.name) + '" aria-label="呼び名"><div class="full">' + esc(sh.siteName) + (sh.csvSite && sh.csvSite !== sh.siteName ? '<small class="muted">（CSVは「' + esc(sh.csvSite) + '」・前月の請求書と同じ名前にしている）</small>' : '') + '　現場コード ' + esc(sh.code) + '</div></div>' +
+    '<div class="sh"><div class="nm"><input id="shName" value="' + esc(sh.name) + '" aria-label="呼び名"><div class="full">' + esc(sh.siteName) + (sh.csvSite && sh.csvSite !== sh.siteName ? '<small class="muted">（CSVは「' + esc(sh.csvSite) + '」・前月の請求書と同じ名前にしている）</small>' : '') + '　現場コード ' + esc(sh.code) + '<br>宛名 <input id="shCust" value="' + esc(custOf(sh)) + '" style="width:220px" title="この現場の請求書の宛名（得意先名）。空にするとCSVの「' + esc(S.meta.custName) + '」にもどる">' + (sh.custName ? '<small class="muted">（CSVは「' + esc(S.meta.custName) + '」・この現場だけ宛名を変えている）</small>' : '') + '</div></div>' +
     '<label class="fld">工事番号（三貴）<input id="shKouji" value="' + esc(sh.kouji) + '" placeholder="T-0000"></label>' +
     '<label class="fld">この現場の税抜を<input id="shTarget" inputmode="numeric" placeholder="' + yen(net) + '"></label>' +
     '<label class="fld"><span><input type="checkbox" id="shKg"' + (sh.inKagami ? ' checked' : '') + '> 鑑に出す</span></label>' +
@@ -1731,6 +1792,7 @@ function drawSite(){
       '<label>終了 <input id="bkEnd" class="bkd" inputmode="decimal" placeholder="月/日"></label>' +
       '<label>返却 <input id="bkRet" class="bkd" inputmode="decimal" placeholder="月/日" title="返却日。「継続」と入れると継続にもどす"></label>' +
       '<label title="返却日を終了日と同じにする"><input type="checkbox" id="bkRetSame"' + (S.opt.bkRetSame ? ' checked' : '') + '> 返却も終了と同じ</label>' +
+      '<label>伝票 <input id="bkDen" style="width:70px" inputmode="numeric" placeholder="変えない" title="紙に出す伝票番号をまとめて変える。「もどす」と入れるとCSVの番号に"></label>' +
       '<label>区分 <select id="bkKb"><option value="">変えない</option><option>日極</option><option>月極</option></select></label>' +
       '<button class="btn primary sm" id="bkGo" type="button">変える</button><span class="muted" id="bkInfo"></span></div>' +
     '</div>' +
@@ -1760,7 +1822,7 @@ function lineRow(l, i, others){
   const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
   const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : f === 'kashi' ? ' placeholder="月/日" title="貸出日"' : '') + '>';
   return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押すと「まとめて変える」の行に入る（Shift で範囲）">' + (i + 1) + '</td>' +
-    '<td>' + inp('name', l.name) + '<div class="sub">伝票 ' + esc(denOf(l) || '—') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
+    '<td>' + inp('name', l.name) + '<div class="sub">伝票 <input class="e den' + (l.denW ? ' chg' : '') + '" data-f="denW" value="' + esc(denOf(l)) + '" placeholder="—" inputmode="numeric" style="width:64px;font-size:inherit;padding:0 3px" title="紙に出す伝票番号。空にするとCSVの番号（' + esc(denSys(l) || 'なし') + '）にもどる">' + (l.denW ? '<small style="opacity:.7">（CSVは ' + esc(denSys(l) || 'なし') + '）</small>' : '') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
       lineDecHtml(l) + pvHtml(l) + moSum(l) + '</td>' +
     '<td class="sub" style="white-space:nowrap"><span class="per">貸出 ' + inp('kashi', md(l.kashi), 46) + '</span><br><span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + ((l.start || l.end || l.retd || l.cont) ? '<br><span class="per">返却 ' + inp('retd', md(l.retd), 46) + (l.cont && !l.retd ? '<small> ' + esc(l.cont) + '</small>' : '') + '</span>' : '') + '</td>' +
     '<td>' + kbSel + '</td>' +
@@ -1804,6 +1866,12 @@ function onLineInput(ev){
   const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
   const f = t.dataset.f; if(!f) return;
   if(f === 'name') l.name = t.value;
+  else if(f === 'denW'){
+    if(ev.type !== 'change') return;
+    const v = String(t.value).normalize('NFKC').trim();
+    if(!v || v === String(denSys(l))) delete l.denW; else l.denW = v;
+    if(l.sys) l.edited = true; save(); drawSites(); return;
+  }
   else if(f === 'start' || f === 'end'){
     const v = String(t.value).trim();
     const d = v ? dateIn(v) : '';
@@ -1876,6 +1944,7 @@ function onSiteChange(ev){
   if(t.dataset.act === 'move' && t.value){ const tr = t.closest('tr[data-id]'); const l = S.lines.find(x => x.id === tr.dataset.id); const to = sheetById(t.value); l.sheet = to.id; save(); drawSites(); toast('「' + to.name + '」へ移した'); return; }
   const sh = sheetById(S.cur);
   if(t.id === 'shName'){ const v = t.value.trim(); if(v && !S.sheets.some(s => s !== sh && s.name === v)) sh.name = v; else if(v){ toast('同じ呼び名があります'); t.value = sh.name; } save(); drawSites(); return; }
+  if(t.id === 'shCust'){ const v = t.value.trim(); if(!v || rnN(v) === rnN(S.meta.custName)){ delete sh.custName; delete sh.custZip; delete sh.custAddr; } else if(v !== sh.custName){ sh.custName = v; sh.custZip = ''; sh.custAddr = ''; } save(); drawSites(); toast(sh.custName ? 'この現場の宛名を「' + sh.custName + '」にした（住所の欄は空）' : '宛名をCSVの「' + S.meta.custName + '」にもどした'); return; }
   if(t.id === 'shKouji'){ sh.kouji = t.value.trim(); save(); return; }
   if(t.id === 'shKg'){ sh.inKagami = t.checked; save(); drawSites(); return; }
   if(t.id === 'shTarget'){ const v = num(t.value); if(!v){ t.value = ''; return; } const net = sheetNet(sh), d = v - net; if(!d){ toast('もうその金額です'); return; }
@@ -2096,9 +2165,9 @@ function paperSheetSys(sh){
   const custNo = m.custCode + '-' + (m.custBr || '0');
   return pages.map((pg, pi) => {
     const pn = (pi + 1) + ' / ' + pages.length;
-    if(pi === 0) return XR.sysPage('p1', { zip: m.zip, addr1: m.addr, nameBlock: m.custName + '\n' + nm + '　　御中', custNo, siteNo: sh.code, seikyu: jdate(m.seikyuDate), pay: jdate(m.payDate),
+    if(pi === 0) return XR.sysPage('p1', { zip: zipOf(sh), addr1: addrOf(sh), nameBlock: custOf(sh) + '\n' + nm + '　　御中', custNo, siteNo: sh.code, seikyu: jdate(m.seikyuDate), pay: jdate(m.payDate),
       sum: { net: n, tax: tx, gross: n + tx, bill: n + tx }, rows: pg }, { hanko: hankoOn('seikyu') ? HANKO_AKUTSU : '', id: sh.name, pn });
-    return XR.sysPage('p2', { custName: m.custName, custNo, siteName: nm, siteNo: sh.code, rows: pg }, { id: sh.name, pn });
+    return XR.sysPage('p2', { custName: custOf(sh), custNo, siteName: nm, siteNo: sh.code, rows: pg }, { id: sh.name, pn });
   }).join('');
 }
 function paperSheetXl(sh){
@@ -2106,8 +2175,8 @@ function paperSheetXl(sh){
   const pages = chunk(ls, 15, 22);
   return pages.map((pg, pi) => {
     let v, r0;
-    if(pi === 0){ v = sumVals(headVals(m, nm, sh.code), n, tax(n), m, false); r0 = 26; }
-    else { v = { C59: m.custName, O59: m.custCode, T59: nm, AG59: sh.code }; r0 = 64; }
+    if(pi === 0){ v = sumVals(headVals(m, nm, sh.code), n, tax(n), m, false); if(sh.custName){ v.E10 = sh.custName; v.F7 = sh.custZip || ''; v.E8 = sh.custAddr || ''; } r0 = 26; }
+    else { v = { C59: custOf(sh), O59: m.custCode, T59: nm, AG59: sh.code }; r0 = 64; }
     pg.forEach((l, i) => lineVals(v, l, r0 + i * 2));
     return XR.page(pi === 0 ? XT.site1 : XT.site2, v, { hanko: pi === 0 && hankoOn('seikyu') ? HANKO_AKUTSU : '', id: sh.name, pn: (pi + 1) + '/' + pages.length });
   }).join('');
@@ -2224,11 +2293,14 @@ function bulkApply(){
   const ds = sv ? dateIn(sv) : '', de = ev ? dateIn(ev) : '';
   if(sv && !ds){ toast('開始の日付が読めない（10/1 や 1001 のように）'); $('#bkStart').focus(); return; }
   if(ev && !de){ toast('終了の日付が読めない'); $('#bkEnd').focus(); return; }
-  if(!dk && !ds && !de && !kb && !dr && !rCont){ toast('貸出・開始・終了・返却・区分のどれかを入れて'); $('#bkKashi').focus(); return; }
+  const dn = ($('#bkDen') ? $('#bkDen').value : '').normalize('NFKC').trim();
+  if(!dk && !ds && !de && !kb && !dr && !rCont && !dn){ toast('貸出・開始・終了・返却・伝票・区分のどれかを入れて'); $('#bkKashi').focus(); return; }
   if(ds && de && de < ds){ toast('終了が開始より前になっています'); return; }
   let n = 0, skip = 0;
   ls.forEach((l, i) => {
     if(!rows.has(i + 1)) return;
+    if(dn && !l.head && !l.sub){ if(dn === 'もどす' || dn === String(denSys(l))) delete l.denW; else l.denW = dn; if(l.sys) l.edited = true; if(!dk && !ds && !de && !kb && !dr && !rCont){ n++; return; } }
+    if(l.head) return;
     if(dk){ l.kashi = dk; if(l.sys) l.edited = true; if(!ds && !de && !kb && !dr && !rCont && !rsame){ n++; return; } }
     if(l.kb !== '日極' && l.kb !== '月極' && !kb){
       /* 販売・配送などは期間なし。返却だけは、もともと返却日のある行（返却運賃など）にも入れる */
@@ -2500,7 +2572,7 @@ function relinkPrev(P){
   S.sheets.forEach(sh => {
     const ps = P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code));
     if(!ps) return;
-    sh.prev = ps; useTitle(sh, ps);
+    sh.prev = ps; useTitle(sh, ps); useCust(sh, ps);
     const old = sh.prevManual || [], pm = prevManualOf(ps.lines || []);
     sh.prevManual = pm;   /* 足してあるかは、いまのシートに同じ行があるかで決める（消していたら、また足せる） */
     /* 同じ「前月に手で足した行」が2つ以上あれば、1つだけ残して、ほかは「消した行」へ（もどせる） */
@@ -2645,7 +2717,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 21:21';
+const BUILD = '2026-10-30 22:27';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3480,6 +3552,7 @@ function workToPrev(w){
         days: num(l.days), sdays: num(l.sdays), kb: l.kb || '', lu: num(l.lu), la: num(l.la), su: num(l.su), sa: num(l.sa), bu: num(l.bu), ba: num(l.ba), memo: l.memo || '', shohin: l.shohin || '' };
       if(l.head){ L.head = true; L.saiban = ''; lines.push(L); return; }
       if(l.ovl) L.ovlW = true;
+      if(l.denW) L.denW = l.denW;
       if(l.sys && l.key && !l.manual){
         L.key = l.key; L.saiban = l.csvIx != null ? 'c' + l.csvIx : ''; L.sys = Object.assign({}, l.sys, { site: l.site, shohin: l.shohin, kanri: l.kanri, den: l.den, key: l.key });
         P.sysByKey[l.key] = L.sys;
@@ -3488,7 +3561,7 @@ function workToPrev(w){
       lines.push(L);
     });
     const total = ls.filter(l => !l.nb).reduce((a, l) => a + lineAmt(l), 0);
-    P.sheets.push({ name: sh.name, code: sh.code, kouji: sh.kouji || '', total, fur: [], inKagami: sh.inKagami !== false, lines, memo: sh.memo || '', title: sh.csvSite ? sh.siteName : '' });
+    P.sheets.push({ name: sh.name, code: sh.code, kouji: sh.kouji || '', total, fur: [], inKagami: sh.inKagami !== false, lines, memo: sh.memo || '', title: sh.csvSite ? sh.siteName : '', cust10: sh.custName || '', zip7: sh.custZip || '', addr8: sh.custAddr || '' });
     if(sh.code && !P.codeSheet[sh.code]) P.codeSheet[sh.code] = sh.name;
     if(sh.kouji) P.kouji[sh.name] = sh.kouji;
   });
@@ -4541,7 +4614,7 @@ function split3(v, row, n){ n = Math.round(num(n)); const p3 = x => String(x).pa
 function paperYkSheet(sh){
   const n = sheetNet(sh), x = tax(n), g = n + x, d = S.meta.seikyuDate, k = sh.skv || {};
   const y = +String(d).slice(0, 4), mo = +String(d).slice(5, 7), dd = +String(d).slice(8, 10);
-  const v = { A3: k.A3 != null && k.A3 !== '' ? k.A3 : String(S.meta.custName || '').replace(/\s+/g, ' '), A6: k.A6 != null && k.A6 !== '' ? k.A6 : (sh.siteName || sh.name), R3: '令和' + (y - 2018) + '年', U3: mo + '月', V3: dd + '日', R33: n, R34: x };
+  const v = { A3: k.A3 != null && k.A3 !== '' ? k.A3 : String(custOf(sh) || '').replace(/\s+/g, ' '), A6: k.A6 != null && k.A6 !== '' ? k.A6 : (sh.siteName || sh.name), R3: '令和' + (y - 2018) + '年', U3: mo + '月', V3: dd + '日', R33: n, R34: x };
   const g2 = g + (k.rows || []).reduce((a, r) => a + num(r.amt), 0);
   digitsTo(v, 10, 5, 14, g2); digitsTo(v, 18, 5, 14, k.keiyaku != null && k.keiyaku !== '' ? k.keiyaku : g2); digitsTo(v, 24, 5, 14, g2);
   split3(v, 33, n); split3(v, 34, x); split3(v, 42, g2);
@@ -4596,7 +4669,7 @@ async function skEdit(sh){
   }else{
     const rows = (k.rows || []).concat([{}, {}, {}]).slice(0, 7); k.rows = rows; window.__skv = k;
     html = '<p class="muted">空の欄は自動の値（灰色の字）。金額の枠は数を入れると1けたずつ入ります。</p>' +
-      '<div class="xcc"><label>宛名' + inp('A3', String(S.meta.custName || '')) + '</label><label>作業所' + inp('A6', sh.siteName || sh.name) + '</label><label>取引先コード' + inp('code') + '</label><label>注文番号' + inp('chuban') + '</label>' +
+      '<div class="xcc"><label>宛名' + inp('A3', String(custOf(sh) || '')) + '</label><label>作業所' + inp('A6', sh.siteName || sh.name) + '</label><label>取引先コード' + inp('code') + '</label><label>注文番号' + inp('chuban') + '</label>' +
       '<label>契約金額（税込）' + inp('keiyaku', yen(n + tax(n))) + '</label><label>出来高' + inp('dekidaka') + '</label><label>上記出来高×0.9' + inp('dekidaka2') + '</label><label>前回迄請求済額' + inp('zenkai') + '</label><label>累計請求額' + inp('ruikei') + '</label><label>契約残高' + inp('zan', '0') + '</label><label class="w">摘要の1行目' + inp('D33', '別紙参照') + '</label></div>' +
       '<b>摘要に足す行</b><table class="xsk"><tr><th>摘要</th><th>数量</th><th>単価</th><th>金額</th></tr>' + rows.map((r, i) => '<tr><td>' + inp('r' + i + 'name') + '</td><td>' + inp('r' + i + 'qty', '', '50px') + '</td><td>' + inp('r' + i + 'price', '', '80px') + '</td><td>' + inp('r' + i + 'amt', '', '90px') + '</td></tr>').join('') + '</table>';
     rows.forEach((r, i) => { ['name','qty','price','amt'].forEach(f => { if(r[f] != null) k['r' + i + f] = r[f]; }); });
@@ -7406,7 +7479,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 21:21';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 22:27';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
