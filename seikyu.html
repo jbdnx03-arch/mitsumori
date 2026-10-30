@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 23:05-->
+<!--BUILD:2026-10-31 08:45-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2728,7 +2728,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 23:05';
+const BUILD = '2026-10-31 08:45';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7257,6 +7257,216 @@ st.textContent = '.xselbar{position:fixed;left:50%;bottom:78px;transform:transla
 document.head.appendChild(st);
 })();
 
+/* ==================================================================
+   請求ナビ Web：「PDFで保存」を、システムから印刷したのと同じくっきりさに（2026-10-30）
+   前は紙を写真のように写した画像（約240dpi）だった → 線も字も「本物のPDF（ベクター）」で書く。
+   ・本物の書式（システムの請求書）の用紙：システムのPDFから値を消した用紙を、そのままベクターで貼る（sysform_pdf.js）
+   ・字：IPAゴシック／Noto明朝（JISの字）を、使った字だけ埋め込む（pdf-g.ttf・pdf-m.ttf）。選べる・さがせる
+   ・線・塗り（指定用紙・Excelの書式）：SVGの線をそのまま線で
+   ・印鑑・ロゴ：元の画像のまま
+   どれかが読めないときは、前の作り方（画像のPDF）で作る
+   ================================================================== */
+(function(){
+const SRC_PDFLIB = ['https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'];
+const SRC_FONTKIT = ['https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js', 'https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js'];
+const PT = { land: [841.89, 595.28], port: [595.28, 841.89] };
+let FG = null, FM = null;
+async function loadList(list, ok){ if(ok()) return; for(const s of list){ try{ await loadJs(s); if(ok()) return; }catch(e){} } if(!ok()) throw new Error('PDFの部品が読めない'); }
+async function bin(names){ for(const n of names){ try{ const r = await fetch(n, { cache: 'force-cache' }); if(r.ok){ const b = await r.arrayBuffer(); if(b.byteLength > 1000) return b; } }catch(e){} } return null; }
+async function prep(){
+  await loadList(SRC_PDFLIB, () => !!window.PDFLib);
+  await loadList(SRC_FONTKIT, () => !!window.fontkit);
+  if(!FG) FG = await bin(['./pdf-g.ttf', './fonts/pdf-g.ttf']);
+  if(!FM) FM = await bin(['./pdf-m.ttf', './fonts/pdf-m.ttf']);
+  if(!FG) throw new Error('PDF用の字（pdf-g.ttf）が読めない');
+  if(!window.SF_PDF){ for(const s of ['./sysform_pdf.js', './fonts/sysform_pdf.js']){ try{ await loadJs(s); if(window.SF_PDF) break; }catch(e){} } }
+}
+const b64 = s => { const bs = atob(s), u = new Uint8Array(bs.length); for(let i = 0; i < bs.length; i++) u[i] = bs.charCodeAt(i); return u; };
+function col(s){
+  const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)/.exec(String(s || ''));
+  if(!m) return null; let a = m[4] == null ? 1 : (/%$/.test(m[4]) ? parseFloat(m[4]) / 100 : +m[4]);
+  return { c: PDFLib.rgb(+m[1] / 255, +m[2] / 255, +m[3] / 255), a, white: +m[1] > 250 && +m[2] > 250 && +m[3] > 250 };
+}
+function svgColor(v){ if(!v || v === 'none' || /url\(/.test(v)) return null; if(/^#/.test(v)){ let h = v.slice(1); if(h.length === 3) h = h.split('').map(x => x + x).join(''); const n = parseInt(h, 16); return { c: PDFLib.rgb((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255), a: 1 }; } return col(v); }
+async function imgBytes(img){
+  const src = img.currentSrc || img.src || '';
+  try{
+    if(/^data:image\/png/i.test(src)) return { png: b64(src.split(',')[1]) };
+    if(/^data:image\/jpe?g/i.test(src)) return { jpg: b64(src.split(',')[1]) };
+  }catch(e){}
+  /* SVG などは、大きく描いてPNGに */
+  const w = Math.max(1, img.naturalWidth || img.width), h = Math.max(1, img.naturalHeight || img.height), sc = Math.min(6, Math.max(2, 1600 / Math.max(w, h)));
+  const cv = document.createElement('canvas'); cv.width = Math.round(w * sc); cv.height = Math.round(h * sc);
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  return { png: b64(cv.toDataURL('image/png').split(',')[1]) };
+}
+async function vecPdf(pages){
+  const L = PDFLib, doc = await L.PDFDocument.create(); doc.registerFontkit(window.fontkit);
+  const SUB = !window.__pdfFull; const fG = await doc.embedFont(FG, { subset: SUB }), fM = FM ? await doc.embedFont(FM, { subset: SUB }) : fG;
+  const setG = new Set(fG.getCharacterSet()), setM = new Set(fM.getCharacterSet());
+  const forms = {}, imgs = new Map();
+  doc.setTitle(document.title || '御請求書'); doc.setProducer('請求ナビ Web'); doc.setCreator('請求ナビ Web');
+  let pgi = 0;
+  for(const el of pages){
+    pgi++; if(pages.length > 2) toast('PDFを作っています… ' + pgi + ' / ' + pages.length + ' ページ（くっきりした字と線で）', 60000);
+    await new Promise(r => setTimeout(r, 0));
+    const port = el.classList.contains('port') || el.classList.contains('pp');
+    const [PW, PH] = port ? PT.port : PT.land;
+    const pr = el.getBoundingClientRect(); if(!(pr.width > 0)) continue;
+    const k = PW / pr.width;
+    const page = doc.addPage([PW, PH]);
+    const X = px => (px - pr.left) * k, Y = py => PH - (py - pr.top) * k;
+    const all = [...el.querySelectorAll('*')].filter(e => !e.closest('svg') || e.tagName.toLowerCase() === 'svg');
+    const vis = e => { const cs = getComputedStyle(e); return cs.display !== 'none' && cs.visibility !== 'hidden' && +cs.opacity > 0.01; };
+    /* 1. 塗り（CSS の背景色。白はぬらない） */
+    all.forEach(e => { if(e.tagName.toLowerCase() === 'svg') return; const cs = getComputedStyle(e), c = col(cs.backgroundColor); if(!c || c.a < 0.02 || c.white || !vis(e)) return; const r = e.getBoundingClientRect(); if(r.width <= 0 || r.height <= 0) return;
+      page.drawRectangle({ x: X(r.left), y: Y(r.bottom), width: r.width * k, height: r.height * k, color: c.c, opacity: c.a }); });
+    /* 2. SVG（本物の用紙はシステムのPDFをそのまま／ほかは線と塗り） */
+    for(const sv of el.querySelectorAll('svg')){
+      if(!vis(sv)) continue;
+      const r = sv.getBoundingClientRect(); if(r.width <= 0) continue;
+      if(sv.classList.contains('xsf')){
+        const kd = (/\bid="(p1|p2|k1|k2)_/.exec(sv.innerHTML) || [])[1];
+        if(!kd || !window.SF_PDF || !window.SF_PDF[kd]) throw new Error('本物の用紙（' + (kd || '?') + '）がない');
+        if(!forms[kd]){ const src = await L.PDFDocument.load(b64(window.SF_PDF[kd])); [forms[kd]] = await doc.embedPdf(src, [0]); }
+        page.drawPage(forms[kd], { x: X(r.left), y: Y(r.bottom), width: r.width * k, height: r.height * k });
+        continue;
+      }
+      const vb = sv.viewBox && sv.viewBox.baseVal && sv.viewBox.baseVal.width ? sv.viewBox.baseVal : { x: 0, y: 0, width: sv.width.baseVal.value || r.width, height: sv.height.baseVal.value || r.height };
+      const sx = r.width / vb.width, sy = r.height / vb.height;
+      sv.querySelectorAll('rect,line,path,polyline,polygon,circle,ellipse').forEach(s => {
+        if(s.closest('defs,clipPath,mask,pattern,symbol')) return;
+        const cs = getComputedStyle(s); if(cs.display === 'none' || cs.visibility === 'hidden') return;
+        const fill = svgColor(cs.fill), stroke = svgColor(cs.stroke), sw = parseFloat(cs.strokeWidth) || 0;
+        if(!fill && !(stroke && sw > 0)) return;
+        const t = s.tagName.toLowerCase(), A = n => parseFloat(s.getAttribute(n)) || 0;
+        let d = '';
+        if(t === 'rect'){ const x = A('x'), y = A('y'), w = A('width'), h = A('height'), rx = Math.min(A('rx') || A('ry'), w / 2, h / 2); if(w <= 0 || h <= 0) return;
+          d = rx > 0 ? 'M' + (x + rx) + ' ' + y + 'H' + (x + w - rx) + 'A' + rx + ' ' + rx + ' 0 0 1 ' + (x + w) + ' ' + (y + rx) + 'V' + (y + h - rx) + 'A' + rx + ' ' + rx + ' 0 0 1 ' + (x + w - rx) + ' ' + (y + h) + 'H' + (x + rx) + 'A' + rx + ' ' + rx + ' 0 0 1 ' + x + ' ' + (y + h - rx) + 'V' + (y + rx) + 'A' + rx + ' ' + rx + ' 0 0 1 ' + (x + rx) + ' ' + y + 'Z'
+            : 'M' + x + ' ' + y + 'H' + (x + w) + 'V' + (y + h) + 'H' + x + 'Z'; }
+        else if(t === 'line') d = 'M' + A('x1') + ' ' + A('y1') + 'L' + A('x2') + ' ' + A('y2');
+        else if(t === 'path') d = s.getAttribute('d') || '';
+        else if(t === 'polyline' || t === 'polygon'){ const p = (s.getAttribute('points') || '').trim(); if(!p) return; d = 'M' + p.replace(/\s*,\s*/g, ' ').replace(/^(\S+\s+\S+)/, '$1L') + (t === 'polygon' ? 'Z' : ''); }
+        else if(t === 'circle' || t === 'ellipse'){ const cx = A('cx'), cy = A('cy'), rx = t === 'circle' ? A('r') : A('rx'), ry = t === 'circle' ? A('r') : A('ry'); d = 'M' + (cx - rx) + ' ' + cy + 'A' + rx + ' ' + ry + ' 0 1 0 ' + (cx + rx) + ' ' + cy + 'A' + rx + ' ' + ry + ' 0 1 0 ' + (cx - rx) + ' ' + cy + 'Z'; }
+        if(!d) return;
+        /* SVGの中の座標 → 画面の座標（svg の外枠と viewBox から）→ PDFの座標。要素と親の g の transform も重ねる */
+        let a = 1, b = 0, c = 0, dd = 1, e = 0, f = 0;
+        for(let q = s; q && q !== sv; q = q.parentNode){ const tl = q.transform && q.transform.baseVal; const t1 = tl && tl.numberOfItems ? tl.consolidate() : null; if(!t1) continue; const M = t1.matrix;
+          const na = M.a * a + M.c * b, nb = M.b * a + M.d * b, nc = M.a * c + M.c * dd, nd = M.b * c + M.d * dd, ne = M.a * e + M.c * f + M.e, nf = M.b * e + M.d * f + M.f; a = na; b = nb; c = nc; dd = nd; e = ne; f = nf; }
+        const Ma = sx * a, Mb = sy * b, Mc = sx * c, Md = sy * dd, Me = r.left + sx * (e - vb.x), Mf = r.top + sy * (f - vb.y);
+        const dash = cs.strokeDasharray && cs.strokeDasharray !== 'none' ? cs.strokeDasharray.split(/[ ,]+/).map(parseFloat).filter(v => v >= 0) : null;
+        const cap = cs.strokeLinecap === 'square' ? L.LineCapStyle.Projecting : cs.strokeLinecap === 'round' ? L.LineCapStyle.Round : L.LineCapStyle.Butt;
+        page.pushOperators(L.pushGraphicsState(), L.concatTransformationMatrix(k * Ma, -k * Mb, -k * Mc, k * Md, k * (Me - pr.left), PH - k * (Mf - pr.top)));
+        const o = { x: 0, y: 0, scale: 1 };
+        if(fill){ o.color = fill.c; o.opacity = fill.a * (parseFloat(cs.fillOpacity) || 1); }
+        if(stroke && sw > 0){ o.borderColor = stroke.c; o.borderWidth = sw; o.borderOpacity = stroke.a * (cs.strokeOpacity === '' ? 1 : parseFloat(cs.strokeOpacity)); o.borderLineCap = cap; if(dash && dash.length) o.borderDashArray = dash; }
+        if(!fill && t !== 'line' && t !== 'path' && t !== 'polyline'){ /* 枠だけ */ }
+        if(!fill) o.color = undefined;
+        try{ page.drawSvgPath(d, o); }catch(err){}
+        page.pushOperators(L.popGraphicsState());
+      });
+    }
+    /* 3. 罫線（CSS の枠線） */
+    all.forEach(e => {
+      if(e.tagName.toLowerCase() === 'svg' || e === el) return;
+      const cs = getComputedStyle(e); if(cs.display === 'none' || cs.visibility === 'hidden') return;
+      const r = e.getBoundingClientRect(); if(r.width <= 0 && r.height <= 0) return;
+      const sc = e.offsetWidth ? r.width / e.offsetWidth : 1;
+      [['Top', r.left, r.top, r.right, r.top], ['Bottom', r.left, r.bottom, r.right, r.bottom], ['Left', r.left, r.top, r.left, r.bottom], ['Right', r.right, r.top, r.right, r.bottom]].forEach(([sd, x1, y1, x2, y2]) => {
+        const w = parseFloat(cs['border' + sd + 'Width']) * sc, st = cs['border' + sd + 'Style'], c = col(cs['border' + sd + 'Color']);
+        if(!(w > 0) || st === 'none' || st === 'hidden' || !c || c.a < 0.02) return;
+        const io = w / 2, h = sd === 'Top' || sd === 'Bottom';
+        const o = h ? (sd === 'Top' ? io : -io) : (sd === 'Left' ? io : -io);
+        const p1 = h ? [x1, y1 + o] : [x1 + o, y1], p2 = h ? [x2, y2 + o] : [x2 + o, y2];
+        page.drawLine({ start: { x: X(p1[0]), y: Y(p1[1]) }, end: { x: X(p2[0]), y: Y(p2[1]) }, thickness: w * k, color: c.c, opacity: c.a, dashArray: st === 'dashed' ? [w * k * 3, w * k * 2] : st === 'dotted' ? [w * k, w * k] : undefined });
+      });
+    });
+    /* 4. 画像（印鑑・ロゴ）：元の画像のまま */
+    for(const im of el.querySelectorAll('img')){
+      if(!vis(im) || !im.complete) continue;
+      const r = im.getBoundingClientRect(); if(r.width <= 0) continue;
+      let emb = imgs.get(im.src);
+      if(!emb){ try{ const bb = await imgBytes(im); emb = bb.png ? await doc.embedPng(bb.png) : await doc.embedJpg(bb.jpg); imgs.set(im.src, emb); }catch(e){ continue; } }
+      const cs = getComputedStyle(im); let ang = 0;
+      const mt = /matrix\(([^)]+)\)/.exec(cs.transform || ''); if(mt){ const v = mt[1].split(',').map(parseFloat); ang = Math.atan2(v[1], v[0]); }
+      const sc = im.offsetWidth ? (Math.abs(ang) < 1e-4 ? r.width / im.offsetWidth : 1) : 1;
+      const w = (im.offsetWidth ? im.offsetWidth * sc : r.width) * k, h = (im.offsetHeight ? im.offsetHeight * sc : r.height) * k;
+      const cx = X((r.left + r.right) / 2), cy = Y((r.top + r.bottom) / 2), th = -ang;
+      const px = cx - (Math.cos(th) * w / 2 - Math.sin(th) * h / 2), py = cy - (Math.sin(th) * w / 2 + Math.cos(th) * h / 2);
+      page.drawImage(emb, { x: px, y: py, width: w, height: h, rotate: L.radians(th), opacity: Math.min(1, +cs.opacity || 1) });
+    }
+    /* 5. 字（1字ずつ、画面と同じ場所に） */
+    const clipOf = new Map();
+    const clip = pe => { if(clipOf.has(pe)) return clipOf.get(pe); let r = null, a = pe; while(a && a !== el){ const cs = getComputedStyle(a); if(/hidden|clip/.test(cs.overflow + cs.overflowX + cs.overflowY)){ const q = a.getBoundingClientRect(); r = r ? { l: Math.max(r.l, q.left), t: Math.max(r.t, q.top), r: Math.min(r.r, q.right), b: Math.min(r.b, q.bottom) } : { l: q.left, t: q.top, r: q.right, b: q.bottom }; } a = a.parentElement; } clipOf.set(pe, r); return r; };
+    const info = new Map();
+    const infoOf = pe => { if(info.has(pe)) return info.get(pe); const cs = getComputedStyle(pe), r = pe.getBoundingClientRect(); const sy = pe.offsetHeight ? r.height / pe.offsetHeight : 1, sxx = pe.offsetWidth ? r.width / pe.offsetWidth : 1;
+      const fam = String(cs.fontFamily || '').split(',')[0]; const min = /明朝|Mincho|Serif|serif/i.test(fam);
+      const o = { cs, sy: sy > 0 ? sy : 1, sq: sy > 0 ? sxx / sy : 1, min, color: col(cs.color) || { c: L.rgb(0, 0, 0), a: 1 }, bold: (parseInt(cs.fontWeight, 10) || 400) >= 600, vis: cs.visibility !== 'hidden' && +cs.opacity > 0.01 }; info.set(pe, o); return o; };
+    const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+    const rg = document.createRange(); let n;
+    while((n = tw.nextNode())){
+      const s = n.nodeValue || ''; if(!s.trim()) continue;
+      const pe = n.parentElement; if(!pe || pe.closest('svg')) continue;
+      const I = infoOf(pe); if(!I.vis) continue;
+      const cl = clip(pe);
+      let i = 0;
+      for(const ch of s){
+        const len = ch.length; const at = i; i += len;
+        if(!ch.trim()) continue;
+        rg.setStart(n, at); rg.setEnd(n, at + len);
+        const rs = rg.getClientRects(); const r = rs && rs[0]; if(!r || r.width <= 0 || r.height <= 0) continue;
+        const mx = (r.left + r.right) / 2, my = (r.top + r.bottom) / 2;
+        if(cl && (mx < cl.l - 0.5 || mx > cl.r + 0.5 || my < cl.t - 0.5 || my > cl.b + 0.5)) continue;
+        const cp = ch.codePointAt(0);
+        const font = I.min && setM.has(cp) ? fM : setG.has(cp) ? fG : (setM.has(cp) ? fM : null);
+        if(!font) continue;
+        const size = parseFloat(I.cs.fontSize) * I.sy * k; if(!(size > 0.5)) continue;
+        const adv = font.widthOfTextAtSize(ch, size), rw = r.width * k;
+        let hs = I.sq < 0.985 ? I.sq : 1; if(adv * hs > rw * 1.12) hs = rw / adv;
+        const x = X(r.left) + (rw - adv * hs) / 2, y = Y(my) - size * 0.38;
+        const needT = hs < 0.995;
+        page.pushOperators(L.pushGraphicsState());
+        if(I.bold) page.pushOperators(L.setTextRenderingMode(L.TextRenderingMode.FillAndOutline), L.setLineWidth(size * 0.035), L.setStrokingColor(I.color.c));
+        if(needT) page.pushOperators(L.concatTransformationMatrix(hs, 0, 0, 1, x, y));
+        page.drawText(ch, { x: needT ? 0 : x, y: needT ? 0 : y, size, font, color: I.color.c, opacity: I.color.a });
+        page.pushOperators(L.popGraphicsState());
+      }
+    }
+  }
+  return await doc.save({ useObjectStreams: true });
+}
+window.seikyuExt.vecPdf = vecPdf;
+const _mk = makePdf;
+makePdf = async function(box, name){
+  const pages = Array.from(box.children).filter(e => e.classList && (e.classList.contains('xp') || e.classList.contains('pp')));
+  if(!pages.length) return _mk.apply(this, arguments);
+  toast('PDFを作っています…（本物と同じくっきりした字と線で）', 60000);
+  let W = null;
+  try{
+    await prep();
+    W = document.createElement('div'); W.id = 'xPdfVec';
+    W.style.cssText = 'position:fixed;left:-30000px;top:0;width:auto;z-index:-1;background:#fff';
+    W.innerHTML = box.innerHTML; document.body.appendChild(W);
+    W.querySelectorAll('.xp,.pp').forEach(e => { e.style.margin = '0'; e.style.boxShadow = 'none'; e.style.zoom = '1'; e.style.transform = 'none'; });
+    W.querySelectorAll('.xlid .xnote, .xskwarn, .xpvwarn').forEach(e => e.remove());
+    if(document.fonts && document.fonts.ready){ await document.fonts.ready; await new Promise(r => setTimeout(r, 120)); await document.fonts.ready; }
+    XR.fitShrink(W); XR.sysFit(W);
+    await Promise.all([...W.querySelectorAll('img')].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 3000); })));
+    const ps = Array.from(W.children).filter(e => e.classList && (e.classList.contains('xp') || e.classList.contains('pp')));
+    const bytes = await vecPdf(ps);
+    W.remove(); W = null;
+    const fn = String(name || '御請求書').replace(/[\\/:*?"<>|]/g, '') + '.pdf';
+    $('#toast').hidden = true;
+    pdfHand(new Blob([bytes], { type: 'application/pdf' }), fn, ps.length);
+  }catch(e){
+    console.warn('ベクターのPDFにできなかった：', e); if(W) W.remove();
+    toast('くっきりPDFが作れなかったので、前の作り方（画像のPDF）で作ります：' + (e.message || e), 5000);
+    return _mk.apply(this, arguments);
+  }
+};
+window.makePdf = makePdf;
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -7762,7 +7972,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 23:05';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 08:45';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
