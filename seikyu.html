@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 11:14-->
+<!--BUILD:2026-10-30 12:16-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 11:14';
+const BUILD = '2026-10-30 12:16';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6174,6 +6174,89 @@ function parseChecklist(P){
   rows.forEach(r => { if(r.site !== csite){ cd = ''; cdate = ''; ck = ''; csite = r.site; } if(r.den) cd = r.den; else r.den = cd; if(r.date) cdate = r.date; else r.date = cdate; if(r.kind) ck = r.kind; else r.kind = ck; });
   return { rows, sites, meta };
 }
+/* ---------- 売上チェックリストを読む（2026-10-30）：1品が2行（上：伝票番号・商品番号・品名・開始・日数・数量・単価・金額…／下：貸出番号・管理番号・契約・終了・補日・基本料…） ---------- */
+const KB_RE = /^(日極|月極|販売|配送|出庫|修理|整備|一式|燃料|訂正|補償|その他)$/;
+const APPLY_RE = /^(前回|貸出|返却|今回|売上|通常|手入力)$/;
+function isSalesChk(P){ const p1 = P.pages[0]; return !!(p1 && p1.lines.slice(0, 6).some(l => l.toks.some(t => /^売上チェックリスト$/.test(t.s)))); }
+function parseSales(P){
+  const rows = [], sites = {}, slips = []; const meta = { custCode: '', custName: '', date: '', made: '', from: '', to: '', type: 'sales' };
+  let slip = null, cur = null, pend = null, skipNext = false;
+  /* 見出しの塊（「金額 単価適用 期間調整」）を言葉ごとに分けて、右端の位置を出す */
+  const words = l => { const out = []; l.toks.forEach(t => { const ws = t.s.split(' '); const per = (t.x1 - t.x0) / Math.max(1, t.s.length); let x = t.x0; ws.forEach(w => { out.push({ s: w, x0: x, x1: x + w.length * per }); x += (w.length + 1) * per; }); }); return out; };
+  const near = (x, cols) => { let b = null; cols.forEach(c => { const d = Math.abs(x - c.x); if(c.x && (b == null || d < b.d)) b = { k: c.k, d }; }); return b && b.d < 14 ? b.k : null; };
+  P.pages.forEach(pg => {
+    const txt = pg.lines.map(l => l.toks.map(t => t.s).join(' ')).join('\n');
+    const mm = /作成日\s*：\s*([\d\/]+ [\d:]+)/.exec(txt); if(mm && !meta.made) meta.made = mm[1];
+    const pm = /日付\s*：\s*(\d{4}\/\d\d\/\d\d)\s*～\s*(\d{4}\/\d\d\/\d\d)/.exec(txt); if(pm){ meta.from = pm[1]; meta.to = pm[2]; }
+    const h1 = pg.lines.find(l => l.toks.some(t => t.s === '伝票番号') && l.toks.some(t => t.s === '品名'));
+    const h2 = pg.lines.find(l => l.toks.some(t => t.s === '貸出番号') && l.toks.some(t => t.s === '契約'));
+    if(!h1 || !h2) return;
+    const w1 = words(h1), w2 = words(h2); const X = (ws, n, i) => { const L = ws.filter(w => w.s === n); const w = L[i || 0]; return w ? w.x1 : 0; };
+    const C1 = [{ k: 'days', x: X(w1, '日数') }, { k: 'qty', x: X(w1, '数量') }, { k: 'lu', x: X(w1, '単価') }, { k: 'la', x: X(w1, '金額') }, { k: 'su', x: X(w1, '補償料単価') }, { k: 'sa', x: X(w1, '補償料金額') }, { k: 'nu', x: X(w1, '入庫整備料単価') }, { k: 'tot', x: X(w1, '売上金額') }];
+    const C2 = [{ k: 'kyu', x: X(w2, '休止') }, { k: 'sd', x: X(w2, '補日') }, { k: 'bu', x: X(w2, '基本料単価') }, { k: 'ba', x: X(w2, '基本料金額') }, { k: 'na', x: X(w2, '入庫整備料') }];
+    const xCode = (w1.find(w => w.s === '商品番号') || {}).x0 || 89, xName = (w1.find(w => w.s === '品名') || {}).x0 || 140, xStart = (w1.find(w => w.s === '開始') || {}).x0 || 252, xK = (w2.find(w => w.s === '契約') || {}).x0 || 200;
+    const xApply = (w1.find(w => w.s === '単価適用') || {}).x0 || 445;
+    pg.lines.forEach(l => {
+      if(l.y >= h2.y - 1) return;
+      const T = []; l.toks.forEach(t => { const m = /^(.*\S)\s*(\d{4}\/\d\d\/\d\d)$/.exec(t.s); if(m && t.x0 > 100 && !/^\d{4}\/\d\d\/\d\d/.test(t.s)){ const per = (t.x1 - t.x0) / t.s.length; const x = t.x1 - 10 * per; T.push({ s: m[1], x0: t.x0, x1: x - per }, { s: m[2], x0: x, x1: t.x1 }); } else T.push(t); });
+      if(!T.length) return;
+      const s0 = T[0].s;
+      if(T.some(t => /^(伝票計|得意先計|営業店計|現場計|総合計|合計|総計)$/.test(t.s) || (t.x0 < 140 && /計$/.test(t.s)))){ cur = null; pend = null; skipNext = true; return; }
+      if(skipNext){ skipNext = false; if(T.every(t => x3isNum(t.s))) return; }
+      if(T[0].x0 > 600) return;    /* 最後のページの条件の欄 */
+      /* 伝票の見出し：日付 区分 得意先 現場 */
+      const hm = /^(\d{4}\/\d\d\/\d\d)\s*(\S*)$/.exec(s0);
+      if(hm && T[0].x0 < 20){
+        slip = { date: hm[1], kind: hm[2] || '', page: pg.no, y: l.y, h: l.h, cust: '', custCode: '', site: '', siteName: '', tan: '' };
+        T.slice(1).forEach(t => { if(!slip.kind && t.x0 < 85 && /^(貸出|返却|売上|訂正)$/.test(t.s)) slip.kind = t.s; else if(t.x0 >= 85 && t.x0 < xName - 4) slip.custCode = t.s; else if(t.x0 >= xName - 4 && t.x0 < xStart - 2) slip.cust = (slip.cust ? slip.cust + ' ' : '') + t.s; else if(t.x0 >= xStart - 2 && t.x0 < xStart + 30 && /^\d+$/.test(t.s)) slip.site = t.s; else if(t.x0 >= xStart + 30 && t.x0 < 418) slip.siteName = (slip.siteName ? slip.siteName + ' ' : '') + (t.x1 > 412 ? t.s.replace(/(本社|[^\s]{1,6}支店|[^\s]{1,6}営業所)$/, '') : t.s); else if(t.x0 >= 470 && t.x0 < 540) slip.tan = t.s; });
+        if(!meta.custCode){ meta.custCode = slip.custCode; meta.custName = slip.cust; }
+        if(slip.site && !sites[slip.site]) sites[slip.site] = { code: slip.site, name: slip.siteName, page: pg.no, y: l.y, h: l.h };
+        slips.push(slip); cur = null; pend = null; return;
+      }
+      if(!slip) return;
+      const hasCode = T.some(t => t.x0 >= xCode - 4 && t.x0 < xName - 4);
+      const kbT = T.find(t => t.x0 >= xK - 6 && t.x0 < xK + 22 && KB_RE.test(t.s));
+      const isL1 = hasCode || (T[0].x0 < xCode - 4 && /^\d{5}$/.test(s0) && T.some(t => t.x0 >= xName - 4 && t.x0 < xStart - 2 && !x3isNum(t.s)) && !kbT);
+      const isL2 = !!kbT;
+      const nums1 = r => T.forEach(t => {
+        if(t.x0 < xStart - 2 && !(t.x1 > xStart)) return;
+        if(/^\d{4}\/\d\d\/\d\d$/.test(t.s)){ r.sfull = t.s; r.s = t.s.slice(5); return; }
+        let v = t.s; const mx = /^(-?[\d,]+)(前回|貸出|返却|今回|売上|通常|手入力)$/.exec(v);
+        if(mx){ r.apply = mx[2]; r.la = x3num(mx[1]); return; }
+        if(APPLY_RE.test(v) && t.x0 >= xApply - 8 && t.x0 < xApply + 25){ r.apply = v; return; }
+        if(/^(あり|なし)$/.test(v)){ r.adj = v; return; }
+        if(x3isNum(v)){ const k = near(t.x1, C1); if(k) r[k] = x3num(v); }
+      });
+      if(isL1){
+        const r = { page: pg.no, y: l.y, h: l.h, y1: l.y, h1: l.h, hp: slip.page, hy: slip.y, site: slip.site, siteName: slip.siteName, date: slip.date, kind: slip.kind, den: '', lno: '', shohin: '', mg: '', name: '', kb: '', lend: '', s: '', e: '', sfull: '', efull: '', qty: 0, kdays: 0, days: 0, lu: 0, la: 0, sd: 0, su: 0, sa: 0, bu: 0, ba: 0, nu: 0, na: 0, tot: 0, apply: '', adj: '', kamoku: '', W: false, slip };
+        T.forEach(t => { if(t.x1 <= xCode - 2 && /^\d+$/.test(t.s)) r.den = t.s; else if(t.x0 >= xCode - 4 && t.x0 < xName - 4) r.shohin = t.s; else if(t.x0 >= xName - 4 && t.x0 < xStart - 2 && !(x3isNum(t.s) && t.x1 > xStart) && !/^\d{4}\/\d\d\/\d\d$/.test(t.s)) r.name = (r.name ? r.name + ' ' : '') + t.s; });
+        nums1(r); rows.push(r); cur = r; pend = r.sfull || r.qty ? null : r; return;
+      }
+      if(isL2 && cur){
+        const r = cur;
+        T.forEach(t => {
+          if(t.x1 <= xCode - 2 && /^\d+$/.test(t.s)){ r.lno = t.s; return; }
+          if(t.x0 >= xName - 4 && t.x0 < xK - 6){ r.mg = t.s; return; }
+          if(t === kbT){ r.kb = t.s; return; }
+          if(/^\d{4}\/\d\d\/\d\d$/.test(t.s) && t.x0 < 300){ r.efull = t.s; r.e = t.s.slice(5); return; }
+          if(/売上$/.test(t.s)){ r.kamoku = t.s; return; }
+          if(t.x0 > 700) return;
+          if(x3isNum(t.s)){ const k = near(t.x1, C2); if(k) r[k] = x3num(t.s); }
+        });
+        /* 枠は2行ぶん（下の行の y を基準に、上の行の上まで） */
+        if(r.page === pg.no){ r.h = (r.y1 - l.y) + r.h1; r.y = l.y; }
+        r.W = r.mg === 'W' || /他社/.test(r.kamoku);
+        cur = null; pend = null; return;
+      }
+      /* 品名が長くて折り返したとき：次の行に「開始・日数・数量…」が来る */
+      if(pend && T.every(t => t.x0 >= xStart - 4)){ nums1(pend); pend = null; return; }
+      if(cur && T.every(t => t.x0 >= xName - 4 && t.x1 < xStart)){ cur.name += ' ' + T.map(t => t.s).join(' '); return; }
+    });
+  });
+  const last = slips.reduce((a, s) => s.date > a ? s.date : a, '');
+  meta.date = meta.to || last; meta.slips = slips.length;
+  return { rows, sites, meta, slips, type: 'sales' };
+}
 /* ---------- Wレンタル売上リスト（売上）を読む：この得意先の分だけ ---------- */
 function parseWList(P, custName){
   const all = custName == null;
@@ -6228,7 +6311,13 @@ function findings(C, W){
     }
   }
   /* ② 運賃だけで品の行が無い */
-  { const marks = [];
+  if(C.type === 'sales'){ const marks = [], byDen = {};
+    R.forEach(r => { (byDen[r.den] = byDen[r.den] || []).push(r); });
+    R.filter(r => r.kb === '配送' || /運賃|配送料/.test(r.name)).forEach(r => {
+      const others = (byDen[r.den] || []).filter(m => m !== r && m.kb !== '配送' && m.kb !== '燃料' && !/運賃|配送料/.test(m.name));
+      if(!others.length) marks.push({ row: r, note: '伝票' + r.den + 'に運賃だけで、品の行が無い' }); });
+    if(marks.length) add('運賃の行だけあって、品の行が無い', marks.map(m => m.row.siteName + ' ' + m.row.date.slice(5) + ' 伝票' + m.row.den + ' ' + m.row.name + ' ' + fy(m.row.tot)).join('、') + '。同じ伝票に機械・品の行が無い。運賃だけの手配なら問題なし、品の行が消えていないか（売上計上）確かめて。', marks); }
+  else { const marks = [];
     R.filter(r => r.kb === '配送' || /運賃|配送料/.test(r.name)).forEach(r => {
       const isRet = /返却|引取|回収/.test(r.name), d = r.lend; if(!d) return;
       const inner = (/[(（](.+?)[)）]?$/.exec(r.name) || [])[1] || '', k = x3base(inner.replace(/他$/, ''));
@@ -6236,6 +6325,20 @@ function findings(C, W){
       if(!hit) marks.push({ row: r, note: '運賃だけで、' + d + 'に' + (isRet ? '返却' : '納入') + 'した品の行が無い' });
     });
     if(marks.length) add('運賃の行だけあって、品の行が無い', marks.map(m => m.row.siteName + ' ' + m.row.name + '（' + m.row.lend + '）').join('、') + '。賃料の行が消えていないか（システムの売上計上）確かめて。お客さんに「運賃だけで機械代が無い」と聞かれる形。', marks); }
+  /* 売上チェックリストだけ：計算・0円・続いている品の基本料 */
+  if(C.type === 'sales'){
+    { const marks = [];
+      R.forEach(r => { let exp = null;
+        if(r.kb === '日極') exp = r.lu * r.qty * r.days; else if(r.kb === '月極') exp = r.lu * r.qty * r.days / 30; else if(/^(販売|配送|燃料|修理|整備|一式|その他)$/.test(r.kb)) exp = r.lu * r.qty;
+        if(exp != null && Math.abs(exp - r.la) > Math.max(2, exp * 0.002)) marks.push({ row: r, note: '金額 ' + fy(r.la) + '：単価x数量' + (/極/.test(r.kb) ? 'x日数' + (r.kb === '月極' ? '/30' : '') : '') + '＝' + fy(exp) });
+        const sum = r.la + r.sa + r.ba + r.na; if(Math.abs(sum - r.tot) > 1) marks.push({ row: r, note: '売上金額 ' + fy(r.tot) + '≠ 金額＋補償＋基本料＝' + fy(sum) }); });
+      if(marks.length) add('金額の計算が合わない', marks.map(m => m.row.siteName + ' 伝票' + m.row.den + ' ' + nm(m.row) + '：' + m.note).join('、') + '。単価・日数・数量の手直しのあと、金額だけ残っていないか。', marks); }
+    { const marks = R.filter(r => X3_RENT.includes(r.kb) && !r.lu && !r.la).map(r => ({ row: r, note: r.kb + 'の単価が0円' }));
+      if(marks.length) add('レンタルの単価が0円', marks.map(m => m.row.siteName + ' 伝票' + m.row.den + ' ' + nm(m.row)).join('、') + '。付属品・サービスなら問題なし。取り忘れでないか。', marks); }
+    { const lent = new Set((C.slips || []).filter(x => x.kind === '貸出').map(x => R.filter(r => r.slip === x).map(r => r.den)).flat());
+      const marks = R.filter(r => X3_RENT.includes(r.kb) && r.ba > 0 && r.kind === '返却' && r.lno && !lent.has(r.lno) && /\/01$/.test(r.sfull || '')).map(r => ({ row: r, note: '前月から続いている品に基本料 ' + fy(r.ba) + '（絶対ダメ）' }));
+      if(marks.length) add('続いている品に基本料が入っている（絶対ダメ）', marks.map(m => m.row.siteName + ' 伝票' + m.row.den + ' ' + nm(m.row) + '：開始 ' + m.row.s + '・貸出番号 ' + m.row.lno + '（今月の貸出に無い）、基本料 ' + fy(m.row.ba)).join('、') + '。基本料は貸し始めの月だけ。', marks); }
+  }
   /* ③ 同じ品なのに単価がちがう */
   { const g = {}; R.filter(r => X3_RENT.includes(r.kb) && r.qty).forEach(r => { const k = r.kb + '|' + x3base(r.name); (g[k] = g[k] || []).push(r); });
     const marks = [], lines = [];
@@ -6255,7 +6358,7 @@ function findings(C, W){
   { const marks = [];
     R.forEach(r => { if(!X3_RENT.includes(r.kb)) return;
       if(r.kdays && r.days && r.kdays !== r.days && !(r.kb === '月極' && r.days === 30 && r.kdays === 31)) marks.push({ row: r, note: '貸出 ' + r.kdays + '日・請求 ' + r.days + '日' });
-      if(r.sa && r.sd && r.days && r.sd !== r.days) marks.push({ row: r, note: '請求 ' + r.days + '日なのに補償日数 ' + r.sd + '日（' + fy(r.sa) + '）' }); });
+      if(r.sa && r.sd && r.days && r.sd !== r.days && !(r.kb === '月極' && r.days === 30 && r.sd === 31)) marks.push({ row: r, note: '請求 ' + r.days + '日なのに補償日数 ' + r.sd + '日（' + fy(r.sa) + '）' }); });
     if(marks.length) add('日数が合わない', marks.map(m => m.row.siteName + ' ' + nm(m.row) + '：' + m.note).join('、') + '。補償は出庫日から数えているなら仕入先の計算どおりかもしれないが要確認。', marks); }
   /* ⑥ 商品番号が空欄 */
   { const marks = R.filter(r => X3_RENT.includes(r.kb) && !r.mg).map(r => ({ row: r, note: '商品番号・管理番号が空欄' }));
@@ -6306,6 +6409,9 @@ async function annotate(f, C, F){
   doc.registerFontkit(window.fontkit);
   const fb = Uint8Array.from(atob(window.WQ_PDFFONT), c => c.charCodeAt(0));
   const font = await doc.embedFont(fb, { subset: false });
+  /* フォントに無い字（半角カナの一部・×÷など）は、全角にするか近い字にする（□や別の字に化けないように） */
+  const CS = new Set(font.getCharacterSet()); const ALT = { '×': 'x', '÷': '/', '≠': '<>', '〜': '～', '－': '-' };
+  const safe = t => Array.from(String(t)).map(ch => { if(CS.has(ch.codePointAt(0))) return ch; const n = ch.normalize('NFKC'); if(Array.from(n).every(c => CS.has(c.codePointAt(0)))) return n; const a = ALT[ch]; return a && Array.from(a).every(c => CS.has(c.codePointAt(0))) ? a : '?'; }).join('');
   const RED = rgb(0.85, 0.1, 0.1), WHITE = rgb(1, 1, 1), BLACK = rgb(0, 0, 0), GRAY = rgb(0.3, 0.3, 0.3);
   const pages = doc.getPages();
   const circled = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
@@ -6321,21 +6427,32 @@ async function annotate(f, C, F){
       const cx = n === 0 ? P.w - 18 : P.w - 6.5, cy = (top + bottom) / 2, rad = n === 0 ? 5.6 : 4.8, fsz = n === 0 ? 7 : 6;
       page.drawCircle({ x: cx, y: cy, size: rad, borderColor: RED, borderWidth: 0.8, color: WHITE });
       const lab = String(fi.no); page.drawText(lab, { x: cx - font.widthOfTextAtSize(lab, fsz) / 2, y: cy - fsz * 0.36, size: fsz, font, color: RED });
-      if(m.note && n === 0){ const g = freeGap(P, y); const w = g[1] - g[0] - 4; let fs = 6.4; const txt = circled[fi.no - 1] + m.note; while(fs > 4.6 && font.widthOfTextAtSize(txt, fs) > w) fs -= 0.3; page.drawText(txt, { x: g[0] + 2, y: y, size: fs, font, color: RED }); }
+      if(m.note && n === 0 && C.type === 'sales' && m.row){
+        const hk = m.row.hp + '|' + Math.round(m.row.hy), HP = C.pages.find(p => p.no === m.row.hp), hpage = pages[m.row.hp - 1];
+        const hl = HP && (HP.lines || []).find(l => Math.abs(l.y - m.row.hy) <= 2.5); const x0 = hl ? Math.max(530, ...hl.toks.map(t => t.x1 + 8)) : 530;
+        const slot = used.get('h' + hk) || 0; used.set('h' + hk, slot + 1);
+        if(HP && hpage && slot < 2){ const w = HP.w - 24 - x0; let fs = 6.4; const txt = safe(circled[fi.no - 1] + (m.row.den ? m.row.den + ' ' : '') + m.note); while(fs > 4.6 && font.widthOfTextAtSize(txt, fs) > w) fs -= 0.3;
+          const yy = m.row.hy + (slot === 0 ? 2.2 : -5.6); hpage.drawText(txt, { x: x0, y: yy, size: fs, font, color: RED, maxWidth: w }); }
+        return;
+      }
+      if(m.note && n === 0){ const g = freeGap(P, y); const w = g[1] - g[0] - 4; let fs = 6.4; const txt = safe(circled[fi.no - 1] + m.note); while(fs > 4.6 && font.widthOfTextAtSize(txt, fs) > w) fs -= 0.3; page.drawText(txt, { x: g[0] + 2, y: y, size: fs, font, color: RED }); }
     });
   });
   const W0 = pages[0].getWidth(), H0 = pages[0].getHeight();
   const custFull = String(C.meta.custName || '').replace(/㈱/g, '株式会社').replace(/㈲/g, '有限会社').replace(/\(株\)/g, '株式会社').replace(/\s+/g, '');
   let p = doc.addPage([W0, H0]); let y = H0 - 40;
-  const wrap = (t, fs, w) => { const out = []; let cur = ''; for(const ch of t){ if(font.widthOfTextAtSize(cur + ch, fs) > w){ out.push(cur); cur = ch; } else cur += ch; } if(cur) out.push(cur); return out; };
+  const wrap = (t, fs, w) => { t = safe(t); const out = []; let cur = ''; for(const ch of t){ if(font.widthOfTextAtSize(cur + ch, fs) > w){ out.push(cur); cur = ch; } else cur += ch; } if(cur) out.push(cur); return out; };
   const line = (t, fs, col, indent) => { wrap(t, fs, W0 - 80 - (indent || 0)).forEach(s => { if(y < 36){ p = doc.addPage([W0, H0]); y = H0 - 40; } p.drawText(s, { x: 40 + (indent || 0), y, size: fs, font, color: col || BLACK }); y -= fs * 1.55; }); };
   const now = new Date(); const stamp = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  line('請求書チェックリスト ' + custFull + ' ' + (C.meta.date || '') + '締め ― チェック結果（' + stamp + ' 請求ナビ）', 12, RED); y -= 6;
+  if(C.type === 'sales') line('売上チェックリスト ' + custFull + ' ' + (C.meta.from ? C.meta.from + '〜' + C.meta.to : C.meta.date) + ' ― チェック結果（' + stamp + ' 請求ナビ）', 12, RED);
+  else line('請求書チェックリスト ' + custFull + ' ' + (C.meta.date || '') + '締め ― チェック結果（' + stamp + ' 請求ナビ）', 12, RED);
+  y -= 6;
   line('チェックリスト（作成 ' + (C.meta.made || '') + '）' + (F.wInfo ? '・' + F.wInfo : '') + (window.S && S.lines && S.lines.length ? '・今月のCSV（' + S.lines.length + ' 行）' : '') + ' を突き合わせた。番号は各ページの赤丸と同じ。', 9, null); y -= 4;
   if(!F.length) line('気になるところは見つからなかった。', 10, null);
   F.forEach(fi => { line(circled[fi.no - 1] + ' ' + fi.title, 10, RED); line(fi.text, 9, null, 14); y -= 3; });
   y -= 6;
-  line('見たこと：貸出日数＝請求日数、補償日数＝請求日数、同じ品の単価・保証表記（現場またぎ）、商品番号の空欄、運賃だけで品の行が無い、工具の日極20日超・月極の短期返却、ETC888の販売、続いている品の基本料、今月のCSVとの行の差' + (F.wInfo ? '、W仕入の数量・赤字・粗利30%未満' : '') + '。', 8.5, GRAY);
+  if(C.type === 'sales') line('見たこと：金額＝単価x数量x日数（月極は/30）、売上金額＝金額＋補償＋基本料、補償日数＝日数、同じ品の単価・保証表記（現場またぎ）、レンタルの0円、運賃だけの伝票、工具の日極20日超・月極の短期返却、ETC888の販売、前月から続いている品の基本料' + (F.wInfo ? '、W仕入の数量・赤字・粗利30%未満' : '') + '。伝票 ' + (C.meta.slips || 0) + '・行 ' + C.rows.length + '・売上金額の計 ' + fy(C.rows.reduce((a, r) => a + r.tot, 0)) + '（リストの営業店計と同じなら全部読めている）。', 8.5, GRAY);
+  else line('見たこと：貸出日数＝請求日数、補償日数＝請求日数、同じ品の単価・保証表記（現場またぎ）、商品番号の空欄、運賃だけで品の行が無い、工具の日極20日超・月極の短期返却、ETC888の販売、続いている品の基本料、今月のCSVとの行の差' + (F.wInfo ? '、W仕入の数量・赤字・粗利30%未満' : '') + '。', 8.5, GRAY);
   return await doc.save();
 }
 /* ---------- Wレンタル売上リストは全得意先ぶん。1回読んだらこの端末にしまっておき、どの得意先の赤入れでも使う（2026-10-30） ---------- */
@@ -6383,8 +6500,8 @@ Object.defineProperty(state, 'chk', { get(){ return state.chks[0] || null; }, se
 /* 1枚ずつ赤入れ（何枚でも続けて） */
 async function runOne(file, msg){
   msg('チェックリストを読んでいます…（' + file.name + '）');
-  const P = await step('PDFを読むところ', () => readLines(file)); const C = await step('チェックリストの行を拾うところ', () => parseChecklist(P)); C.pages = P.pages;
-  if(!C.rows.length) throw new Error(file.name + ' は「請求書チェックリスト」のPDFではなさそう（明細の行が読めない）');
+  const P = await step('PDFを読むところ', () => readLines(file)); const C = await step('チェックリストの行を拾うところ', () => isSalesChk(P) ? parseSales(P) : parseChecklist(P)); C.pages = P.pages;
+  if(!C.rows.length) throw new Error(file.name + ' は「請求書チェックリスト」「売上チェックリスト」のPDFではなさそう（明細の行が読めない）');
   let W = null, wNote = '';
   if(wStore && wStore.rows){ const ym = String(C.meta.date || '').slice(0, 7); W = wFor(C.meta.custName, ym);
     if(!W.length){ const any = (wFor(C.meta.custName) || []).length; wNote = any ? '入れてあるWレンタル売上リストは別の月のもの（' + ym + 'の行がない）' : 'Wレンタル売上リストにこの得意先の行がない'; } }
@@ -6394,7 +6511,7 @@ async function runOne(file, msg){
   const bytes = await step('赤入れしたPDFを作るところ', () => annotate(file, C, F));
   const ym = (C.meta.date || '').replace(/\//g, '-').slice(0, 7);
   const custFull = String(C.meta.custName || '').replace(/㈱/g, '株式会社').replace(/㈲/g, '有限会社').replace(/\s+/g, '');
-  const name = '請求書チェックリスト_' + custFull + '_' + ym + '_チェック済.pdf';
+  const name = (C.type === 'sales' ? '売上チェックリスト_' : '請求書チェックリスト_') + custFull + '_' + ym + '_チェック済.pdf';
   const blob = new Blob([bytes], { type: 'application/pdf' }); const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 8000);
   state.last = { C, F, bytes };
@@ -6404,6 +6521,7 @@ async function run(btn){
   const rowEl = btn && btn.closest ? btn.closest('[data-x3row]') : null;
   const q = k => (rowEl || document).querySelector('[data-x3="' + k + '"]');
   const msg = t => { const e = q('msg'); if(e) e.textContent = t; };
+  if(adding){ msg('入れたPDFを読み終わるのを待っています…'); await adding; }
   const L = state.chks.slice();
   if(!L.length){ say('まだ「請求書チェックリスト」のPDFが入っていない。「チェックリスト（PDF）」から選ぶか、下の枠にドラッグして' + (wStore ? '（Wレンタル売上リストだけでは作れない）' : ''), true); nudgeChk(); toast('請求書チェックリストのPDFを入れて（ドラッグでもOK・何枚でも）'); return; }
   say('');
@@ -6428,13 +6546,15 @@ async function run(btn){
 async function kindOf(f){
   try{ const L = await pdfjs(); const doc = await L.getDocument({ data: new Uint8Array(await f.arrayBuffer()), cMapUrl: CDN_CMAPS, cMapPacked: true }).promise;
     const pg = await doc.getPage(1); const tc = await pg.getTextContent(); const t = tc.items.map(x => x.str).join('');
-    if(/Wレンタル売上リスト/.test(t)) return 'w'; if(/請求書チェックリスト|請求先：/.test(t)) return 'chk'; return ''; }catch(e){ return ''; }
+    if(/Wレンタル売上リスト/.test(t)) return 'w'; if(/請求書チェックリスト|請求先：|売上チェックリスト/.test(t)) return 'chk'; return ''; }catch(e){ return ''; }
 }
 /* 欄の下に出す一言（トーストは画面の下で見落としやすいので、ボタンの横にも出す） */
 function say(t, bad){ document.querySelectorAll('[data-x3="msg"]').forEach(e => { e.textContent = t; e.style.color = bad ? 'var(--ng,#E5484D)' : ''; e.style.fontWeight = bad ? '700' : ''; }); }
 function nudgeChk(){ document.querySelectorAll('[data-x3="chk"]').forEach(i => { const l = i.closest('label'); if(!l) return; l.classList.remove('x3nudge'); void l.offsetWidth; l.classList.add('x3nudge'); setTimeout(() => l.classList.remove('x3nudge'), 2400); }); }
 let pendUnk = [];
-async function addFiles(files, hint){
+let adding = null;
+function addFiles(files, hint){ const pr = (adding || Promise.resolve()).then(() => addFiles0(files, hint)).catch(e => { console.error(e); say('PDFを入れられなかった：' + (e && e.message || e), true); }); adding = pr; pr.then(() => { if(adding === pr) adding = null; }); return pr; }
+async function addFiles0(files, hint){
   const pdfs = Array.prototype.filter.call(files || [], f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
   if(!pdfs.length){ say('PDFではないファイルだった。PDFを入れて', true); toast('PDFを入れて'); return; }
   say('PDFを見分けています…（' + pdfs.length + '件）');
@@ -6519,7 +6639,7 @@ drawSites = function(){ _drawSitesG(); addSplitBtn(); };
 try{ new MutationObserver(() => { if(document.querySelector('#shead .sh') && !document.querySelector('[data-x3split]')) addSplitBtn(); }).observe(document.body, { childList: true, subtree: true }); }catch(e){}
 document.addEventListener('DOMContentLoaded', () => setTimeout(install, 300));
 setTimeout(install, 1200);
-window.x3 = { readLines, parseChecklist, parseWList, findings, annotate, run, state };
+window.x3 = { readLines, parseChecklist, parseSales, isSalesChk, parseWList, findings, annotate, run, state };
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -7027,7 +7147,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 11:14';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 12:16';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
