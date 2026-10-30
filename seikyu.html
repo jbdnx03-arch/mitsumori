@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 14:01-->
+<!--BUILD:2026-10-30 14:17-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 14:01';
+const BUILD = '2026-10-30 14:17';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -5490,19 +5490,24 @@ drawChecks = function(){
   const _ss = showSaveSt;
   showSaveSt = function(t, bad){ _ss(t, bad); const e = $('#saveSt'); if(!e) return; e.classList.remove('tick'); void e.offsetWidth; e.classList.add('tick'); };
   /* 数字のタイル：値が変わったら数字が転がる */
+  /* 数字の文字を1つの文字ノードにまとめる（見た目の部品がカンマを別の部品に分けていても、数字が二重にならないように） */
+  const flatNum = el => { const ns = []; for(const n of Array.from(el.childNodes)){ if(n.nodeType === 3 || (n.nodeType === 1 && n.classList && (n.classList.contains('lx-comma') || n.classList.contains('lx-yen')))) ns.push(n); else break; }
+    if(!ns.length) return null; if(ns.length === 1 && ns[0].nodeType === 3) return ns[0];
+    const t = document.createTextNode(ns.map(n => n.textContent).join('')); el.insertBefore(t, ns[0]); ns.forEach(n => n.remove()); return t; };
   const roll = (el, from, to, suffixHtml) => {
     if(reduce() || from === to || isNaN(from) || isNaN(to)){ return; }
-    const t0 = performance.now(), dur = 420, neg = to < 0;
+    const t0 = performance.now(), dur = 420; el.dataset.lxroll = '1';
+    const put = v => { const t = flatNum(el); if(t) t.nodeValue = (v > 0 && el.dataset.plus ? '+' : '') + yen(v); };
     const step = now => { const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3); const v = Math.round(from + (to - from) * e);
-      el.firstChild.nodeValue = (v > 0 && el.dataset.plus ? '+' : '') + yen(v); if(p < 1) requestAnimationFrame(step); else el.firstChild.nodeValue = (to > 0 && el.dataset.plus ? '+' : '') + yen(to); };
+      put(v); if(p < 1) requestAnimationFrame(step); else { put(to); delete el.dataset.lxroll; } };
     requestAnimationFrame(step);
   };
   const numOf = s => { const m = /[-+]?[\d,]+/.exec(String(s || '')); return m ? +m[0].replace(/[,+]/g, '') : NaN; };
   const _dk = drawKpis;
   drawKpis = function(){
-    const old = $$('#kpis .kpi .v').map(v => numOf(v.firstChild && v.firstChild.nodeValue));
+    const old = $$('#kpis .kpi .v').map(v => { const t = flatNum(v); return numOf(t && t.nodeValue); });
     _dk();
-    $$('#kpis .kpi .v').forEach((v, i) => { if(i === 3 || !v.firstChild || v.firstChild.nodeType !== 3) return; const to = numOf(v.firstChild.nodeValue); if(/^\+/.test(v.firstChild.nodeValue)) v.dataset.plus = '1'; if(!isNaN(old[i])) roll(v, old[i], to); });
+    $$('#kpis .kpi .v').forEach((v, i) => { const t = flatNum(v); if(i === 3 || !t) return; const to = numOf(t.nodeValue); if(/^\+/.test(t.nodeValue)) v.dataset.plus = '1'; if(!isNaN(old[i])) roll(v, old[i], to); });
   };
   /* 現場の一覧：切りかえたとき、選んだ印と並びがなめらかに動く（対応ブラウザだけ） */
   let lastCur = null;
@@ -7168,7 +7173,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 14:01';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 14:17';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -8218,7 +8223,9 @@ function scan(r){
   }catch(e){}
 }
 function fmtNum(el){
-  if(!el || inPaper(el) || el.__lxn === el.textContent) return;
+  if(!el || inPaper(el) || el.__lxn === el.textContent || (el.dataset && el.dataset.lxroll)) return;
+  /* 数字が動いている（転がっている）最中は分けない。止まってから0.6秒後に分ける */
+  var tx = el.textContent; if(el.__lxw2 !== tx){ el.__lxw2 = tx; clearTimeout(el.__lxwt); el.__lxwt = setTimeout(function(){ if(el.textContent === tx) fmtNum(el); }, 600); return; }
   try{
     if(el.children.length && !el.querySelector('.lx-comma, .lx-yen, small')) { /* 中に部品があるときは文字だけ */ }
     var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n, list = [];
