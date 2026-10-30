@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 10:22-->
+<!--BUILD:2026-10-30 10:54-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2541,7 +2541,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 10:22';
+const BUILD = '2026-10-30 10:54';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6054,11 +6054,46 @@ const x3base = s => x3nm(s).replace(/\*[A-Za-z歴月]+$/, '').replace(/\([^)]*\)
 const x3hosho = s => { const m = /【([^】]*保証[^】]*)】/.exec(String(s || '')); return m ? m[1] : ''; };
 const fy = v => '¥' + Math.round(v).toLocaleString('ja-JP');
 const TOOL_RE = /ﾄﾞﾘﾙ|ドリル|ｸﾞﾗｲﾝﾀﾞ|グラインダ|ｻﾝﾀﾞｰ|サンダー|ﾊﾝﾏ|ハンマ|ｶｯﾀｰ|カッター|ﾌﾞﾚｰｶｰ|ブレーカー|溶接機|切断機|丸ﾉｺ|丸ノコ|ｲﾝﾊﾟｸﾄ|インパクト|ﾁｯﾊﾟｰ|チッパー|電動|充電式/;
-const CDN_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', CDN_PDFJSW = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-const CDN_CMAPS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/';
-const CDN_PDFLIB = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', CDN_FONTKIT = 'https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js';
-
-async function pdfjs(){ if(!window.pdfjsLib){ await loadJs(CDN_PDFJS); window.pdfjsLib.GlobalWorkerOptions.workerSrc = CDN_PDFJSW; } return window.pdfjsLib; }
+/* 部品は1か所が読めなくても、ほかのCDNから読む（会社のネット・広告ブロック・CDNの一時的な不調に強く） */
+const V_PDFJS = '3.11.174';
+const SRC_PDFJS = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V_PDFJS + '/pdf.min.js', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + V_PDFJS + '/build/pdf.min.js', 'https://unpkg.com/pdfjs-dist@' + V_PDFJS + '/build/pdf.min.js'];
+const SRC_PDFJSW = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V_PDFJS + '/pdf.worker.min.js', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + V_PDFJS + '/build/pdf.worker.min.js', 'https://unpkg.com/pdfjs-dist@' + V_PDFJS + '/build/pdf.worker.min.js'];
+const SRC_CMAPS = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V_PDFJS + '/cmaps/', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@' + V_PDFJS + '/cmaps/', 'https://unpkg.com/pdfjs-dist@' + V_PDFJS + '/cmaps/'];
+const SRC_PDFLIB = ['https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'];
+const SRC_FONTKIT = ['https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js', 'https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js'];
+let CDN_CMAPS = SRC_CMAPS[0];
+function loadOne(src, ms){ return new Promise((ok, ng) => {
+  const e = document.createElement('script'); let t = 0;
+  const bad = why => { clearTimeout(t); e.remove(); ng(new Error(why)); };
+  e.src = src; e.async = true; e.onload = () => { clearTimeout(t); ok(src); }; e.onerror = () => bad('読めない'); t = setTimeout(() => bad('時間切れ'), ms || 25000);
+  document.head.appendChild(e); }); }
+async function loadAny(list, label, ready){
+  if(ready()) return; const why = [];
+  for(const u of list){ try{ await loadOne(u); if(ready()) return u; why.push(new URL(u, location.href).host + '：読めたが中身がない'); }catch(e){ why.push(new URL(u, location.href).host + '：' + e.message); } }
+  throw new Error('「' + label + '」を読み込めなかった（' + why.join('／') + '）。ネットにつながっているか、会社のネットで止められていないか確かめて');
+}
+let pdfjsReady = null;
+async function pdfjs(){
+  if(!pdfjsReady) pdfjsReady = (async () => {
+    const u = await loadAny(SRC_PDFJS, 'PDFを読む部品（pdf.js）', () => !!window.pdfjsLib);
+    const i = Math.max(0, SRC_PDFJS.indexOf(u));
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = SRC_PDFJSW[i];
+    /* 日本語の文字表（cmaps）は pdf.js と同じところから。だめならほかのCDN */
+    for(const b of [SRC_CMAPS[i]].concat(SRC_CMAPS.filter((x, j) => j !== i))){
+      try{ const r = await fetch(b + '90ms-RKSJ-H.bcmap', { cache: 'force-cache' }); if(r.ok){ CDN_CMAPS = b; break; } }catch(e){}
+    }
+    return window.pdfjsLib;
+  })().catch(e => { pdfjsReady = null; throw e; });
+  return pdfjsReady;
+}
+async function pdfLibs(){
+  await loadAny(SRC_PDFLIB, 'PDFに書き込む部品（pdf-lib）', () => !!window.PDFLib);
+  await loadAny(SRC_FONTKIT, '字の部品（fontkit）', () => !!window.fontkit);
+  const here = new URL('./pdffont.js', location.href).href;
+  await loadAny([here, here + '?r=' + Date.now()], '赤入れの日本語の字（pdffont.js：請求ナビと同じフォルダに置くファイル）', () => !!window.WQ_PDFFONT);
+}
+/* どこで止まったかを付けて返す */
+async function step(label, fn){ try{ return await fn(); }catch(e){ const m = (e && e.message) || String(e); const er = new Error(label + 'で止まった：' + m); er.cause = e; throw er; } }
 /* PDF → ページごとの「行」（y でまとめ、x の間がほぼ無い文字はつなぐ）。各行は { y, h, toks:[{s,x0,x1}] } */
 async function readLines(f){
   const L = await pdfjs();
@@ -6265,11 +6300,9 @@ function findings(C, W){
 }
 /* ---------- 赤入れしたPDFを作る ---------- */
 async function annotate(f, C, F){
-  if(!window.PDFLib) await loadJs(CDN_PDFLIB);
-  if(!window.fontkit) await loadJs(CDN_FONTKIT);
-  if(!window.WQ_PDFFONT) await loadJs('./pdffont.js');
+  await pdfLibs();
   const { PDFDocument, rgb } = window.PDFLib;
-  const doc = await PDFDocument.load(await f.arrayBuffer());
+  const doc = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
   doc.registerFontkit(window.fontkit);
   const fb = Uint8Array.from(atob(window.WQ_PDFFONT), c => c.charCodeAt(0));
   const font = await doc.embedFont(fb, { subset: false });
@@ -6313,15 +6346,28 @@ const WDB = { db: null,
   async del(){ const d = await this.open(); return new Promise(ok => { const t = d.transaction('w', 'readwrite'); t.objectStore('w').delete('cur'); t.oncomplete = () => ok(true); t.onerror = () => ok(false); }); } };
 let wStore = null;   /* { name, at, rows, n, nCust, from, to } */
 window.__x3w = () => wStore;
+(function(){ const st = document.createElement('style'); st.textContent = '[data-x3row]{transition:background-color .2s ease, box-shadow .2s ease;border-radius:10px}[data-x3row].x3over{background:color-mix(in srgb,var(--brand,#14646E) 10%,transparent);box-shadow:0 0 0 2px var(--brand,#14646E) inset}.x3drop{margin-top:8px;padding:10px 12px;border:1.5px dashed var(--line,#DCE4E5);border-radius:10px;font-size:12px;color:var(--ink3,#7A8B8E);text-align:center}[data-x3row].x3over .x3drop{border-color:var(--brand,#14646E);color:var(--brand,#14646E)}'; document.head.appendChild(st); })();
 WDB.get().then(v => { wStore = v; paintNames(); }).catch(() => {});
-async function loadW(f){
+async function loadW(files){
+  files = Array.isArray(files) ? files : [files];
   const tellAll = t => document.querySelectorAll('[data-x3="wN"]').forEach(e => { e.textContent = t; });
   try{
-    tellAll('読んでいます…（200ページあると1分ほど）');
-    const PW = await readLines(f); const rows = parseWList(PW, null);
+    let rows = [];
+    for(let i = 0; i < files.length; i++){
+      tellAll('読んでいます…' + (files.length > 1 ? (i + 1) + '/' + files.length + '　' : '') + '（200ページあると1分ほど）');
+      const PW = await readLines(files[i]); rows = rows.concat(parseWList(PW, null));
+    }
     if(!rows.length) throw new Error('Wレンタル売上リストの行が読めない');
+    const ms = new Set(rows.map(r => String(r.date || '').slice(0, 7)).filter(Boolean));
+    /* 入れてあるものと同じ月なら足す（分けて出したPDFを何回かに分けて入れても1つになる）。ちがう月なら入れかえ */
+    let names = files.map(f => f.name);
+    if(wStore && wStore.rows && wStore.rows.some(r => ms.has(String(r.date || '').slice(0, 7)))){
+      const key = r => [r.ck, r.den, r.name, r.kb, r.qty, r.stot, r.btot].join('|');
+      const have = new Set(wStore.rows.map(key)); rows = wStore.rows.concat(rows.filter(r => !have.has(key(r))));
+      names = String(wStore.name || '').split('、').concat(names).filter((x, i, a) => x && a.indexOf(x) === i);
+    }
     const ds = rows.map(r => r.date).filter(Boolean).sort();
-    const v = { name: f.name, at: new Date().toISOString(), rows, n: rows.length, nCust: new Set(rows.map(r => r.ck)).size, from: ds[0] || '', to: ds[ds.length - 1] || '' };
+    const v = { name: names.join('、'), at: new Date().toISOString(), rows, n: rows.length, from: ds[0] || '', to: ds[ds.length - 1] || '' };
     await WDB.put(v); wStore = v; paintNames();
     toast('Wレンタル売上リストを入れた（' + v.n + '行）。どの得意先の赤入れでも使います', 4500);
   }catch(e){ console.error(e); tellAll('読めなかった：' + (e && e.message || e)); toast('Wレンタル売上リストを読めなかった'); }
@@ -6332,43 +6378,79 @@ function wFor(custName, ym){ if(!wStore || !wStore.rows) return null; const c = 
   if(ym){ const M = L.filter(r => !r.date || r.date.slice(0, 7) === ym); if(M.length || L.length) return M; }
   return L; }
 /* ---------- 画面 ---------- */
-const state = { chk: null, w: null };
+const state = { chks: [], w: null };
+Object.defineProperty(state, 'chk', { get(){ return state.chks[0] || null; }, set(v){ state.chks = v ? [v] : []; } });
+/* 1枚ずつ赤入れ（何枚でも続けて） */
+async function runOne(file, msg){
+  msg('チェックリストを読んでいます…（' + file.name + '）');
+  const P = await step('PDFを読むところ', () => readLines(file)); const C = await step('チェックリストの行を拾うところ', () => parseChecklist(P)); C.pages = P.pages;
+  if(!C.rows.length) throw new Error(file.name + ' は「請求書チェックリスト」のPDFではなさそう（明細の行が読めない）');
+  let W = null, wNote = '';
+  if(wStore && wStore.rows){ const ym = String(C.meta.date || '').slice(0, 7); W = wFor(C.meta.custName, ym);
+    if(!W.length){ const any = (wFor(C.meta.custName) || []).length; wNote = any ? '入れてあるWレンタル売上リストは別の月のもの（' + ym + 'の行がない）' : 'Wレンタル売上リストにこの得意先の行がない'; } }
+  msg('見ています…（' + C.meta.custName + '）');
+  const F = await step('中身を見るところ', () => findings(C, W));
+  msg('赤入れしたPDFを作っています…（' + C.meta.custName + '）');
+  const bytes = await step('赤入れしたPDFを作るところ', () => annotate(file, C, F));
+  const ym = (C.meta.date || '').replace(/\//g, '-').slice(0, 7);
+  const custFull = String(C.meta.custName || '').replace(/㈱/g, '株式会社').replace(/㈲/g, '有限会社').replace(/\s+/g, '');
+  const name = '請求書チェックリスト_' + custFull + '_' + ym + '_チェック済.pdf';
+  const blob = new Blob([bytes], { type: 'application/pdf' }); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 8000);
+  state.last = { C, F, bytes };
+  return { name, C, F, wNote };
+}
 async function run(btn){
   const rowEl = btn && btn.closest ? btn.closest('[data-x3row]') : null;
   const q = k => (rowEl || document).querySelector('[data-x3="' + k + '"]');
   const msg = t => { const e = q('msg'); if(e) e.textContent = t; };
-  if(!state.chk){ toast('請求書チェックリストのPDFを入れて'); return; }
-  try{
-    msg('チェックリストを読んでいます…');
-    const P = await readLines(state.chk); const C = parseChecklist(P); C.pages = P.pages;
-    if(!C.rows.length) throw new Error('これは「請求書チェックリスト」のPDFではなさそう（明細の行が読めない）');
-    let W = null;
-    if(wStore && wStore.rows){ const ym = String(C.meta.date || '').slice(0, 7); W = wFor(C.meta.custName, ym);
-      if(!W.length){ const any = (wFor(C.meta.custName) || []).length; toast(any ? '入れてあるWレンタル売上リストは別の月のもの（' + ym + 'の行がない）。その月のリストを入れ直して' : '入れてあるWレンタル売上リストに、この得意先（' + C.meta.custName + '）の行が見つからなかった', 5000); } }
-    msg('見ています…');
-    const F = findings(C, W);
-    msg('赤入れしたPDFを作っています…');
-    const bytes = await annotate(state.chk, C, F);
-    const ym = (C.meta.date || '').replace(/\//g, '-').slice(0, 7);
-    const custFull = String(C.meta.custName || '').replace(/㈱/g, '株式会社').replace(/㈲/g, '有限会社').replace(/\s+/g, '');
-    const name = '請求書チェックリスト_' + custFull + '_' + ym + '_チェック済.pdf';
-    const blob = new Blob([bytes], { type: 'application/pdf' }); const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
-    const box = q('out'); if(box){ box.innerHTML = '<div style="margin-top:8px"><b>' + esc(name) + '</b>（ダウンロードした）　読んだ行 ' + C.rows.length + (F.wInfo ? '　' + esc(F.wInfo) : '') + '</div><ol style="margin:6px 0 0 18px;padding:0;font-size:12.5px;line-height:1.6">' + (F.length ? F.map(fi => '<li><b>' + esc(fi.title) + '</b>　<span class="muted">' + esc(fi.text) + '</span></li>').join('') : '<li>気になるところは見つからなかった</li>') + '</ol>'; }
-    msg('できた：' + F.length + ' 件を書き込んだ');
-    toast('チェックリストに赤入れした（' + F.length + ' 件）');
-    state.last = { C, F, bytes };
-  }catch(e){ console.error(e); msg('できなかった：' + (e && e.message || e)); toast('赤入れできなかった'); }
+  const L = state.chks.slice();
+  if(!L.length){ toast('請求書チェックリストのPDFを入れて（ドラッグでもOK・何枚でも）'); return; }
+  if(btn) btn.disabled = true;
+  const box = q('out'); const done = [];
+  for(let i = 0; i < L.length; i++){
+    const f = L[i];
+    try{
+      const r = await runOne(f, t => msg((L.length > 1 ? (i + 1) + '/' + L.length + '　' : '') + t));
+      done.push('<li><b>' + esc(r.name) + '</b>（ダウンロードした）　' + r.F.length + ' 件・読んだ行 ' + r.C.rows.length + (r.F.wInfo ? '　' + esc(r.F.wInfo) : '') + (r.wNote ? '　<span style="color:var(--ng)">' + esc(r.wNote) + '</span>' : '')
+        + '<ol style="margin:4px 0 6px 18px;padding:0;font-size:12px;line-height:1.55">' + r.F.map(x => '<li>' + esc(x.title) + '</li>').join('') + '</ol></li>');
+    }catch(e){ console.error(e); done.push('<li style="color:var(--ng)">' + esc(f.name) + '：できなかった（' + esc(e && e.message || e) + '）</li>'); }
+    if(box) box.innerHTML = '<ol style="margin:8px 0 0 18px;padding:0;font-size:12.5px;line-height:1.6">' + done.join('') + '</ol>';
+    if(L.length > 1 && i < L.length - 1) await new Promise(r => setTimeout(r, 700));   /* ダウンロードが続けて止められないように少し待つ */
+  }
+  const ok = done.filter(x => !/できなかった/.test(x)).length;
+  msg(ok === L.length ? 'できた：' + ok + ' / ' + L.length + ' 枚' : ok ? 'できた：' + ok + ' / ' + L.length + ' 枚（できなかった分の理由は下）' : 'できなかった（理由は下）');
+  toast(!ok ? '赤入れできなかった（理由はボタンの下）' : L.length > 1 ? 'チェックリスト ' + ok + ' 枚に赤入れした' + (ok < L.length ? '（' + (L.length - ok) + '枚できなかった）' : '') : 'チェックリストに赤入れした', !ok ? 6000 : undefined);
+  if(btn) btn.disabled = false;
+}
+/* PDFの種類を1ページ目で見分ける（チェックリスト／Wレンタル売上リスト） */
+async function kindOf(f){
+  try{ const L = await pdfjs(); const doc = await L.getDocument({ data: new Uint8Array(await f.arrayBuffer()), cMapUrl: CDN_CMAPS, cMapPacked: true }).promise;
+    const pg = await doc.getPage(1); const tc = await pg.getTextContent(); const t = tc.items.map(x => x.str).join('');
+    if(/Wレンタル売上リスト/.test(t)) return 'w'; if(/請求書チェックリスト|請求先：/.test(t)) return 'chk'; return ''; }catch(e){ return ''; }
+}
+async function addFiles(files, hint){
+  const pdfs = Array.prototype.filter.call(files || [], f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  if(!pdfs.length){ toast('PDFを入れて'); return; }
+  const ws = [], cs = [], unk = [];
+  for(const f of pdfs){ let k = await kindOf(f); if(!k) k = hint || ''; if(k === 'w') ws.push(f); else if(k === 'chk') cs.push(f); else unk.push(f.name); }
+  cs.forEach(f => { if(!state.chks.some(x => x.name === f.name && x.size === f.size)) state.chks.push(f); });
+  paintNames();
+  if(ws.length) await loadW(ws);
+  if(unk.length) toast('チェックリストでもWレンタル売上リストでもなさそう：' + unk.join('、'), 5000);
 }
 function rowHtml(sfx){
   return '<b style="font-size:12px;color:var(--ink2)">請求書チェックリストに赤入れ：</b> <span class="muted">システムから出した「請求書チェックリスト」のPDFを入れると、気になる行に赤枠と注記を書き込み、最後に「チェック結果」のページを足したPDFを返します。Wレンタル売上リスト（売上）のPDFも入れると仕入との突き合わせ（数量ちがい・赤字・粗利30%未満）も入ります。</span>'
-    + '<div class="row" style="margin-top:6px;gap:8px;flex-wrap:wrap;align-items:center"><label class="btn sm" style="cursor:pointer">チェックリスト（PDF）<input type="file" data-x3="chk" accept=".pdf,application/pdf" hidden></label><span class="muted" data-x3="chkN">まだ</span>'
-    + '<label class="btn sm" style="cursor:pointer" title="全得意先ぶんのPDF。月に1回入れれば、どの得意先の赤入れでも使います">Wレンタル売上リスト（全得意先・PDF）<input type="file" data-x3="w" accept=".pdf,application/pdf" hidden></label><span class="muted" data-x3="wN">なし</span><button class="btn sm" data-x3="wdel" type="button" hidden>外す</button>'
-    + '<button class="btn sm primary" data-x3="go" type="button">赤入れしたPDFを作る</button><span class="muted" data-x3="msg"></span></div><div data-x3="out"></div>';
+    + '<div class="row" style="margin-top:6px;gap:8px;flex-wrap:wrap;align-items:center"><label class="btn sm" style="cursor:pointer">チェックリスト（PDF）<input type="file" data-x3="chk" accept=".pdf,application/pdf" multiple hidden></label><span class="muted" data-x3="chkN">まだ</span>'
+    + '<label class="btn sm" style="cursor:pointer" title="全得意先ぶんのPDF。月に1回入れれば、どの得意先の赤入れでも使います">Wレンタル売上リスト（全得意先・PDF）<input type="file" data-x3="w" accept=".pdf,application/pdf" multiple hidden></label><span class="muted" data-x3="wN">なし</span><button class="btn sm" data-x3="wdel" type="button" hidden>外す</button>'
+    + '<button class="btn sm primary" data-x3="go" type="button">赤入れしたPDFを作る</button><button class="btn sm" data-x3="clr" type="button" hidden>チェックリストを外す</button><span class="muted" data-x3="msg"></span></div>'
+    + '<div class="x3drop" data-x3="drop">ここにPDFをドラッグしてもOK（チェックリストは何枚でも・Wレンタル売上リストも一緒に。どちらかは自動で見分けます）</div><div data-x3="out"></div>';
 }
 function wLabel(){ if(!wStore) return 'なし（入れると、どの得意先にも使える）'; const md = s => s ? (+s.slice(5, 7)) + '/' + (+s.slice(8, 10)) : ''; const at = wStore.at ? new Date(wStore.at) : null;
   return '入れてある：' + (wStore.from ? md(wStore.from) + '〜' + md(wStore.to) + '・' : '') + '全得意先 ' + wStore.n + '行' + (at ? '（' + (at.getMonth() + 1) + '/' + at.getDate() + ' に入れた・' + wStore.name + '）' : ''); }
-function paintNames(){ document.querySelectorAll('[data-x3="chkN"]').forEach(e => { e.textContent = state.chk ? state.chk.name : 'まだ'; }); document.querySelectorAll('[data-x3="wN"]').forEach(e => { e.textContent = wLabel(); }); document.querySelectorAll('[data-x3="wdel"]').forEach(e => { e.hidden = !wStore; }); }
+function paintNames(){ document.querySelectorAll('[data-x3="chkN"]').forEach(e => { const n = state.chks.length; e.textContent = !n ? 'まだ' : n === 1 ? state.chks[0].name : n + '枚（' + state.chks.map(f => f.name.replace(/\.pdf$/i, '')).slice(0, 3).join('、') + (n > 3 ? '…' : '') + '）'; });
+  document.querySelectorAll('[data-x3="clr"]').forEach(e => { e.hidden = !state.chks.length; });
+  document.querySelectorAll('[data-x3="go"]').forEach(e => { e.textContent = state.chks.length > 1 ? '赤入れしたPDFを作る（' + state.chks.length + '枚）' : '赤入れしたPDFを作る'; }); document.querySelectorAll('[data-x3="wN"]').forEach(e => { e.textContent = wLabel(); }); document.querySelectorAll('[data-x3="wdel"]').forEach(e => { e.hidden = !wStore; }); }
 function install(){
   const hosts = [];
   const co = $('#carryOpt'); if(co && !co.parentNode.querySelector('[data-x3row]')) hosts.push({ el: co, how: 'after' });
@@ -6381,7 +6463,15 @@ function install(){
   try{ paintNames(); }catch(e){}
   if(!install.bound){
     install.bound = true;
-    document.addEventListener('change', ev => { const k = ev.target.getAttribute && ev.target.getAttribute('data-x3'); if(k !== 'chk' && k !== 'w') return; const f = ev.target.files[0]; ev.target.value = ''; if(!f) return; if(k === 'w'){ loadW(f); return; } state[k] = f; paintNames(); });
+    document.addEventListener('change', ev => { const k = ev.target.getAttribute && ev.target.getAttribute('data-x3'); if(k !== 'chk' && k !== 'w') return; const fs = Array.prototype.slice.call(ev.target.files || []); ev.target.value = ''; if(!fs.length) return; addFiles(fs, k); });
+    document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-x3="clr"]'); if(!b) return; state.chks = []; paintNames(); });
+    /* ドラッグ＆ドロップ：赤入れの欄（どこでも）に落とす */
+    let dragN = 0;
+    const zone = ev => ev.target && ev.target.closest && ev.target.closest('[data-x3row]');
+    document.addEventListener('dragenter', ev => { const z = zone(ev); if(!z || !ev.dataTransfer || Array.prototype.indexOf.call(ev.dataTransfer.types || [], 'Files') < 0) return; ev.preventDefault(); z.classList.add('x3over'); });
+    document.addEventListener('dragover', ev => { const z = zone(ev); if(!z || !ev.dataTransfer || Array.prototype.indexOf.call(ev.dataTransfer.types || [], 'Files') < 0) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; z.classList.add('x3over'); });
+    document.addEventListener('dragleave', ev => { const z = zone(ev); if(z && !z.contains(ev.relatedTarget)) z.classList.remove('x3over'); });
+    document.addEventListener('drop', ev => { const z = zone(ev); if(!z) return; ev.preventDefault(); ev.stopPropagation(); z.classList.remove('x3over'); addFiles(ev.dataTransfer && ev.dataTransfer.files, ''); }, true);
     document.addEventListener('click', async ev => { const b = ev.target.closest && ev.target.closest('[data-x3="wdel"]'); if(!b) return; await WDB.del(); wStore = null; paintNames(); toast('入れてあったWレンタル売上リストを外した'); });
     document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-x3="go"]'); if(!b) return; run(b); });
   }
@@ -6920,7 +7010,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 10:22';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 10:54';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
