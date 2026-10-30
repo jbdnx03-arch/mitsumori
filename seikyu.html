@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-30 17:01-->
+<!--BUILD:2026-10-30 21:21-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2645,7 +2645,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-30 17:01';
+const BUILD = '2026-10-30 21:21';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6776,7 +6776,29 @@ function addSplitBtn(){
     b.addEventListener('click', splitSheet);
     head.appendChild(b);
     if(sh.split){ const tag = document.createElement('span'); tag.className = 'muted'; tag.style.cssText = 'font-size:11px;margin-left:6px'; tag.textContent = '（同じ現場名の2枚目。鑑には別の行で出ます）'; head.appendChild(tag); }
+    /* 間違えて増やした現場を消す（分けた2枚目／行が1つもない現場）。行があれば元の現場へもどす。もどすで元にもどせる */
+    const ls = linesOf(sh), hasSys = ls.some(l => !l.manual);
+    if(sh.split || !ls.length){
+      const d = document.createElement('button'); d.type = 'button'; d.className = 'btn sm'; d.setAttribute('data-x3delsheet', '1');
+      d.textContent = sh.split ? 'この2枚目を消す' : 'この現場を消す';
+      d.title = sh.split ? '分けた2枚目をやめる。中の行は元の「' + ((sheetById(sh.splitOf) || {}).name || '元の現場') + '」の下へもどす' : '行が1つもない現場を一覧から消す';
+      d.addEventListener('click', () => delSheet(sh));
+      head.appendChild(d);
+    }
   }catch(e){ console.error(e); }
+}
+async function delSheet(sh){
+  const ls = linesOf(sh), to = sh.split ? sheetById(sh.splitOf) : null;
+  if(!sh.split && ls.length){ toast('行がある現場は消せません（行を移すか消してから）'); return; }
+  const v = await askDialog(sh.split ? '「' + sh.name + '」を消す？' : '「' + sh.name + '」を消す？',
+    ls.length ? '中の行 ' + ls.length + ' 行は、元の「' + esc((to || {}).name || '') + '」のいちばん下へもどします。' : '行は1つもありません。一覧から消します。',
+    [{ t:'消す', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
+  if(v !== 'ok') return;
+  try{ if(typeof undoPush === 'function') undoPush('現場「' + sh.name + '」を消した'); }catch(e){}
+  if(ls.length && to){ ls.forEach(l => { S.lines.splice(S.lines.indexOf(l), 1); l.sheet = to.id; }); const tl = linesOf(to); const at = tl.length ? S.lines.indexOf(tl[tl.length - 1]) + 1 : S.lines.length; S.lines.splice(at, 0, ...ls); }
+  const ix = S.sheets.indexOf(sh); S.sheets.splice(ix, 1);
+  S.cur = (to || S.sheets[Math.max(0, ix - 1)] || S.sheets[0] || {}).id;
+  save(); drawSites(); toast('「' + sh.name + '」を消した' + (ls.length ? '（' + ls.length + ' 行は「' + to.name + '」へもどした）' : ''));
 }
 const _drawSitesG = drawSites;
 drawSites = function(){ _drawSitesG(); addSplitBtn(); };
@@ -7384,7 +7406,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 17:01';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-30 21:21';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
