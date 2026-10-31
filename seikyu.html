@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 14:13-->
+<!--BUILD:2026-10-31 14:30-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2854,7 +2854,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 14:13';
+const BUILD = '2026-10-31 14:30';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8366,7 +8366,7 @@ build = function(){
   { const PD = (typeof prevData !== 'undefined' && prevData) || null; if(PD || S.prev){ const P0 = PD || S.prev; S.inputs.prev = { at: now, name: (typeof prevName !== 'undefined' && prevName) || '', label: (P0 && P0.label) || '' }; } }
   if(S.real && !S.inputs.real) S.inputs.real = { at: S.real.at || now, name: S.real.file || S.real.name || '' }; { const pr = takePendingFor(S.meta); if(pr){ S.real = pr; S.inputs = S.inputs || {}; S.inputs.real = { at: pr.at, name: pr.file || pr.name }; setTimeout(() => { save(); realReport(true); }, 900); } } if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; setTimeout(() => { save(); realReport(true); }, 900); } return r; };
 const _open = openWork;
-openWork = function(o){ const r = _open.apply(this, arguments); S.real = (o && o.real) || null; S.inputs = (o && o.inputs) || {}; S.pmOrd = (o && o.pmOrd) || 0;
+openWork = function(o){ const r = _open.apply(this, arguments); S.real = (o && o.real) || null; S.inputs = (o && o.inputs) || {}; { const n0k = Object.keys(S.inputs).length; S.inputs = inferInputs(o, S.inputs); if(Object.keys(S.inputs).length > n0k) setTimeout(() => { try{ save(); }catch(e){} }, 1500); } S.pmOrd = (o && o.pmOrd) || 0;
   /* 一度だけ：本物の順にして手で足した行の場所がずれた作業を、前月の場所にもどす（2026-10-31 関東建設興業 親綱・緊張器） */
   if(S.pmOrd < 3 && S.built){ const all = !!S.real; S.pmOrd = 3; let n = 0; const nm = []; try{ S.sheets.forEach(sh => { const k = restorePrevOrder(sh, all ? null : aboveOwner); if(k){ n += k; nm.push(sh.name); } }); }catch(e){ console.warn(e); } if(n){ setTimeout(() => { save(); drawSites(); toast('手で足した行（親綱・緊張器など）を前月と同じ場所にもどした：' + nm.slice(0, 4).join('・') + (nm.length > 4 ? ' ほか' : '') + '（↶でもどせる）', 9000); }, 1200); } }
   if(S.real && !S.inputs.real) S.inputs.real = { at: S.real.at || '', name: S.real.file || S.real.name || '' }; { const pr = takePendingFor(S.meta); if(pr){ S.real = pr; S.inputs = S.inputs || {}; S.inputs.real = { at: pr.at, name: pr.file || pr.name }; setTimeout(() => { save(); drawSites(); realReport(true); }, 900); } } if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; save(); setTimeout(() => realReport(true), 900); } return r; };
@@ -8378,8 +8378,21 @@ const _tp = takePrev;
 takePrev = async function(f){ const r = await _tp.apply(this, arguments); try{ if(S.built && typeof prevData !== 'undefined' && prevData && S.prev === prevData){ S.inputs = S.inputs || {}; S.inputs.prev = { at: new Date().toISOString(), name: f.name, label: prevData.label || '' }; save(); drawSites(); } }catch(e){} return r; };
 /* ---------- いつ入れたか（CSV・前月・本物） ---------- */
 const tFmt = iso => { if(!iso) return ''; const d = new Date(iso); if(isNaN(d)) return ''; return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+/* この版より前に入れた分は時刻がないので、作業の中身からわかるぶんだけ「入れ済み」にする（2026-10-31「両方入れたよね？記憶してないの？」）
+   CSV：作業があれば必ず入れている（ファイル名は meta.file）／前月：作業に前月（prevPack・prevLabel）があれば／本物：S.real があれば */
+function inferInputs(w, I){
+  I = Object.assign({}, I || {}); if(!w) return I;
+  const meta = w.meta || {};
+  if(!I.csv && (w.meta || w.custCode || w.lines)) I.csv = { at: null, name: meta.file || '', old: true };
+  if(!I.prev && (w.prevPack || w.prevLabel)) I.prev = { at: null, name: '', label: w.prevLabel || '', old: true };
+  if(!I.real && w.real) I.real = { at: w.real.at || null, name: w.real.file || w.real.name || '', old: !w.real.at };
+  return I;
+}
+window.seikyuExt.inferInputs = inferInputs;
 function inHtml(I, compact){
-  if(!I || !Object.keys(I).length) return '<div class="xin' + (compact ? ' c' : '') + '"><span class="xin-i no">いつ入れたかは、この版から記録（次にCSV・前月・本物を入れると出る）</span></div>'; const part = (k, lbl, x) => '<span class="xin-i' + (x ? '' : ' no') + '" title="' + (x && x.name ? esc(x.name) : '') + '"><b>' + lbl + '</b> ' + (x ? tFmt(x.at) + (k === 'prev' && x.label ? '（' + jdate(x.label).replace(/^\d+年/, '') + '締め）' : '') : 'まだ') + '</span>';
+  I = I || {};
+  const part = (k, lbl, x) => '<span class="xin-i' + (x ? '' : ' no') + '" title="' + (x && x.name ? esc(x.name) : x && x.old ? 'この版より前に入れた（時刻の記録なし）' : '') + '"><b>' + lbl + '</b> ' +
+    (x ? (x.at ? tFmt(x.at) : '入れ済み') + (k === 'prev' && x.label ? '（' + jdate(x.label).replace(/^\d+年/, '') + '締め）' : '') : k === 'prev' && I.prevUnknown ? '開くとわかる' : 'まだ') + '</span>';
   return '<div class="xin' + (compact ? ' c' : '') + '">' + part('csv', 'CSV', I.csv) + part('prev', '前月', I.prev) + part('real', '本物', I.real) + '</div>';
 }
 window.seikyuExt.inHtml = inHtml;
@@ -8387,8 +8400,26 @@ const _wc = workCard;
 workCard = function(x){
   let h = _wc.apply(this, arguments);
   try{ const w = x.w || {}; let I = w.inputs; if(!I && w.inTimes){ try{ I = JSON.parse(w.inTimes); }catch(e){} } if(x.id === S.workId && S.inputs) I = S.inputs;
+    I = inferInputs(w, I); if(!I.prev && !w.prevPack && !('prevLabel' in w) && !(x.id === S.workId)) I.prevUnknown = true;
     const ix = h.indexOf('<div class="wc3">') >= 0 ? h.indexOf('<div class="wc3">') : h.indexOf('<div class="wc4">'); if(ix > 0) h = h.slice(0, ix) + inHtml(I, true) + h.slice(ix); }catch(e){}
   return h;
+};
+/* 一覧のカードで「前月 開くとわかる」の分は、この端末に保存してある作業の中身を見て埋める（なければクラウドから） */
+const _dw = drawWorks;
+drawWorks = async function(){
+  const r = await _dw.apply(this, arguments);
+  try{
+    const cards = [...document.querySelectorAll('#worksList .wc')];
+    for(const c of cards){
+      const chip = [...c.querySelectorAll('.xin-i')].find(e => /開くとわかる/.test(e.textContent)); if(!chip) continue;
+      const btn = c.querySelector('[data-wopen],[data-wst],[data-wdel]'); const id = btn && (btn.dataset.wopen || btn.dataset.wst || btn.dataset.wdel); if(!id) continue;
+      let w = null; try{ w = await WK.get(id); }catch(e){}
+      if(!w || !(w.prevPack || w.prevLabel)){ try{ w = await cloudGet(id); }catch(e){} }
+      const I = inferInputs(w || {}, {});
+      const box = c.querySelector('.xin'); if(box) box.outerHTML = inHtml(Object.assign(I, w && (w.prevPack || w.prevLabel) ? {} : { prevUnknown: false }), true);
+    }
+  }catch(e){ console.warn(e); }
+  return r;
 };
 /* 現場の画面：本物とくらべた結果と、ボタン */
 const _dsi = drawSite;
@@ -9034,7 +9065,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 14:13';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 14:30';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
