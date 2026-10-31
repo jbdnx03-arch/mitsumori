@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 14:30-->
+<!--BUILD:2026-10-31 14:38-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2854,7 +2854,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 14:30';
+const BUILD = '2026-10-31 14:38';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8082,11 +8082,21 @@ function cmpSite(sh){
   const rr = R.rows.map((r, i) => ({ r, i, used: false }));
   const score = (w, r) => { let s = 0; if(w.den && w.den === r.den) s += 3; if(w.kanri && w.kanri === r.kanri) s += 3; if(w.kashi && w.kashi === r.kashi) s += 2; if(nmK(w.name) === nmK(r.name)) s += 4; if(w.qty === n0(r.qty)) s += 1; if(w.la + w.sa + w.ba === n0(r.la) + n0(r.sa) + n0(r.ba)) s += 2; if(w.kb && w.kb === r.kb) s += 1; return s; };
   const res = { sh, match: [], extra: [], missing: [], total: R.total };
-  web.forEach(l => {
-    const w = webRow(l); let best = null, bs = 0;
-    rr.forEach(x => { if(x.used || !!x.r.head !== !!w.head) return; const s = score(w, x.r); if(s > bs){ bs = s; best = x; } });
-    if(!best || bs < 6){ res.extra.push({ l, w }); return; }
-    best.used = true;
+  /* 行の当てはめ：全部の組み合わせの点数を出して、点の高い組から順に決める（上から順に早い者勝ちにしない）。
+     2026-10-31 ふじみ野：親綱 73473（OT010）が、同じ伝票・貸出日の 緊張器 73473（OT110）の本物の行を先に取っていた */
+  const ws = web.map(l => ({ l, w: webRow(l) })), pairs = [];
+  ws.forEach((a, ai) => rr.forEach((x, xi) => { if(!!x.r.head !== !!a.w.head) return; let sc = score(a.w, x.r);
+    if(a.w.kanri && x.r.kanri && a.w.kanri !== x.r.kanri) sc -= 3;              /* 管理番号がちがう */
+    if(nmK(a.w.name) !== nmK(x.r.name) && !(a.w.kanri && a.w.kanri === x.r.kanri)) sc -= 2;   /* 品名がちがう（管理番号も合わない） */
+    if(sc >= 6) pairs.push({ ai, xi, sc }); }));
+  pairs.sort((p, q) => q.sc - p.sc || Math.abs(p.ai - p.xi) - Math.abs(q.ai - q.xi));
+  const took = new Map();
+  pairs.forEach(pq => { if(took.has(pq.ai) || rr[pq.xi].used) return; rr[pq.xi].used = true; took.set(pq.ai, pq.xi); });
+  ws.forEach((a, ai) => {
+    const l = a.l, w = a.w;
+    if(!took.has(ai)){ res.extra.push({ l, w }); return; }
+    const best = rr[took.get(ai)];
+
     const r = best.r, diff = [];
     if(nmK(w.name) !== nmK(r.name)) diff.push('品名');
     if(!w.head){
@@ -9065,7 +9075,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 14:30';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 14:38';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
