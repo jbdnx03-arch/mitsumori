@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 13:24-->
+<!--BUILD:2026-10-31 14:13-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2854,7 +2854,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 13:24';
+const BUILD = '2026-10-31 14:13';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8179,11 +8179,21 @@ function applyReal(sh){
 /* 手で足した行（前月から）・見出し・重ねた行を、前月と同じ場所（前月のどの行のあと／前か）に置き直す。
    2026-10-31 関東建設興業：本物の順にしたら 親綱・緊張器（前月に手で足した行）が前月とちがう場所に行った →
    本物の順は CSV の行だけ。手で足した行は必ず前月の場所 */
+/* 前月の行（保存した作業には sh.prev.lines がないので、作業に入れてある前月（prevPack）から取る） */
+let ppCache = null;
+function prevLinesOf(sh){
+  if(sh.prev && sh.prev.lines && sh.prev.lines.length) return sh.prev.lines;
+  let P = S.prev && S.prev.sheets ? S.prev : null;
+  if(!P && S.prevPack){ if(!ppCache || ppCache.k !== S.prevPack){ let u = null; try{ u = unpackPrev(S.prevPack); }catch(e){} ppCache = { k: S.prevPack, P: u }; } P = ppCache.P; }
+  if(!P || !P.sheets) return [];
+  const ps = P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || (sh.prev && sh.prev.name) || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code));
+  return (ps && ps.lines) || [];
+}
 function prevSpots(sh){
-  const m = new Map(), pl = (sh.prev && sh.prev.lines) || [];
+  const m = new Map(), pl = prevLinesOf(sh);
   /* 場所は前月の行から作り直す（決まりを直したら、保存してある作業にも効くように） */
   (sh.prevManual || []).forEach(p => { if(!p.pmKey) return; const i = +String(p.pmKey).slice(3); let q = p; try{ if(pl[i] && !pl[i].key && !pl[i].head && fullNm(pl[i].name) === fullNm(p.name)) q = Object.assign({}, p, pmAnchors(pl, i)); }catch(e){} m.set(p.pmKey, q); });
-  try{ if(sh.prev && sh.prev.lines) prevLayoutOf(sh.prev.lines).forEach(p => { if(p.pmKey && !m.has(p.pmKey)) m.set(p.pmKey, p); }); }catch(e){}
+  try{ if(pl.length) prevLayoutOf(pl).forEach(p => { if(p.pmKey && !m.has(p.pmKey)) m.set(p.pmKey, p); }); }catch(e){}
   return m;
 }
 function restorePrevOrder(sh, only){
@@ -8200,7 +8210,7 @@ function restorePrevOrder(sh, only){
 }
 /* 前月、同じ番号のシステムの行より上に書いていた手で足した行（2026-10-31 に決まりを直した行） */
 function aboveOwner(l, sh){
-  const pl = (sh.prev && sh.prev.lines) || [], i = +String(l.pmKey || '').slice(3), L = pl[i]; if(!L || L.key || L.head) return false;
+  const pl = prevLinesOf(sh), i = +String(l.pmKey || '').slice(3), L = pl[i]; if(!L || L.key || L.head) return false;
   const sb = L.saiban != null ? String(L.saiban).trim() : ''; if(!/^\d+$/.test(sb)) return false;
   const own = pl.findIndex(x => x.key && !x.ovlCopy && String(x.saiban).trim() === sb);
   return own > i;
@@ -8358,7 +8368,7 @@ build = function(){
 const _open = openWork;
 openWork = function(o){ const r = _open.apply(this, arguments); S.real = (o && o.real) || null; S.inputs = (o && o.inputs) || {}; S.pmOrd = (o && o.pmOrd) || 0;
   /* 一度だけ：本物の順にして手で足した行の場所がずれた作業を、前月の場所にもどす（2026-10-31 関東建設興業 親綱・緊張器） */
-  if(S.pmOrd < 2 && S.built){ const all = !!S.real; S.pmOrd = 2; let n = 0; const nm = []; try{ S.sheets.forEach(sh => { const k = restorePrevOrder(sh, all ? null : aboveOwner); if(k){ n += k; nm.push(sh.name); } }); }catch(e){ console.warn(e); } if(n){ setTimeout(() => { save(); drawSites(); toast('手で足した行（親綱・緊張器など）を前月と同じ場所にもどした：' + nm.slice(0, 4).join('・') + (nm.length > 4 ? ' ほか' : '') + '（↶でもどせる）', 9000); }, 1200); } }
+  if(S.pmOrd < 3 && S.built){ const all = !!S.real; S.pmOrd = 3; let n = 0; const nm = []; try{ S.sheets.forEach(sh => { const k = restorePrevOrder(sh, all ? null : aboveOwner); if(k){ n += k; nm.push(sh.name); } }); }catch(e){ console.warn(e); } if(n){ setTimeout(() => { save(); drawSites(); toast('手で足した行（親綱・緊張器など）を前月と同じ場所にもどした：' + nm.slice(0, 4).join('・') + (nm.length > 4 ? ' ほか' : '') + '（↶でもどせる）', 9000); }, 1200); } }
   if(S.real && !S.inputs.real) S.inputs.real = { at: S.real.at || '', name: S.real.file || S.real.name || '' }; { const pr = takePendingFor(S.meta); if(pr){ S.real = pr; S.inputs = S.inputs || {}; S.inputs.real = { at: pr.at, name: pr.file || pr.name }; setTimeout(() => { save(); drawSites(); realReport(true); }, 900); } } if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; save(); setTimeout(() => realReport(true), 900); } return r; };
 const _snap = snapshot;
 snapshot = function(){ const o = _snap.apply(this, arguments); o.real = S.real || null; o.pmOrd = S.pmOrd || 0; o.inputs = S.inputs || {}; try{ o.inTimes = JSON.stringify(S.inputs || {}); }catch(e){} return o; };
@@ -9024,7 +9034,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 13:24';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 14:13';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
