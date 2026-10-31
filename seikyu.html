@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 09:46-->
+<!--BUILD:2026-10-31 09:55-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1104,7 +1104,8 @@ function luInfo(l){
 /* 紙と同じ「伝票番号・管理番号」の出し方（返却伝票があればそちら／管理番号が空か W なら商品番号） */
 const denSys = l => num(l.ret0) >= 1 ? l.ret0 : (l.den || '');
 const denOf = l => l.denW || denSys(l);   /* denW：紙に出す伝票番号を手で変えた（【三軒茶屋事務所】の 692212 など） */
-const kanOf = l => l.kanri && l.kanri !== 'W' ? l.kanri : (l.shohin || '');
+const kanSys = l => l.kanri && l.kanri !== 'W' ? l.kanri : (l.shohin || '');
+const kanOf = l => l.kanW || kanSys(l);   /* kanW：紙に出す管理番号を手で変えた */
 const sheetSys = sh => linesOf(sh).reduce((a, l) => a + sysAmt(l), 0);
 const tax = n => Math.floor(n * 0.1);
 function totals(){
@@ -1279,6 +1280,7 @@ function applyLayout(sh, exact){
     const c = Object.assign({}, base, { id: uid(), dup: true, ovl: true, ovlOf: base.id, pmKey: p.pmKey, name: p.name, qty: p.qty, unit: p.unit || base.unit, lu: p.lu, su: p.su, bu: p.bu, sugg: null, suggDec: false, pv: null, edited: true, luDec: true, nbDec: true });   /* 出す／出さないは元の行で決める */
     if(p.kb) c.kb = p.kb;
     if(p.denW) c.denW = p.denW; else delete c.denW;
+    if(p.kanW) c.kanW = p.kanW; else delete c.kanW;
     if(exact){ ['start', 'end', 'days', 'sdays', 'la', 'sa', 'ba'].forEach(f => { if(p[f] != null && p[f] !== '') c[f] = p[f]; }); }
     else { if(contRental(c)) c.bu = num(base.sys && base.sys.bu); if(!num(base.sys.sdays) && num(p.sdays) && num(p.su)) c.sdays = spanDays(base); calcLine(c); }
     c.carried = '前月と同じく重ねて請求' + (p.hd ? '（' + p.hd + '）' : '') + '。CSVでは「' + base.sys.name + '」の1行';
@@ -1832,7 +1834,7 @@ function lineRow(l, i, others){
   const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
   const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : f === 'kashi' ? ' placeholder="月/日" title="貸出日"' : '') + '>';
   return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押すと「まとめて変える」の行に入る（Shift で範囲）">' + (i + 1) + '</td>' +
-    '<td>' + inp('name', l.name) + '<div class="sub">伝票 <input class="e den' + (l.denW ? ' chg' : '') + '" data-f="denW" value="' + esc(denOf(l)) + '" placeholder="—" inputmode="numeric" style="width:64px;font-size:inherit;padding:0 3px" title="紙に出す伝票番号。空にするとCSVの番号（' + esc(denSys(l) || 'なし') + '）にもどる">' + (l.denW ? '<small style="opacity:.7">（CSVは ' + esc(denSys(l) || 'なし') + '）</small>' : '') + '　管理 ' + esc(kanOf(l) || '—') + (l.shohin && kanOf(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
+    '<td>' + inp('name', l.name) + '<div class="sub">伝票 <input class="e den' + (l.denW ? ' chg' : '') + '" data-f="denW" value="' + esc(denOf(l)) + '" placeholder="—" inputmode="numeric" style="width:64px;font-size:inherit;padding:0 3px" title="紙に出す伝票番号。空にするとCSVの番号（' + esc(denSys(l) || 'なし') + '）にもどる">' + (l.denW ? '<small style="opacity:.7">（CSVは ' + esc(denSys(l) || 'なし') + '）</small>' : '') + '　管理 <input class="e den' + (l.kanW ? ' chg' : '') + '" data-f="kanW" value="' + esc(kanOf(l)) + '" placeholder="—" style="width:96px;font-size:inherit;padding:0 3px" title="紙に出す管理番号。空にするとCSVの番号（' + esc(kanSys(l) || 'なし') + '）にもどる">' + (l.kanW ? '<small style="opacity:.7">（CSVは ' + esc(kanSys(l) || 'なし') + '）</small>' : '') + (l.shohin && kanSys(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
       lineDecHtml(l) + pvHtml(l) + moSum(l) + '</td>' +
     '<td class="sub" style="white-space:nowrap"><span class="per">貸出 ' + inp('kashi', md(l.kashi), 46) + '</span><br><span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + ((l.start || l.end || l.retd || l.cont) ? '<br><span class="per">返却 ' + inp('retd', md(l.retd), 46) + (l.cont && !l.retd ? '<small> ' + esc(l.cont) + '</small>' : '') + '</span>' : '') + '</td>' +
     '<td>' + kbSel + '</td>' +
@@ -1876,6 +1878,12 @@ function onLineInput(ev){
   const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
   const f = t.dataset.f; if(!f) return;
   if(f === 'name') l.name = t.value;
+  else if(f === 'kanW'){
+    if(ev.type !== 'change') return;
+    const v = String(t.value).normalize('NFKC').trim();
+    if(!v || v === String(kanSys(l))) delete l.kanW; else l.kanW = v;
+    if(l.sys) l.edited = true; save(); drawSites(); return;
+  }
   else if(f === 'denW'){
     if(ev.type !== 'change') return;
     const v = String(t.value).normalize('NFKC').trim();
@@ -2728,7 +2736,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 09:46';
+const BUILD = '2026-10-31 09:55';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3564,6 +3572,7 @@ function workToPrev(w){
       if(l.head){ L.head = true; L.saiban = ''; lines.push(L); return; }
       if(l.ovl) L.ovlW = true;
       if(l.denW) L.denW = l.denW;
+      if(l.kanW) L.kanW = l.kanW;
       if(l.sys && l.key && !l.manual){
         L.key = l.key; L.saiban = l.csvIx != null ? 'c' + l.csvIx : ''; L.sys = Object.assign({}, l.sys, { site: l.site, shohin: l.shohin, kanri: l.kanri, den: l.den, key: l.key });
         P.sysByKey[l.key] = L.sys;
@@ -7516,22 +7525,25 @@ document.addEventListener('mousemove', ev => {
 }, { passive: true });
 
 /* ---------- 並べて直す ---------- */
-let dock = null, dockT = 0;
+let dock = null, dockT = 0, dockAll = false;
 const dockPos = () => (window.innerWidth < 900 ? 'b' : (LS('wq.dockPos') || 'r'));
-function dockOpen(){
+function dockOpen(all){
   if(!S.built) return;
+  if(all !== undefined) dockAll = !!all;
   if(typeof closeSitePv === 'function') closeSitePv();
   if(!dock){
     dock = document.createElement('div'); dock.id = 'xDock';
     dock.innerHTML = '<div class="xd-bar"><b id="xDockT"></b><span class="xd-h">欄を押すとその場で直せる</span><span class="sp"></span>' +
+      '<span class="seg2 xd-all"><button class="btn sm" type="button" data-dall="0" title="いま直している現場だけ">この現場</button><button class="btn sm" type="button" data-dall="1" title="鑑に出す現場を全部">全現場</button></span>' +
       '<span class="seg2 xd-pos"><button class="btn sm" type="button" data-dpos="r" title="右に並べる">右</button><button class="btn sm" type="button" data-dpos="b" title="下に並べる">下</button></span>' +
       '<button class="btn sm" type="button" data-dk="print" title="この現場を印刷">印刷</button><button class="btn sm" type="button" data-dk="close">閉じる</button></div><div id="xDockBody"></div>';
     document.body.appendChild(dock);
     dock.addEventListener('click', ev => {
+      const a = ev.target.closest('[data-dall]'); if(a){ dockAll = a.dataset.dall === '1'; dockLayout(); const B0 = document.getElementById('xDockBody'); if(B0) B0.scrollTop = 0; dockRender(); return; }
       const p = ev.target.closest('[data-dpos]'); if(p){ LS('wq.dockPos', p.dataset.dpos); dockLayout(); dockRender(); return; }
       const k = ev.target.closest('[data-dk]'); if(!k) return;
       if(k.dataset.dk === 'close') dockClose();
-      if(k.dataset.dk === 'print') doPrint(sitePaperHtml());
+      if(k.dataset.dk === 'print') doPrint(dockAll ? undefined : sitePaperHtml());
     });
   }
   dock.hidden = false; dockLayout(); dockRender();
@@ -7543,6 +7555,7 @@ function dockLayout(){
   document.body.classList.toggle('xdock-r', pos === 'r'); document.body.classList.toggle('xdock-b', pos === 'b');
   dock.className = pos;
   dock.querySelectorAll('[data-dpos]').forEach(b => b.classList.toggle('on', b.dataset.dpos === pos));
+  dock.querySelectorAll('[data-dall]').forEach(b => b.classList.toggle('on', (b.dataset.dall === '1') === dockAll));
   /* いちばん上のナビ（固定）の下から */
   let top = 0; try{ const el = document.elementFromPoint(window.innerWidth - 4, 4); let a = el; while(a && a !== document.body){ if(getComputedStyle(a).position === 'fixed'){ top = Math.max(top, a.getBoundingClientRect().bottom); break; } a = a.parentElement; } }catch(e){}
   dock.style.top = pos === 'r' ? Math.min(top, 80) + 'px' : '';
@@ -7558,13 +7571,17 @@ function dockRender(){
   if(!dockOn()) return;
   const B = document.getElementById('xDockBody'), sh = sheetById(S.cur); if(!B) return;
   const st = B.scrollTop;
-  if(!sh){ B.innerHTML = '<div class="cap" style="padding:20px;color:#ddd">現場をえらんで</div>'; return; }
+  if(!sh && !dockAll){ B.innerHTML = '<div class="cap" style="padding:20px;color:#ddd">現場をえらんで</div>'; return; }
   window.__pvMark = true; let h = '';
-  try{ h = sitePaperHtml(); }catch(e){ h = ''; } finally{ window.__pvMark = false; }
+  try{ h = dockAll ? paperHtml() : sitePaperHtml(); }catch(e){ h = ''; } finally{ window.__pvMark = false; }
   B.innerHTML = h;
-  try{ fitPages(B); XR.fitShrink(B); XR.sysFit(B); window.seikyuExt.markPaper(B, [sh]); }catch(e){}
+  const ks = dockAll ? S.sheets.filter(s => s.inKagami) : [sh];
+  try{ fitPages(B); XR.fitShrink(B); XR.sysFit(B); window.seikyuExt.markPaper(B, ks); }catch(e){}
   B.scrollTop = st;
-  const t = document.getElementById('xDockT'); if(t) t.textContent = sh.name + '　' + yen(sheetNet(sh)) + '（税抜）';
+  const t = document.getElementById('xDockT');
+  if(t) t.textContent = dockAll ? '全現場（' + B.querySelectorAll('.xp').length + '枚・税抜 ' + yen(ks.reduce((a, s) => a + sheetNet(s), 0)) + '）' : sh.name + '　' + yen(sheetNet(sh)) + '（税抜）';
+  /* 全現場のときは、いま左で直している現場のページに印 */
+  if(dockAll && sh) B.querySelectorAll('.xp').forEach(p => p.classList.toggle('xcurpg', [sh.name, 'y' + sh.name, 's' + sh.name].includes(p.dataset.pg)));
 }
 window.seikyuExt.dockOpen = dockOpen;
 const _dss = drawSites;
@@ -7584,7 +7601,7 @@ sitePreview = function(all){
       const cl = $('#spvClose');
       const h = '<button class="btn" type="button" data-x="pvdock" title="プレビューを横に出したまま直す">⫼ 並べて直す</button>';
       if(cl) cl.insertAdjacentHTML('beforebegin', h); else bar.insertAdjacentHTML('beforeend', h);
-      bar.querySelector('[data-x="pvdock"]').addEventListener('click', ev => { ev.stopPropagation(); if(pvAll) return toast('並べて直すのは1現場ずつ。「この現場」にしてから押して'); dockOpen(); });
+      bar.querySelector('[data-x="pvdock"]').addEventListener('click', ev => { ev.stopPropagation(); dockOpen(!!pvAll); });
     }
     let hint = $('#spvHint'); if(!hint){ hint = document.createElement('span'); hint.id = 'spvHint'; hint.className = 'xpvhint'; const t = $('#spvT'); if(t) t.insertAdjacentElement('afterend', hint); }
     hint.textContent = '欄を押すとその場で直せる';
@@ -7601,7 +7618,9 @@ st.textContent =
   '#xDock.r{right:0;top:0;bottom:0;width:min(44vw,760px)}#xDock.b{left:0;right:0;bottom:0;height:46vh}' +
   '#xDock .xd-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:#2B3235;color:#EAF2F2;font-size:13px}#xDock .xd-bar .sp{flex:1}#xDock .xd-h{opacity:.7;font-size:11.5px}' +
   '#xDock .xd-bar .btn{color:#EAF2F2}#xDock .xd-pos .btn.on{background:#5EC8D2;color:#08303A;border-color:#5EC8D2}' +
+  '#xDock .xd-all .btn.on{background:#5EC8D2;color:#08303A;border-color:#5EC8D2}#xDockBody .xp.xcurpg{box-shadow:0 0 0 3px #5EC8D2,0 2px 10px rgba(0,0,0,.35)}' +
   '#xDockBody{flex:1;overflow:auto;padding:12px}#xDockBody .xp{margin:0 auto 12px;box-shadow:0 2px 10px rgba(0,0,0,.35)}' +
+  'body.xdock-r .kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important}.kpis .kpi .v{white-space:nowrap}' +
   '@media print{#xDock{display:none !important}body.xdock-r,body.xdock-b{padding:0 !important}}';
 document.head.appendChild(st);
 })();
@@ -7617,7 +7636,7 @@ document.head.appendChild(st);
 /* 本物の書式の欄の位置（pt。左からの位置。上段／下段で欄が分かれるところは 2 つ） */
 const COLS = [
   [0, 195, 'name', 'name', '品名'],
-  [195, 257, 'denW', null, '伝票番号'],
+  [195, 257, 'denW', 'kanW', '伝票番号', '管理番号'],
   [257, 287, 'kashi', null, '貸出日'],
   [287, 317, 'start', null, '開始'],
   [317, 347, 'end', null, '終了'],
@@ -7629,8 +7648,8 @@ const COLS = [
   [580, 640, 'lu', 'su', '賃貸単価', 'サポート単価'],
   [697, 755, 'bu', null, '基本料・販売 単価']
 ];
-const ORDER = ['name', 'denW', 'kashi', 'start', 'end', 'retd', 'qty', 'unit', 'days', 'sdays', 'kb', 'lu', 'su', 'bu'];
-const LBL = { name:'品名', denW:'伝票番号', kashi:'貸出日', start:'開始', end:'終了', retd:'返却', qty:'数量', unit:'単位', days:'請求日数', sdays:'サポート日数', kb:'単価区分', lu:'賃貸単価', su:'サポート単価', bu:'基本料・販売 単価' };
+const ORDER = ['name', 'denW', 'kanW', 'kashi', 'start', 'end', 'retd', 'qty', 'unit', 'days', 'sdays', 'kb', 'lu', 'su', 'bu'];
+const LBL = { name:'品名', denW:'伝票番号', kanW:'管理番号', kashi:'貸出日', start:'開始', end:'終了', retd:'返却', qty:'数量', unit:'単位', days:'請求日数', sdays:'サポート日数', kb:'単価区分', lu:'賃貸単価', su:'サポート単価', bu:'基本料・販売 単価' };
 let pop = null, cur = null;
 function fieldAt(m, ev){
   const xsb = m.closest('.xsb'); if(!xsb) return null;
@@ -7642,6 +7661,7 @@ function fieldAt(m, ev){
 }
 function valOf(l, f){
   if(f === 'denW') return denOf(l);
+  if(f === 'kanW') return kanOf(l);
   if(f === 'kashi' || f === 'start' || f === 'end' || f === 'retd') return md(l[f]) || '';
   if(f === 'lu' || f === 'su' || f === 'bu') return num(l[f]) ? String(num(l[f])) : '';
   if(f === 'qty' || f === 'days' || f === 'sdays') return num(l[f]) ? String(num(l[f])) : '';
@@ -7689,12 +7709,13 @@ function openAt(m, f, docked, rect){
   const sh = sheetById(l.sheet);
   const inp = f === 'kb'
     ? '<select class="xpe-i">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>'
-    : '<input class="xpe-i" value="' + esc(v) + '" ' + (f === 'name' || f === 'unit' ? 'inputmode="text"' : 'inputmode="decimal"') + ' placeholder="' + (/^(kashi|start|end)$/.test(f) ? '月/日' : f === 'retd' ? '月/日（空で継続）' : f === 'denW' ? '空でCSVの番号' : '') + '">';
+    : '<input class="xpe-i" value="' + esc(v) + '" ' + (f === 'name' || f === 'unit' ? 'inputmode="text"' : 'inputmode="decimal"') + ' placeholder="' + (/^(kashi|start|end)$/.test(f) ? '月/日' : f === 'retd' ? '月/日（空で継続）' : f === 'denW' || f === 'kanW' ? '空でCSVの番号' : '') + '">';
   pop.innerHTML = '<div class="xpe-h"><b>' + LBL[f] + '</b><span>' + esc(String(l.name).slice(0, 22)) + '</span></div>' + inp +
     '<div class="xpe-f"><button type="button" class="btn sm primary" data-pe="ok">決定 <kbd>Enter</kbd></button><button type="button" class="btn sm ghost" data-pe="no">やめる</button><span class="sp"></span><button type="button" class="btn sm ghost" data-pe="go" title="現場の画面のこの行へ">↗ 行へ</button></div>' +
-    '<div class="xpe-n">' + (f === 'qty' || f === 'lu' || f === 'su' || f === 'bu' || f === 'days' || f === 'sdays' || f === 'start' || f === 'end' ? '金額・日数は現場の画面と同じく計算し直す' : f === 'denW' ? '紙に出す伝票番号だけ変わる' : '') + '<span>Tab で次の欄</span></div>';
+    '<div class="xpe-r"><span>この行を</span><button type="button" class="btn sm ghost" data-pe="nb" title="行は残して、請求書に出さない（現場の画面の ⊘ と同じ）">⊘ 請求書に出さない</button><button type="button" class="btn sm ghost xpe-del" data-pe="del" title="「消した行」に入る（もどせる）">× 消す</button></div>' +
+    '<div class="xpe-n">' + (f === 'qty' || f === 'lu' || f === 'su' || f === 'bu' || f === 'days' || f === 'sdays' || f === 'start' || f === 'end' ? '金額・日数は現場の画面と同じく計算し直す' : f === 'denW' ? '紙に出す伝票番号だけ変わる' : f === 'kanW' ? '紙に出す管理番号だけ変わる' : '') + '<span>Tab で次の欄</span></div>';
   document.body.appendChild(pop);
-  const W = 300, x = Math.min(window.innerWidth - W - 8, Math.max(8, rect.left)), y = rect.bottom + 6 + 170 > window.innerHeight ? Math.max(8, rect.top - 176) : rect.bottom + 6;
+  const W = 300, x = Math.min(window.innerWidth - W - 8, Math.max(8, rect.left)), y = rect.bottom + 6 + 250 > window.innerHeight ? Math.max(8, rect.top - 256) : rect.bottom + 6;
   pop.style.left = x + 'px'; pop.style.top = y + 'px';
   const i = pop.querySelector('.xpe-i'); i.focus(); if(i.select) i.select();
   const done = () => { const val = i.value; const c = cur; close(); if(!c) return; if(String(val) === String(valOf(l, c.f)) && c.f !== 'kb'){ return; } if(apply(c.id, c.f, val)){ setTimeout(() => { refresh(c.docked); toast(LBL[c.f] + 'を直した（↶ でもどせる）', 2200); }, 60); } };
@@ -7708,7 +7729,18 @@ function openAt(m, f, docked, rect){
   });
   if(f === 'kb') i.addEventListener('change', done);
   pop.addEventListener('click', ev => { ev.stopPropagation(); const b = ev.target.closest('[data-pe]'); if(!b) return;
+    if(b.dataset.pe === 'nb' || b.dataset.pe === 'del'){ const c = cur; close(); rowAct(c.id, b.dataset.pe, c.docked); return; }
     if(b.dataset.pe === 'ok') done(); else if(b.dataset.pe === 'no') close(); else if(b.dataset.pe === 'go'){ const c = cur; close(); window.seikyuExt.goLine(c.id, c.docked); } });
+}
+/* 行を消す・請求書に出さない（現場の画面のボタンと同じ処理） */
+function rowAct(id, a, docked){
+  const l = S.lines.find(x => x.id === id); if(!l) return;
+  if(S.cur !== l.sheet){ S.cur = l.sheet; }
+  drawSites();
+  const b = document.querySelector('#siteBody tr[data-id="' + id + '"] [data-act="' + a + '"]');
+  if(!b){ toast('この行はここでは操作できない。「↗ 行へ」から'); return; }
+  const nm = l.name; b.click();
+  setTimeout(() => { refresh(docked); toast('「' + nm + '」を' + (a === 'del' ? '消した（上の「消した行」か ↶ でもどせる）' : '請求書に出さないにした（現場の画面の ◎ か ↶ でもどせる）'), 5000); }, 80);
 }
 /* プレビューの行を押したとき（ext2l から呼ばれる）：欄の上ならその場で直す */
 window.seikyuExt.pvEdit = function(m, ev, pg, docked){
@@ -7734,6 +7766,7 @@ st.textContent = '.xpe{position:fixed;z-index:10000;width:300px;padding:10px 12p
   '.xpe-i{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:7px 9px;border:1.5px solid #5EC8D2;border-radius:8px;outline:none;background:#fff;color:#111}' +
   '.xpe-f{display:flex;gap:6px;align-items:center;margin-top:8px}.xpe-f .sp{flex:1}.xpe .btn{color:#14232A}.xpe .btn.primary{background:#14646E;color:#fff;border-color:#14646E}.xpe kbd{font-size:10px;opacity:.75}' +
   '.xpe .btn.ghost{color:#14646E;background:#fff;border:1px solid #cfdcdc}.xpe .btn.ghost:hover{background:#EEF7F8}.xpe-hl{position:fixed;z-index:9999;pointer-events:none;border:2px solid #E0A020;border-radius:3px;background:rgba(255,200,60,.18);box-shadow:0 0 0 3px rgba(255,200,60,.25)}' +
+  '.xpe-r{display:flex;gap:6px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #E3EBEC;font-size:12px;color:#667}.xpe-r span{margin-right:auto}.xpe .btn.xpe-del{color:#C23B3B;border-color:#F0C4C4}' +
   '.xpe-n{margin-top:6px;font-size:11px;color:#778;display:flex;gap:8px;justify-content:space-between}';
 document.head.appendChild(st);
 })();
@@ -8243,7 +8276,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 09:46';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 09:55';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
