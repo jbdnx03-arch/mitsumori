@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 15:24-->
+<!--BUILD:2026-10-31 18:16-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1177,9 +1177,9 @@ const nbCodes = () => String(S.opt.nbCodes == null ? 'ETC888' : S.opt.nbCodes).n
 const isNbCand = l => !l.head && nbCodes().indexOf(String(l.shohin || '').normalize('NFKC').toUpperCase().trim()) >= 0;
 /* リースアップ：月極で貸している購入品（商品番号か管理番号が ETC で始まる・HHETC）。
    KETC はふつうのレンタル品（シュークリーナーなど）なのでリースアップではない（2026-10-31 本人指摘） */
-const luCode = c => { c = String(c || '').normalize('NFKC').toUpperCase().trim(); return (c.slice(0, 3) === 'ETC' && c !== 'ETC888') || c === 'HHETC'; };   /* ETC999 など。ETC888 は「基本出さない」のほう */
+const luCode = c => { c = String(c || '').normalize('NFKC').toUpperCase().trim(); return c.slice(0, 3) === 'ETC' && c !== 'ETC888'; };   /* ETC999 など。ETC888 は「基本出さない」のほう。KETC・HHETC はふつうのレンタル品（2026-10-31 本人） */
 /* 共通の管理番号（1台ずつの番号ではない）：ETC・HHETC・KETC。同じ管理番号さがしなどでは使わない */
-const genKan = c => luCode(c) || String(c || '').normalize('NFKC').toUpperCase().trim() === 'KETC';
+const genKan = c => { c = String(c || '').normalize('NFKC').toUpperCase().trim(); return c.slice(0, 3) === 'ETC' || c === 'KETC' || c === 'HHETC'; };
 const isLeaseUp = l => l.kb === '月極' && !isNbCand(l) && (luCode(l.shohin) || luCode(l.kanri));
 /* 貸出から何か月目か（今月の終わりまで）・これまでの売上のめやす（月額 × 月数） */
 function luInfo(l){
@@ -2862,7 +2862,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 15:24';
+const BUILD = '2026-10-31 18:16';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -9164,7 +9164,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 15:24';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 18:16';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
