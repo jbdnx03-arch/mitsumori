@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 15:00-->
+<!--BUILD:2026-10-31 15:24-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1173,13 +1173,14 @@ function withSubs(ls){
 }
 /* ふだん請求書に出さない販売の品（設定の商品番号。いくつかなら 、か , で区切る） */
 const nbCodes = () => String(S.opt.nbCodes == null ? 'ETC888' : S.opt.nbCodes).normalize('NFKC').toUpperCase().split(/[,、\s]+/).filter(Boolean);
-const isNbCand = l => l.kb === '販売' && nbCodes().indexOf(String(l.shohin || '').normalize('NFKC').toUpperCase().trim()) >= 0;
+/* ETC888 は区分にかかわらず「基本出さない」品（販売も月極も。2026-10-31 本人：etc888は基本出さないでいい） */
+const isNbCand = l => !l.head && nbCodes().indexOf(String(l.shohin || '').normalize('NFKC').toUpperCase().trim()) >= 0;
 /* リースアップ：月極で貸している購入品（商品番号か管理番号が ETC で始まる・HHETC）。
    KETC はふつうのレンタル品（シュークリーナーなど）なのでリースアップではない（2026-10-31 本人指摘） */
-const luCode = c => { c = String(c || '').normalize('NFKC').toUpperCase().trim(); return c.slice(0, 3) === 'ETC' || c === 'HHETC'; };
+const luCode = c => { c = String(c || '').normalize('NFKC').toUpperCase().trim(); return (c.slice(0, 3) === 'ETC' && c !== 'ETC888') || c === 'HHETC'; };   /* ETC999 など。ETC888 は「基本出さない」のほう */
 /* 共通の管理番号（1台ずつの番号ではない）：ETC・HHETC・KETC。同じ管理番号さがしなどでは使わない */
 const genKan = c => luCode(c) || String(c || '').normalize('NFKC').toUpperCase().trim() === 'KETC';
-const isLeaseUp = l => l.kb === '月極' && (luCode(l.shohin) || luCode(l.kanri));
+const isLeaseUp = l => l.kb === '月極' && !isNbCand(l) && (luCode(l.shohin) || luCode(l.kanri));
 /* 貸出から何か月目か（今月の終わりまで）・これまでの売上のめやす（月額 × 月数） */
 function luInfo(l){
   const k = l.kashi, e = l.end || (S.meta && S.meta.seikyuDate);
@@ -2660,7 +2661,7 @@ function lineDecHtml(l){
   }
   if(isNbCand(l)){
     const dec = l.nbDec || l.nb;
-    return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">' + esc(l.shohin) + '：ふだん請求書に出さない販売の品　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
+    return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">' + esc(l.shohin) + '：ふだん請求書に出さない品（基本出さない）　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
   }
   if(!l.nb && window.seikyuExt && seikyuExt.pxCand && seikyuExt.pxCand(l)) return '<div class="why" style="color:var(--ng)"><b>先月は請求書に出していなかった品</b>（伝票が変わっても同じ品）　出すか決めていない　' + seg(false, false) + '</div>';
   if(window.seikyuExt && seikyuExt.saleCand && (seikyuExt.saleCand(l) || l.saleAsk)){
@@ -2861,7 +2862,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 15:00';
+const BUILD = '2026-10-31 15:24';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8599,6 +8600,65 @@ st.textContent = '.xsysd{box-sizing:border-box;margin:10px auto 22px;padding:10p
 document.head.appendChild(st);
 })();
 
+/* ==================================================================
+   請求ナビ Web（2026-10-31）
+   ・ETC888 は「基本出さない」：まだ決めていない ETC888 の行は、出さないに決めておく（前月に出していた品は前月どおり出す）
+   ・手で足した行（前月から）は、貸出日の順の場所に置く（Yours：古いのが下・新しいのが上になっていた）
+     見出し（【…】）の中で、貸出日（同じ日なら伝票番号）が自分より前の行のうち、いちばん下の行のすぐ後ろ
+   ================================================================== */
+(function(){
+function etc888Auto(){
+  let n = 0;
+  (S.lines || []).forEach(l => {
+    if(!isNbCand(l) || l.nbDec || l.luDec || l.nb) return;
+    const prevShown = l.pv && num(l.pv.amt) > 0;
+    l.nbDec = true; if(isLeaseUp(l)) l.luDec = true;
+    if(!prevShown){ l.nb = true; n++; }
+  });
+  return n;
+}
+window.seikyuExt.etc888Auto = etc888Auto;
+const _b = build;
+build = function(){ const r = _b.apply(this, arguments); try{ const n = etc888Auto(); if(n){ save(); setTimeout(() => toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000), 1200); } }catch(e){ console.warn(e); } return r; };
+const _o = openWork;
+openWork = function(){ const r = _o.apply(this, arguments); try{ const n = etc888Auto(); if(n){ setTimeout(() => { save(); drawSites(); toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000); }, 1300); } }catch(e){ console.warn(e); } return r; };
+
+/* ---- 手で足した行は貸出日の順に ---- */
+const dk = l => String(l.kashi || '').slice(0, 10);
+const dn = l => { const v = parseInt(String((typeof denOf === 'function' ? denOf(l) : l.den) || l.den || '').replace(/\D/g, ''), 10); return isNaN(v) ? 0 : v; };
+const pmi = l => { const m = /^pm:(\d+)$/.exec(l.pmKey || ''); return m ? +m[1] : 1e6; };
+const cmp = (a, b) => dk(a) < dk(b) ? -1 : dk(a) > dk(b) ? 1 : dn(a) - dn(b);
+function placeByDate(sh, n){
+  if(!n || !n.manual || n.head || n.ovl || !dk(n)) return false;
+  const ls = linesOf(sh), i = ls.indexOf(n); if(i < 0) return false;
+  let h0 = -1, h1 = ls.length;
+  for(let k = i - 1; k >= 0; k--) if(ls[k].head){ h0 = k; break; }
+  for(let k = i + 1; k < ls.length; k++) if(ls[k].head){ h1 = k; break; }
+  let tgt = null;
+  for(let k = h0 + 1; k < h1; k++){ const r = ls[k]; if(r === n || r.head || !dk(r)) continue; if(dk(r) < dk(n) || (dk(r) === dk(n) && (r.manual || dn(r) <= dn(n)))) tgt = r; }   /* 同じ日の手打ちどうしは、前月の順のまま */
+  if(!tgt){
+    /* 自分より前の行がない（いちばん古い）：見出しの中でいちばん古い日付の行の前 */
+    let first = null; for(let k = h0 + 1; k < h1; k++){ const r = ls[k]; if(r === n || r.head || !dk(r)) continue; if(!first || cmp(r, first) < 0) first = r; }
+    if(!first) return false;
+    S.lines.splice(S.lines.indexOf(n), 1); S.lines.splice(S.lines.indexOf(first), 0, n); return true;
+  }
+  S.lines.splice(S.lines.indexOf(n), 1); S.lines.splice(S.lines.indexOf(tgt) + 1, 0, n); return true;
+}
+window.seikyuExt.placeByDate = placeByDate;
+const _pl = placeLine;
+placeLine = function(sh, n, p){ const r = _pl.apply(this, arguments); try{ placeByDate(sh, n); }catch(e){ console.warn(e); } return r; };
+/* 開いたとき1回だけ：前月から足した手打ちの行を貸出日の順の場所に置き直す */
+const _o2 = openWork;
+openWork = function(o){ const r = _o2.apply(this, arguments);
+  try{ if(S.built && !(o && o.dateOrd)){ S.dateOrd = 1; let n = 0; const nm = [];
+      S.sheets.forEach(sh => { const before = linesOf(sh).map(l => l.id).join(); linesOf(sh).filter(l => l.manual && !l.head && !l.ovl && dk(l)).sort((a, b) => dk(a) < dk(b) ? -1 : dk(a) > dk(b) ? 1 : pmi(a) - pmi(b)).forEach(l => placeByDate(sh, l)); if(linesOf(sh).map(l => l.id).join() !== before){ n++; nm.push(sh.name); } });
+      if(n) setTimeout(() => { save(); drawSites(); toast('手で足した行を貸出日の順の場所に置き直した：' + nm.slice(0, 5).join('・') + (nm.length > 5 ? ' ほか' : '') + '（↶でもどせる）', 9000); }, 1600); }
+    else S.dateOrd = 1; }catch(e){ console.warn(e); }
+  return r; };
+const _sn = snapshot;
+snapshot = function(){ const o = _sn.apply(this, arguments); o.dateOrd = S.dateOrd || 0; return o; };
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -9104,7 +9164,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 15:00';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 15:24';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
