@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 14:38-->
+<!--BUILD:2026-10-31 14:51-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2854,7 +2854,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 14:38';
+const BUILD = '2026-10-31 14:51';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7175,7 +7175,8 @@ function markPaper(B, sheets){
   const by = {};
   c.forEach(x => { if(!x.id || (x.sh && !ids.has(x.sh)) || done(x)) return; (by[x.id] = by[x.id] || []).push(x); });
   Object.keys(by).forEach(id => B.querySelectorAll('.xlid[data-lid="' + id + '"]').forEach(m => {
-    const xs = by[id], warn = xs.some(x => x.lv === 'warn' || x.never);
+    const rk = x => x.never ? 0 : x.lv === 'warn' ? 1 : /^本物/.test(x.t) ? 2 : 3;   /* 書き込みは大事な順（本物とのちがいは「日極で31日」などより先） */
+    const xs = by[id].slice().sort((a, b) => rk(a) - rk(b)), warn = xs.some(x => x.lv === 'warn' || x.never);
     m.classList.add(warn ? 'xflag' : 'xinfo');
     m.insertAdjacentHTML('beforeend', '<span class="xnote' + (warn ? '' : ' i') + '" title="' + esc(xs.map(x => x.t + (x.s ? '　' + x.s : '')).join('\n')) + '">' + (xs.some(x => x.never) ? '絶対ダメ：' : '') + esc(xs[0].t.replace(/：[^：]*$/, '')) + (xs.length > 1 ? ' ほか' + (xs.length - 1) : '') + '</span>');
   }));
@@ -8111,6 +8112,21 @@ function cmpSite(sh){
   rr.filter(x => !x.used).forEach(x => res.missing.push(x.r));
   return res;
 }
+/* 本物（システムの印刷）にない行が、どこから来た行か（2026-10-31「どうして本物にない？前月からの引き継ぎとかって書けない？」） */
+function originOf(l, sh){
+  const base = l.sys && l.sys.name ? l.sys.name : '';
+  const bl = (l.dup || l.ovl) ? linesOf(sh).find(b => b !== l && !b.dup && !b.ovl && b.key && b.key === l.key) : null;
+  const bn = bl ? bl.name : base;
+  if(l.ovl) return { short: '前月と同じく重ねた行', long: '前月と同じく、システムの1行「' + bn + '」をもう一度出している（Yours の見出しの下など）。本物では「' + bn + '」の1行だけ。' };
+  if(l.dup){
+    const n = linesOf(sh).filter(b => b.key && b.key === l.key && !b.ovl).length;
+    return { short: '前月の手直しで分けた行', long: '前月の手直しを引き継いだ：システムの1行「' + bn + '」を、前月は ' + n + ' 行に分けて請求していた（' + linesOf(sh).filter(b => b.key && b.key === l.key && !b.ovl).map(b => b.name).join('／') + '）。本物では「' + bn + '」の1行。' };
+  }
+  if(l.manual && l.pmKey) return { short: '前月に手で足した行', long: '前月の請求書に手で足していた行を、今月も足した（システムにはない行）。' + (l.carried ? '（' + l.carried + '）' : '') };
+  if(l.manual) return { short: '手で足した行', long: '今月、手で足した行（システムにはない行）。' };
+  if(l.carried) return { short: '前月から引き継ぎ', long: '前月から引き継いだ行：' + l.carried + '。本物とちがうか見て。' };
+  return { short: 'システムの行', long: 'CSVにはあるが本物の請求書にない。CSVが新しい（本物を印刷したあとに伝票が入った）か、本物が古いかもしれない。' };
+}
 /* 本物とどこがちがうか、欄ごとに「Web → 本物」で書く（2026-10-31「どこが違うのかコメントちゃんと書いて」） */
 function diffTxt(w, r){
   const sh = [], lg = [], y = v => yen(n0(v)), add = (a, b) => { sh.push(a); lg.push(b); };
@@ -8146,7 +8162,7 @@ checks = function(){
       const c = cmpSite(sh);
       if(!c){ if(billOf(sh).length) add.push({ lv:'warn', t:'本物の請求書にない現場：' + sh.name, s:'入れた本物のPDF（' + S.real.name + '）に、現場コード ' + sh.code + ' のページがない', sh: sh.id }); return; }
       /* 手で足した行・見出し・重ねた行は、もともと本物（システムの印刷）にない。黄色で知らせるだけ */
-      c.extra.forEach(x => { const hand = x.l.manual || x.l.ovl || x.l.dup; add.push({ lv: hand ? 'info' : 'warn', t:'本物にない行' + (hand ? '（手で足した行）' : '') + '：' + x.l.name, s: sh.name + '　本物の請求書にはこの行がない' + (hand ? '（前月から手で足していた行なら、それでいい）' : '（前月の手直しから来た行なら、それでいいか見て）'), id: x.l.id, sh: sh.id }); });
+      c.extra.forEach(x => { const o = originOf(x.l, sh), hand = x.l.manual || x.l.ovl || x.l.dup; add.push({ lv: hand ? 'info' : 'warn', t:'本物にない：' + o.short + '：' + x.l.name, s: sh.name + '　本物の請求書にはこの行がない。' + o.long, id: x.l.id, sh: sh.id }); });
       c.match.filter(x => x.diff.length).forEach(x => { const d = diffTxt(x.w, x.r); add.push({ lv:'info', t:'本物は ' + d.short + '：' + x.l.name, s: sh.name + '　Web → 本物：' + d.long + '　（本物の行：' + [x.r.name, x.r.den, x.r.kanri, x.r.kashi, (x.r.start || '') + '〜' + (x.r.end || ''), x.r.ret || x.r.cont || '', '数量 ' + (x.r.qty || 0), yen(n0(x.r.la) + n0(x.r.sa) + n0(x.r.ba))].filter(Boolean).join('　') + '）', id: x.l.id, sh: sh.id, real: d }); });
       if(c.missing.length) add.push({ lv:'warn', t:'本物にあって Web にない行 ' + c.missing.length + '：' + sh.name, s: c.missing.slice(0, 4).map(r => r.name + ' ' + yen(n0(r.la) + n0(r.sa) + n0(r.ba))).join('／') + (c.missing.length > 4 ? ' ほか' : ''), sh: sh.id });
       if(c.total != null && c.total !== sheetNet(sh)) add.push({ lv:'info', t:'本物と合計がちがう：' + sh.name, s:'本物 ' + yen(c.total) + '・Web ' + yen(sheetNet(sh)) + '（差 ' + (sheetNet(sh) - c.total > 0 ? '+' : '') + yen(sheetNet(sh) - c.total) + '）。手直し・手で足した行のぶんなら、それでいい', sh: sh.id });
@@ -9075,7 +9091,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 14:38';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 14:51';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
