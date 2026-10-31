@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 18:37-->
+<!--BUILD:2026-10-31 21:17-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1435,7 +1435,10 @@ function build(){
   if(P){
     P.sheets.forEach(ps => {
       if(!D.sites[ps.code] && !(ps.lines || []).some(l => l.key && (D.lines.some(x => x.key === l.key)))) return;
-      const sh = mk(ps.name, ps.code, D.sites[ps.code] ? D.sites[ps.code].name : '', ps.kouji);
+      /* 前月のシート名が「内訳 (2)」など、Excelの作業用の名前になっていたら、CSVの現場名から呼び名を作る（9月分で 沼田 所沢市・関東 ふじみ野 がそうなっていた） */
+      const nm0 = /^(内訳|鑑|コピペ|Sheet|ｼｰﾄ|シート)\s*[(（]?\s*\d*\s*[)）]?$/i.test(String(ps.name || '').normalize('NFKC').trim()) && D.sites[ps.code] ? shortName(D.sites[ps.code].name) : ps.name;
+      const sh = mk(nm0, ps.code, D.sites[ps.code] ? D.sites[ps.code].name : '', ps.kouji);
+      if(nm0 !== ps.name) sh.prevName = ps.name;
       sh.prev = ps; sheetFor[ps.name] = sh; useTitle(sh, ps); useCust(sh, ps); useSk(sh, ps);
     });
   }
@@ -2862,7 +2865,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 18:37';
+const BUILD = '2026-10-31 21:17';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8635,23 +8638,33 @@ function etc888Auto(){
 window.seikyuExt.etc888Auto = etc888Auto;
 const _ck = checks;
 checks = function(){ const out = _ck.apply(this, arguments);
+  /* ETC888 を出さないにした現場で、代わりに中身を書いた手打ちの行がない（三貴 目黒西中学校：9月は ETC888 の 128,000円 をベビーホイストなどの行に書き直して請求していた） */
+  try{ (S.sheets || []).filter(sh => sh.inKagami !== false).forEach(sh => {
+    const ls = linesOf(sh), hid = ls.filter(l => isNbCand(l) && l.nb), amt = hid.reduce((a, l) => a + sysAmt(l), 0);
+    if(!hid.length || amt <= 0 || ls.some(l => l.manual && !l.head && !l.nb && lineAmt(l) > 0)) return;
+    out.push({ lv:'warn', t:'ETC888 を出さないにした（' + yen(amt) + '）：' + sh.name, s: sh.name + '　' + hid.map(l => l.name).slice(0, 3).join('・') + (hid.length > 3 ? ' ほか' : '') + ' を出さないにした。この現場には手で足した行がない。中身（他社レンタルの品など）を書いて請求するなら、手で行を足して', sh: sh.id, id: hid[0].id });
+  }); }catch(e){ console.warn(e); }
   try{ (S.sheets || []).filter(sh => sh.prevSkip && linesOf(sh).some(l => !l.head)).forEach(sh => {
     const n = linesOf(sh).filter(l => !l.head).length, amt = linesOf(sh).reduce((a, l) => a + (l.nb ? 0 : lineAmt(l)), 0);
-    if(sh.inKagami === false) out.push({ lv:'info', t:'前月は請求書を作っていない現場（鑑から外してある）：' + sh.name, s: sh.name + '　' + n + '行・' + yen(amt) + '。前月の請求書でこの現場は作っていなかった（現場選択で ☐）ので、今月も鑑から外した。今月は出すなら、現場の「鑑に出す」に ✓', sh: sh.id });
-    else out.push({ lv:'warn', t:'前月は請求書を作っていない現場を今月は出す：' + sh.name, s: sh.name + '　' + n + '行・' + yen(amt) + '。前月はこの現場の請求書を作っていなかった。今月出していいか見て（出さないなら「鑑に出す」を外す）', sh: sh.id });
+    /* 前月は手直しがなくて、システムの請求書のまま送っていた現場（2026-10-31 本人）。Web では全現場を作るので、知らせるだけ（黄色・気になる） */
+    if(sh.inKagami !== false) out.push({ lv:'info', t:'前月はシステムの請求書のまま送った現場：' + sh.name, s: sh.name + '　' + n + '行・' + yen(amt) + '。前月のExcelでは作っていなかった（現場選択で ☐＝システムのまま送った）。今月はWebで作っている', sh: sh.id });
   }); }catch(e){ console.warn(e); }
   return out; };
-/* 前月は請求書を作らなかった現場：今月も鑑から外しておく（前月どおり）。チェックで知らせる */
-function markSkip(fresh){
-  if(!S.prev || S.sameMonth || !window.seikyuExt.prevSkipSet) return 0;
-  const off = window.seikyuExt.prevSkipSet(S.prev); let n = 0;
-  S.sheets.forEach(sh => { if(!off.has(String(sh.code || ''))) return; if(!sh.prevSkip){ sh.prevSkip = true; if(fresh){ sh.inKagami = false; n++; } } });
+/* 前月のファイルで請求書を作らなかった現場（現場選択で ☐）。鑑からは外さない（別の請求書ファイルで出していることがある：
+   9月分で試したら 関東 立野・高島、Yours 堀切、成美 目白 などが ☐ でも別のファイルで請求していた）。現場ごとに「要確認」で知らせるだけ。
+   18:37 版で自動で鑑から外した現場は、開いたときにもどす */
+function markSkip(){
+  let n = 0;
+  if(!S.skipFix){ (S.sheets || []).forEach(sh => { if(sh.prevSkip && sh.inKagami === false){ sh.inKagami = true; n++; } }); S.skipFix = 1; }
+  if(!S.prev || S.sameMonth || !window.seikyuExt.prevSkipSet) return n;
+  const off = window.seikyuExt.prevSkipSet(S.prev);
+  S.sheets.forEach(sh => { if(off.has(String(sh.code || ''))) sh.prevSkip = true; });
   return n;
 }
 const _b = build;
-build = function(){ const r = _b.apply(this, arguments); try{ markSkip(true); }catch(e){ console.warn(e); } try{ const n = etc888Auto(); if(n){ save(); setTimeout(() => toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000), 1200); } }catch(e){ console.warn(e); } return r; };
+build = function(){ const r = _b.apply(this, arguments); try{ markSkip(); }catch(e){ console.warn(e); } try{ const n = etc888Auto(); if(n){ save(); setTimeout(() => toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000), 1200); } }catch(e){ console.warn(e); } return r; };
 const _o = openWork;
-openWork = function(){ const r = _o.apply(this, arguments); try{ markSkip(false); }catch(e){} try{ const n = etc888Auto(); if(n){ setTimeout(() => { save(); drawSites(); toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000); }, 1300); } }catch(e){ console.warn(e); } return r; };
+openWork = function(o){ const r = _o.apply(this, arguments); S.skipFix = (o && o.skipFix) || 0; try{ if(markSkip()) setTimeout(() => { save(); drawSites(); }, 1300); }catch(e){} try{ const n = etc888Auto(); if(n){ setTimeout(() => { save(); drawSites(); toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000); }, 1300); } }catch(e){ console.warn(e); } return r; };
 
 /* ---- 手で足した行は貸出日の順に ---- */
 const dk = l => String(l.kashi || '').slice(0, 10);
@@ -8719,7 +8732,252 @@ openWork = function(o){ const r = _o2.apply(this, arguments);
     else S.dateOrd = Math.max(S.dateOrd || 0, (o && o.dateOrd) || 0); }catch(e){ console.warn(e); }
   return r; };
 const _sn = snapshot;
-snapshot = function(){ const o = _sn.apply(this, arguments); o.dateOrd = S.dateOrd || 0; return o; };
+snapshot = function(){ const o = _sn.apply(this, arguments); o.dateOrd = S.dateOrd || 0; o.skipFix = S.skipFix || 0; return o; };
+})();
+
+/* ==================================================================
+   請求ナビ Web：スマホをアプリのように（2026-10-31「スマホでももっとやりやすく、アプリみたいにプロ仕様に」）
+   M1 下のタブバー（読み込み・現場・チェック・印刷・その他）。親指で届く。チェックの数のバッジつき
+   M2 上の帯を1行に（得意先・締め・保存の点だけ）。最新版・控え・暗く・web見積は「その他」に
+   M3 現場の画面の上に「‹ 3/22 西池袋 102,310 ›」。押すと現場の一覧（金額・要確認・見た）が下から出る
+   M4 現場を左右にスワイプで前・次の現場へ
+   M5 「次の要確認」の丸いボタン（右下）
+   M6 お知らせ（トースト）は下に出して、画面の真ん中をふさがない
+   M7 プレビューの帯を1行（横にすべる）に。下に ‹前・次› と印刷・PDF
+   M8 入力の字を 16px（iPhone で勝手に拡大しない）・押すところは 44px
+   M9 ホーム画面に追加したとき、アプリのように全画面（theme-color・apple-mobile-web-app）
+   M10 押したときに軽くふるえる（対応する Android だけ）
+   パソコン（幅 760px より広い）は今までどおり
+   ================================================================== */
+(function(){
+const mq = window.matchMedia('(max-width: 760px)');
+const mob = () => mq.matches;
+const buzz = () => { try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){} };
+/* ---- M9 ---- */
+[['theme-color', '#0E4C54'], ['apple-mobile-web-app-capable', 'yes'], ['mobile-web-app-capable', 'yes'], ['apple-mobile-web-app-status-bar-style', 'black-translucent'], ['apple-mobile-web-app-title', '請求ナビ']].forEach(([n, c]) => {
+  if(document.querySelector('meta[name="' + n + '"]')) return; const m = document.createElement('meta'); m.name = n; m.content = c; document.head.appendChild(m); });
+{ const v = document.querySelector('meta[name="viewport"]'); if(v && !/viewport-fit/.test(v.content)) v.content += ', viewport-fit=cover'; }
+
+const IC = {
+  load: '<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>',
+  sites: '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M9 11.5l2.2 2.2L15.5 9"/><rect x="4" y="3.5" width="16" height="17" rx="2.5"/></svg>',
+  paper: '<svg viewBox="0 0 24 24"><path d="M7 8V3.5h10V8M7 17H5a2 2 0 01-2-2v-5a2 2 0 012-2h14a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="7" y="14" width="10" height="6.5" rx="1"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/></svg>'
+};
+/* ---- M1 下のタブバー ---- */
+const bot = document.createElement('nav'); bot.id = 'xBot'; bot.setAttribute('aria-label', 'メニュー');
+bot.innerHTML = [['load', '読み込み'], ['sites', '現場'], ['check', 'チェック'], ['paper', '印刷・PDF'], ['more', 'その他']]
+  .map(([k, t]) => '<button type="button" data-bt="' + k + '"><i>' + IC[k] + '</i><span>' + t + '</span>' + (k === 'check' ? '<b class="xbadge" hidden></b>' : '') + '</button>').join('');
+document.body.appendChild(bot);
+bot.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-bt]'); if(!b) return; buzz();
+  const k = b.dataset.bt;
+  if(k === 'more'){ openMore(); return; }
+  setTab(k); paintBot();
+});
+function paintBot(){
+  bot.querySelectorAll('[data-bt]').forEach(b => b.classList.toggle('on', b.dataset.bt === S.tab));
+  const src = document.querySelector('.tabs button[data-tab="check"] .cnt'), bd = bot.querySelector('.xbadge');
+  if(bd){ const t = src ? src.textContent : ''; bd.hidden = !t || t === '✓'; bd.textContent = t; bd.className = 'xbadge' + (src && /ng/.test(src.className) ? ' ng' : ''); }
+  const fab = document.getElementById('xFab'); if(fab) fab.hidden = !(mob() && S.built && S.tab === 'sites' && hasTodo());
+}
+const _st = setTab; setTab = function(t){ const r = _st.apply(this, arguments); try{ paintBot(); }catch(e){} return r; };
+const _ub = updChkBadge; updChkBadge = function(){ const r = _ub.apply(this, arguments); try{ paintBot(); }catch(e){} return r; };
+
+/* ---- 下から出るシート ---- */
+let sheet = null;
+function openSheet(title, html, onClick){
+  closeSheet();
+  sheet = document.createElement('div'); sheet.className = 'xsheet-veil';
+  sheet.innerHTML = '<div class="xsheet" role="dialog" aria-modal="true"><div class="xsheet-grab"></div><div class="xsheet-h"><b>' + esc(title) + '</b><button type="button" class="xsheet-x" aria-label="閉じる">✕</button></div><div class="xsheet-b">' + html + '</div></div>';
+  document.body.appendChild(sheet);
+  requestAnimationFrame(() => sheet && sheet.classList.add('in'));
+  sheet.addEventListener('click', ev => { if(ev.target === sheet || ev.target.closest('.xsheet-x')){ closeSheet(); return; } if(onClick) onClick(ev); });
+  /* 下に引っぱって閉じる */
+  const s = sheet.querySelector('.xsheet'); let y0 = null, dy = 0;
+  s.addEventListener('touchstart', ev => { if(s.querySelector('.xsheet-b').scrollTop > 0) { y0 = null; return; } y0 = ev.touches[0].clientY; dy = 0; }, { passive: true });
+  s.addEventListener('touchmove', ev => { if(y0 == null) return; dy = Math.max(0, ev.touches[0].clientY - y0); s.style.transform = 'translateY(' + dy + 'px)'; }, { passive: true });
+  s.addEventListener('touchend', () => { if(y0 == null) return; if(dy > 90) closeSheet(); else s.style.transform = ''; y0 = null; });
+}
+function closeSheet(){ if(!sheet) return; const v = sheet; sheet = null; v.classList.remove('in'); setTimeout(() => v.remove(), 220); }
+window.seikyuExt.openSheet = openSheet; window.seikyuExt.closeSheet = closeSheet;
+
+/* ---- その他 ---- */
+function openMore(){
+  const it = (k, ic, t, sub, dis) => '<button type="button" class="xm-it" data-m="' + k + '"' + (dis ? ' disabled' : '') + '><span class="xm-ic">' + ic + '</span><span class="xm-t">' + t + (sub ? '<small>' + sub + '</small>' : '') + '</span></button>';
+  const und = document.getElementById('btnUndo');
+  openSheet('その他',
+    '<div class="xm-grid">' +
+    it('pv', '👁', 'プレビュー', S.tab === 'sites' ? 'この現場' : '全部', !S.built) +
+    it('undo', '↶', '元に戻す', und && !und.disabled ? (und.title || '').replace(/^元に戻す：?/, '') : 'ありません', !und || und.disabled) +
+    it('hikae', '🗂', '控え', '保存した作業') +
+    it('theme', '◐', '明るい／暗い', '') +
+    it('latest', '↻', '最新版を取り直す', '作業は消えない') +
+    it('mitsu', '✎', 'web見積', '') +
+    '</div>' + (S.built && S.meta ? '<p class="xm-now">いまの作業：<b>' + esc(S.meta.custName || '') + '</b>　' + esc(jdate(S.meta.seikyuDate || '')) + '締め</p>' : ''),
+    ev => { const b = ev.target.closest('[data-m]'); if(!b || b.disabled) return; buzz(); const m = b.dataset.m; closeSheet();
+      const click = id => { const e = document.getElementById(id); if(e) e.click(); };
+      if(m === 'pv') click('btnTopPv'); if(m === 'undo') click('btnUndo'); if(m === 'hikae') click('btnHikae'); if(m === 'theme') click('btnTheme'); if(m === 'latest') click('btnLatest');
+      if(m === 'mitsu') location.href = './index.html'; });
+}
+
+/* ---- M3 現場の見出し・一覧 ---- */
+const amtOf = sh => { try{ return sheetNet(sh); }catch(e){ return 0; } };
+let ckCache = null, ckAt = 0;
+function ckBy(){ if(ckCache && Date.now() - ckAt < 1500) return ckCache; const m = {}; try{ checks().forEach(x => { if(!x.sh || x.lv === 'sales') return; if(window.seikyuExt.chkDone && window.seikyuExt.chkDone(x)) return; const o = m[x.sh] = m[x.sh] || { ng: 0, w: 0, i: 0 }; if(x.never) o.ng++; else if(x.lv === 'warn') o.w++; else o.i++; }); }catch(e){} ckCache = m; ckAt = Date.now(); return m; }
+function hasTodo(){ const c = ckBy()[S.cur]; return !!(c && (c.ng || c.w)); }
+const seen = sh => { try{ const e = (S.ext && S.ext.seen) || {}; const s = e[sh.id]; return !!(s && s.net === sheetNet(sh)); }catch(e){ return false; } };
+function siteHead(){
+  if(!mob() || S.tab !== 'sites') return;
+  const T = document.getElementById('tab-sites'); if(!T) return;
+  document.querySelectorAll('.xmsite').forEach(x => x.remove());
+  const i = S.sheets.findIndex(s => s.id === S.cur), sh = S.sheets[i]; if(!sh) return;
+  const c = ckBy()[sh.id] || {};
+  const h = document.createElement('div'); h.className = 'xmsite';
+  h.innerHTML = '<button type="button" class="xms-nav" data-ms="-1" aria-label="前の現場"' + (i <= 0 ? ' disabled' : '') + '>‹</button>' +
+    '<button type="button" class="xms-mid" data-ms="list"><span class="xms-n">' + (i + 1) + ' / ' + S.sheets.length + '</span><b>' + esc(sh.name) + '</b>' +
+    '<span class="xms-a">' + yen(amtOf(sh)) + (sh.inKagami === false ? '<em>鑑から外す</em>' : '') + (c.ng ? '<em class="ng">絶対ダメ ' + c.ng + '</em>' : c.w ? '<em class="w">要確認 ' + c.w + '</em>' : '') + '</span><i>▾</i></button>' +
+    '<button type="button" class="xms-nav" data-ms="1" aria-label="次の現場"' + (i >= S.sheets.length - 1 ? ' disabled' : '') + '>›</button>';
+  T.insertBefore(h, T.firstChild);
+}
+function stepSite(d){
+  const i = S.sheets.findIndex(s => s.id === S.cur), j = i + d; if(j < 0 || j >= S.sheets.length) return false;
+  S.cur = S.sheets[j].id; buzz(); drawSites();
+  const B = document.getElementById('siteBody'); if(B){ B.classList.remove('xslide-l', 'xslide-r'); void B.offsetWidth; B.classList.add(d > 0 ? 'xslide-l' : 'xslide-r'); }
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); return true;
+}
+function openSiteList(){
+  const by = ckBy();
+  openSheet('現場（' + S.sheets.length + '）',
+    '<ul class="xsl">' + S.sheets.map((sh, i) => { const c = by[sh.id] || {};
+      return '<li><button type="button" data-sid="' + sh.id + '" class="' + (sh.id === S.cur ? 'on' : '') + '"><span class="xsl-i">' + (i + 1) + '</span><span class="xsl-n"><b>' + esc(sh.name) + '</b><small>' + esc(sh.siteName || '') + '</small></span>' +
+        '<span class="xsl-r"><span class="xsl-a">' + yen(amtOf(sh)) + '</span>' + (c.ng ? '<em class="ng">' + c.ng + '</em>' : c.w ? '<em class="w">' + c.w + '</em>' : seen(sh) ? '<em class="ok">✓</em>' : '') + (sh.inKagami === false ? '<em>外</em>' : '') + '</span></button></li>'; }).join('') + '</ul>',
+    ev => { const b = ev.target.closest('[data-sid]'); if(!b) return; S.cur = b.dataset.sid; buzz(); closeSheet(); drawSites(); window.scrollTo(0, 0); });
+  setTimeout(() => { const on = sheet && sheet.querySelector('.xsl .on'); if(on) on.scrollIntoView({ block: 'center' }); }, 60);
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('.xmsite [data-ms]'); if(!b) return;
+  if(b.dataset.ms === 'list') openSiteList(); else stepSite(+b.dataset.ms);
+});
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); ckCache = null; try{ siteHead(); paintBot(); }catch(e){} setTimeout(() => { try{ if(!document.querySelector('.xmsite')) siteHead(); }catch(e){} }, 120); return r; };
+
+/* ---- M4 左右にスワイプ ---- */
+let sx = null, sy = 0, st0 = 0;
+document.addEventListener('touchstart', ev => {
+  if(!mob() || S.tab !== 'sites' || sheet || ev.touches.length !== 1) { sx = null; return; }
+  const t = ev.target; if(!t.closest || !t.closest('#siteBody') || t.closest('input,textarea,select,.xbulk,.xsel,table.ln td.lnbtn,[contenteditable]')) { sx = null; return; }
+  /* 横にすべる部分（表など）の中は、すべらせるほう優先 */
+  for(let e = t; e && e.id !== 'siteBody'; e = e.parentElement){ if(e.scrollWidth > e.clientWidth + 4 && /(auto|scroll)/.test(getComputedStyle(e).overflowX)){ sx = null; return; } }
+  sx = ev.touches[0].clientX; sy = ev.touches[0].clientY; st0 = Date.now();
+}, { passive: true });
+document.addEventListener('touchend', ev => {
+  if(sx == null) return; const t = ev.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; sx = null;
+  if(Math.abs(dx) > 80 && Math.abs(dy) < 45 && Date.now() - st0 < 700) stepSite(dx < 0 ? 1 : -1);
+}, { passive: true });
+
+/* ---- M5 次の要確認 ---- */
+const fab = document.createElement('button'); fab.id = 'xFab'; fab.type = 'button'; fab.hidden = true; fab.title = '次の要確認へ';
+fab.innerHTML = '<span>要確認</span><b>▶</b>';
+document.body.appendChild(fab);
+fab.addEventListener('click', () => { buzz(); const b = document.querySelector('[data-x="next"]'); if(b) b.click(); else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', bubbles: true })); setTimeout(paintBot, 400); });
+
+/* ---- 見た目 ---- */
+const st = document.createElement('style');
+st.textContent = `
+#xBot,#xFab{display:none}
+@media (max-width:760px){
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+  input,select,textarea{font-size:16px!important}
+  .btn,.tabs button,button.latest{min-height:40px}
+  /* M2 上の帯を1行に */
+  .top{padding:calc(6px + env(safe-area-inset-top)) 12px 6px;gap:8px;flex-wrap:nowrap;overflow:hidden}
+  .top h1{font-size:15px;white-space:nowrap}
+  .top h1 small,.top .latest,.top a.latest,.top .xtheme{display:none!important}
+  .top .tabs{display:none!important}
+  .top .who{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+  .top{position:sticky}
+  .top .savest{position:absolute;right:16px;top:calc(18px + env(safe-area-inset-top));font-size:0!important;width:10px;height:10px;min-width:10px;padding:0!important;border-radius:50%;background:#7FD3A6;box-shadow:0 0 0 3px rgba(127,211,166,.25)}
+  .top .savest.bad{background:#F2B35B;box-shadow:0 0 0 3px rgba(242,179,91,.25)}
+  /* M1 下のタブバー */
+  #xBot{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+    background:color-mix(in srgb,var(--surface) 88%,transparent);-webkit-backdrop-filter:saturate(1.6) blur(18px);backdrop-filter:saturate(1.6) blur(18px);
+    border-top:1px solid var(--line);box-shadow:0 -6px 24px rgba(0,0,0,.08)}
+  #xBot button{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;padding:4px 0 2px;color:var(--ink3);font-size:10.5px;font-weight:700;letter-spacing:.02em;-webkit-tap-highlight-color:transparent;border-radius:12px;transition:color .2s,background .2s}
+  #xBot i{display:block;width:26px;height:26px}
+  #xBot svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  #xBot [data-bt="more"] svg{fill:currentColor;stroke:none}
+  #xBot button.on{color:var(--brand)}
+  #xBot button.on i{animation:xbpop .28s ease}
+  #xBot button:active{background:var(--soft)}
+  @keyframes xbpop{0%{transform:scale(.82)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+  #xBot .xbadge{position:absolute;top:0;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--warn);color:#fff!important;-webkit-text-fill-color:#fff;font:800 10.5px/18px system-ui,-apple-system,sans-serif;text-align:center;box-shadow:0 0 0 2px var(--surface);opacity:1}
+  #xBot .xbadge[hidden]{display:none}
+  #xBot .xbadge.ng{background:#D2493A}
+  /* M3 現場の見出し */
+  #siteList{display:none!important}
+  #tab-sites .kpis{display:flex!important;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px 2px;scroll-snap-type:x mandatory}
+  #tab-sites .kpis::-webkit-scrollbar{display:none}
+  #tab-sites .kpi{flex:0 0 46%;scroll-snap-align:start;padding:8px 10px!important;border-radius:14px}
+  #tab-sites .kpi .v{font-size:17px!important}#tab-sites .kpi .s{font-size:10.5px;max-height:2.6em;overflow:hidden}
+  #tab-sites .main{margin-top:10px!important}
+  .main{display:block!important}
+  .xmsite{position:sticky;top:calc(48px + env(safe-area-inset-top));z-index:15;display:flex;align-items:stretch;gap:6px;margin:0 0 10px;padding:6px;border-radius:16px;
+    background:color-mix(in srgb,var(--surface) 90%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--line);box-shadow:0 6px 18px rgba(0,0,0,.08)}
+  .xms-nav{flex:none;width:44px;border:0;border-radius:12px;background:var(--soft);color:var(--brand);font-size:26px;line-height:1;font-weight:300}
+  .xms-nav:disabled{opacity:.3}
+  .xms-mid{flex:1;min-width:0;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;column-gap:8px;align-items:center;text-align:left;border:0;background:none;padding:2px 4px}
+  .xms-n{grid-row:1;grid-column:1;font-size:11px;color:var(--ink3);font-variant-numeric:tabular-nums}
+  .xms-mid b{grid-row:1;grid-column:2;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xms-mid i{grid-row:1/3;grid-column:3;font-style:normal;color:var(--ink3);font-size:12px}
+  .xms-a{grid-row:2;grid-column:1/3;font-size:12.5px;color:var(--ink2);font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .xms-a em,.xsl-r em{font-style:normal;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--ink2)}
+  .xms-a em.ng,.xsl-r em.ng{background:var(--ngbg);color:var(--ng)} .xms-a em.w,.xsl-r em.w{background:var(--warnbg);color:var(--warn)} .xsl-r em.ok{background:rgba(46,160,90,.14);color:#2E8B57}
+  #siteBody.xslide-l{animation:xsl .26s ease} #siteBody.xslide-r{animation:xsr .26s ease}
+  @keyframes xsl{from{opacity:.4;transform:translateX(26px)}to{opacity:1;transform:none}}
+  @keyframes xsr{from{opacity:.4;transform:translateX(-26px)}to{opacity:1;transform:none}}
+  /* M5 */
+  #xFab{display:flex;position:fixed;right:14px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:59;align-items:center;gap:6px;border:0;border-radius:999px;padding:10px 16px;
+    background:linear-gradient(135deg,var(--warn),#D9822B);color:#fff;font-weight:800;font-size:13px;box-shadow:0 10px 24px rgba(183,121,31,.35)}
+  #xFab[hidden]{display:none}
+  #xFab:active{transform:scale(.96)}
+  /* M6 トーストは下 */
+  .toast{left:12px!important;right:12px!important;bottom:calc(82px + env(safe-area-inset-bottom))!important;top:auto!important;transform:none!important;max-width:none!important;border-radius:14px!important;font-size:13px!important;text-align:left!important}
+  /* もとの「上へ」ボタンはタブバーとぶつからないように */
+  .xtotop,#toTop{bottom:calc(84px + env(safe-area-inset-bottom))!important}
+  /* M7 プレビューの帯 */
+  .spv-bar{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-top:calc(8px + env(safe-area-inset-top))!important}
+  .spv-bar::-webkit-scrollbar{display:none}
+  .spv-bar>*{flex:none}
+  .spv-bar b{flex-basis:auto!important;max-width:46vw}
+  /* その他・現場の一覧のシート */
+  .xsheet-veil{position:fixed;inset:0;z-index:200;background:rgba(10,20,22,0);transition:background .22s}
+  .xsheet-veil.in{background:rgba(10,20,22,.42)}
+  .xsheet{position:absolute;left:0;right:0;bottom:0;max-height:82vh;display:flex;flex-direction:column;background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;
+    padding:0 0 env(safe-area-inset-bottom);transform:translateY(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1);box-shadow:0 -12px 40px rgba(0,0,0,.25)}
+  .xsheet-veil.in .xsheet{transform:none}
+  .xsheet-grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:8px auto 2px}
+  .xsheet-h{display:flex;align-items:center;padding:6px 16px 8px}.xsheet-h b{flex:1;font-size:16px}
+  .xsheet-x{border:0;background:var(--soft);width:32px;height:32px;border-radius:50%;color:var(--ink2)}
+  .xsheet-b{overflow:auto;padding:0 12px 14px;-webkit-overflow-scrolling:touch}
+  .xm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .xm-it{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:12px;min-height:58px}
+  .xm-it:disabled{opacity:.45}
+  .xm-ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--soft);font-size:15px;flex:none}
+  .xm-t{display:flex;flex-direction:column;font-weight:700;font-size:13.5px;min-width:0}.xm-t small{font-weight:400;color:var(--ink3);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xm-now{margin:12px 4px 0;font-size:12px;color:var(--ink3)}
+  .xsl{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .xsl button{width:100%;display:flex;align-items:center;gap:10px;text-align:left;border:0;background:none;padding:10px 8px;border-radius:12px}
+  .xsl button.on{background:var(--soft)}
+  .xsl-i{width:26px;text-align:right;color:var(--ink3);font-size:12px;font-variant-numeric:tabular-nums;flex:none}
+  .xsl-n{flex:1;min-width:0;display:flex;flex-direction:column}.xsl-n b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.xsl-n small{font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xsl-r{display:flex;gap:5px;align-items:center;flex:none}.xsl-a{font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
+}
+@media (max-width:760px) and (prefers-reduced-motion:reduce){ #siteBody.xslide-l,#siteBody.xslide-r,#xBot button.on i{animation:none} .xsheet{transition:none} }
+`;
+document.head.appendChild(st);
+mq.addEventListener && mq.addEventListener('change', () => { try{ drawSites && S.tab === 'sites' && drawSites(); paintBot(); }catch(e){} });
+setTimeout(() => { try{ paintBot(); }catch(e){} }, 300);
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -9227,7 +9485,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 18:37';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 21:17';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
