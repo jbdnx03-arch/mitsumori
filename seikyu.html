@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 11:48-->
+<!--BUILD:2026-10-31 12:02-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2816,7 +2816,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 11:48';
+const BUILD = '2026-10-31 12:02';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7988,12 +7988,17 @@ async function readReal(f){
     const tc = await pg.getTextContent();
     const items = tc.items.filter(t => t.str && t.str.trim()).map(t => { const sz = Math.abs(t.transform[3]) || t.height || 9; return { str: t.str, x: t.transform[4], w: t.width || 0, top: H - t.transform[5] - sz * 0.86, sz }; });
     const txt = items.map(t => t.str).join(' ');
+    if(!out.date){ const lb = items.find(t => /^請\s*求\s*日$/.test(t.str.trim()));
+      const dt = lb && items.find(t => t.x > lb.x && Math.abs(t.top - lb.top) < 5 && /^\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日$/.test(t.str.trim()));
+      const dm = dt && /^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日$/.exec(dt.str.trim());
+      if(dm) out.date = dm[1] + '-' + dm[2].padStart(2, '0') + '-' + dm[3].padStart(2, '0'); }
+    if(!out.custName){ const cn2 = items.find(t => t.x < 60 && t.top + t.sz * 0.86 > 80 && t.top + t.sz * 0.86 < 90 && /株式会社|有限会社|合同会社|㈱|Ｙｏｕｒｓ/.test(t.str)); if(cn2) out.custName = cn2.str.trim(); }
     if(/現場合計表/.test(txt)) continue;   /* 鑑 */
     /* 1枚目：左上に 御客様番号（95,122）と現場番号（95,131）の数字 */
     const at = (x0, x1, t0, t1, re) => items.find(t => t.x >= x0 && t.x <= x1 && t.top + t.sz * 0.86 >= t0 && t.top + t.sz * 0.86 <= t1 && re.test(t.str.trim()));
     let kind = null;
     if(/御\s*客\s*様\s*番\s*号/.test(txt)){
-      const c1 = at(85, 115, 116, 128, /^\d+\s*-\s*\d+$/); if(c1 && !out.cust) out.cust = c1.str.trim().split('-')[0].trim();
+      const c1 = at(85, 115, 116, 128, /^\d+\s*-\s*\d+$/); if(c1 && !out.cust){ const pp = c1.str.trim().split('-'); out.cust = pp[0].trim(); out.br = (pp[1] || '0').trim(); }
       const c2 = at(85, 115, 126, 138, /^\d{1,6}$/); if(c2){ cur = c2.str.trim(); kind = 'p1'; }
     }
     if(!kind && /商\s*品\s*名/.test(txt) && cur){ kind = 'p2';
@@ -8111,15 +8116,38 @@ window.seikyuExt.orderLikeReal = orderLikeReal; window.seikyuExt.applyReal = app
 
 /* ---------- 本物のPDFを入れる ---------- */
 let pendingReal = null;
+/* 作業がまだない得意先の本物は、端末に取っておき、作ったときに当てる */
+const PK = 'seikyuNaviWeb.realPending';
+const pendGet = () => { try{ return JSON.parse(localStorage.getItem(PK) || '{}'); }catch(e){ return {}; } };
+const pendPut = o => { try{ localStorage.setItem(PK, JSON.stringify(o)); }catch(e){} };
+const idOfReal = R => (R.cust && R.date) ? workIdOf({ custCode: R.cust, custBr: R.br || '0', seikyuDate: R.date }) : '';
+function takePendingFor(meta){
+  if(!meta) return null; const id = workIdOf(meta), P = pendGet();
+  const R = P[id] || null; if(R){ delete P[id]; pendPut(P); }
+  return R;
+}
+/* 本物を、その得意先・締めの作業に覚えさせる（開いている作業ならそのまま。ほかは保存してある作業に書きこむ） */
+async function storeReal(R){
+  const id = idOfReal(R), nm = R.custName || R.cust || '?';
+  if(S.built && S.meta && (S.workId === id || (!id && String(S.meta.custCode).split('-')[0] === String(R.cust)))){ S.real = R; save(); drawSites(); return { nm, how: 'open' }; }
+  if(!id) return { nm, how: 'unknown' };
+  let row = null; try{ row = (await allWorksMeta()).find(x => x.id === id); }catch(e){}
+  if(row){
+    try{ const w = await loadWork(row); if(w){ w.real = R; w.savedAt = new Date().toISOString(); await WK.put(w); const p = pendList(); if(p.indexOf(id) < 0){ p.push(id); pendSet(p); } clearTimeout(window.__realCloudT); window.__realCloudT = setTimeout(() => { try{ pushCloud(); }catch(e){} }, 4000); return { nm, how: 'saved' }; } }catch(e){ console.warn(e); }
+  }
+  const P = pendGet(); P[id] = R; pendPut(P);
+  return { nm, how: 'pending' };
+}
 async function takeReal(f){
   toast('本物の請求書（PDF）を読んでいます…', 30000);
   let R; try{ R = await readReal(f); }catch(e){ console.error(e); toast('本物の請求書PDFを読めなかった：' + (e.message || e), 7000); return; }
   $('#toast').hidden = true;
   const ns = Object.keys(R.sites).length;
   if(!ns){ toast('本物の請求書の明細が読めなかった（システムから印刷した「御請求書」のPDFか確かめて）', 8000); return; }
-  if(!S.built){ pendingReal = R; say2('✓ 本物の請求書（' + f.name + '・' + ns + '現場）を覚えた。CSVで作ったら突き合わせる'); toast('本物の請求書を覚えた。CSVで作業を作ると、自動で突き合わせる', 5000); return; }
-  if(R.cust && S.meta && String(S.meta.custCode).split('-')[0] !== String(R.cust)){ toast('この本物の請求書は別の得意先（' + R.cust + '）のもの。いま開いているのは ' + S.meta.custName, 8000); return; }
-  S.real = R; save(); drawSites(); realReport(true);
+  R.file = f.name;
+  const r = await storeReal(R); r.file = f.name; r.ns = ns; r.date = R.date;
+  if(r.how === 'unknown' && !S.built){ pendingReal = R; r.how = 'pending'; }
+  return r;
 }
 function realReport(ask){
   if(!S.real) return;
@@ -8149,14 +8177,23 @@ async function takeAny(files){
   const log = [];
   for(const f of prev){ await takePrev(f); log.push('前月：' + f.name); }
   for(const f of csv){ await takeCsv(f); log.push('CSV：' + f.name); }
-  const chk = [];
+  const chk = [], reals = [];
   for(const f of pdf){
     const k = await pdfKind(f);
-    if(k === 'real'){ await takeReal(f); log.push('本物の請求書：' + f.name); }
+    if(k === 'real'){ const r = await takeReal(f); if(r) reals.push(r); log.push('本物の請求書：' + f.name); }
     else if(k === 'chk' || k === 'w'){ chk.push(f); log.push((k === 'w' ? 'Wレンタル売上リスト：' : 'チェックリスト：') + f.name); }
     else log.push('？ わからないPDF：' + f.name);
   }
   if(chk.length && window.x3 && window.x3.addFiles){ window.x3.addFiles(chk); }
+  if(reals.length){
+    const how = { open:'いま開いている作業に当てて突き合わせた', saved:'保存してある作業に覚えさせた（開くと突き合わせ）', pending:'まだ作業がないので取っておいた（CSVで作ると自動で突き合わせ）', unknown:'得意先・締めが読めなかった' };
+    const cur = reals.find(r => r.how === 'open');
+    const v = await askDialog('本物の請求書を ' + reals.length + ' 件 振り分けた',
+      '<ul style="max-height:46vh;overflow:auto">' + reals.map(r => '<li><b>' + esc(r.nm) + '</b>　' + (r.date ? jdate(r.date) + '締め　' : '') + r.ns + '現場<br><small>' + esc(r.file) + '　→ ' + how[r.how] + '</small></li>').join('') + '</ul>' +
+      '<p class="muted">得意先・締めごとに覚えておくので、あとは自動。作業を開くと現場の画面とプレビューに「本物とのちがい」が出ます。</p>',
+      [{ t: cur ? 'いまの作業の突き合わせを見る' : '閉じる', v: cur ? 'see' : null, primary: true }]);
+    if(v === 'see') realReport(true);
+  }
   other.forEach(f => log.push('？ 読めない形：' + f.name));
   say2(log.join('　／　'));
   if(log.length) toast('入れたもの：' + log.join('・'), 6000);
@@ -8179,9 +8216,9 @@ function mount(){
 mount(); document.addEventListener('DOMContentLoaded', mount);
 /* 作ったあと・開いたあと：覚えていた本物を当てる */
 const _build = build;
-build = function(){ S.real = null; const r = _build.apply(this, arguments); if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; setTimeout(() => { save(); realReport(true); }, 900); } return r; };
+build = function(){ S.real = null; const r = _build.apply(this, arguments); { const pr = takePendingFor(S.meta); if(pr){ S.real = pr; setTimeout(() => { save(); realReport(true); }, 900); } } if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; setTimeout(() => { save(); realReport(true); }, 900); } return r; };
 const _open = openWork;
-openWork = function(o){ const r = _open.apply(this, arguments); S.real = (o && o.real) || null; if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; save(); setTimeout(() => realReport(true), 900); } return r; };
+openWork = function(o){ const r = _open.apply(this, arguments); S.real = (o && o.real) || null; { const pr = takePendingFor(S.meta); if(pr){ S.real = pr; setTimeout(() => { save(); drawSites(); realReport(true); }, 900); } } if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; save(); setTimeout(() => realReport(true), 900); } return r; };
 const _snap = snapshot;
 snapshot = function(){ const o = _snap.apply(this, arguments); o.real = S.real || null; return o; };
 /* 現場の画面：本物とくらべた結果と、ボタン */
@@ -8717,7 +8754,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 11:48';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 12:02';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
