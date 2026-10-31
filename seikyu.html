@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 08:55-->
+<!--BUILD:2026-10-31 09:46-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2728,7 +2728,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 08:55';
+const BUILD = '2026-10-31 09:46';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7500,6 +7500,7 @@ document.addEventListener('click', ev => {
   if(ev.target.closest('.xmissv')){ ev.stopPropagation(); const sh = sheetById(S.cur); if(!docked && typeof closeSitePv === 'function') closeSitePv(); if(sh) skEdit(sh); return; }
   const m = lidAt(pg, ev.clientX, ev.clientY); if(!m) return;
   ev.stopPropagation(); ev.preventDefault();
+  if(window.seikyuExt.pvEdit && window.seikyuExt.pvEdit(m, ev, pg, docked)) return;
   goLine(m.dataset.lid, docked);
 }, true);
 /* なぞると、押せる行がわかる */
@@ -7522,7 +7523,7 @@ function dockOpen(){
   if(typeof closeSitePv === 'function') closeSitePv();
   if(!dock){
     dock = document.createElement('div'); dock.id = 'xDock';
-    dock.innerHTML = '<div class="xd-bar"><b id="xDockT"></b><span class="xd-h">行を押すと左のその行へ</span><span class="sp"></span>' +
+    dock.innerHTML = '<div class="xd-bar"><b id="xDockT"></b><span class="xd-h">欄を押すとその場で直せる</span><span class="sp"></span>' +
       '<span class="seg2 xd-pos"><button class="btn sm" type="button" data-dpos="r" title="右に並べる">右</button><button class="btn sm" type="button" data-dpos="b" title="下に並べる">下</button></span>' +
       '<button class="btn sm" type="button" data-dk="print" title="この現場を印刷">印刷</button><button class="btn sm" type="button" data-dk="close">閉じる</button></div><div id="xDockBody"></div>';
     document.body.appendChild(dock);
@@ -7586,7 +7587,7 @@ sitePreview = function(all){
       bar.querySelector('[data-x="pvdock"]').addEventListener('click', ev => { ev.stopPropagation(); if(pvAll) return toast('並べて直すのは1現場ずつ。「この現場」にしてから押して'); dockOpen(); });
     }
     let hint = $('#spvHint'); if(!hint){ hint = document.createElement('span'); hint.id = 'spvHint'; hint.className = 'xpvhint'; const t = $('#spvT'); if(t) t.insertAdjacentElement('afterend', hint); }
-    hint.textContent = '行を押すと直す画面へ';
+    hint.textContent = '欄を押すとその場で直せる';
   }catch(e){}
 };
 
@@ -7602,6 +7603,138 @@ st.textContent =
   '#xDock .xd-bar .btn{color:#EAF2F2}#xDock .xd-pos .btn.on{background:#5EC8D2;color:#08303A;border-color:#5EC8D2}' +
   '#xDockBody{flex:1;overflow:auto;padding:12px}#xDockBody .xp{margin:0 auto 12px;box-shadow:0 2px 10px rgba(0,0,0,.35)}' +
   '@media print{#xDock{display:none !important}body.xdock-r,body.xdock-b{padding:0 !important}}';
+document.head.appendChild(st);
+})();
+
+/* ==================================================================
+   請求ナビ Web：プレビューの請求書の上で、そのまま直す（2026-10-31）
+   ・本物の書式の明細の行で、直したい欄（品名・伝票・貸出・開始・終了・返却・数量・単位・日数・区分・単価・基本料）を押す
+     → その場に入力欄が出る。Enter で決定（金額・日数は現場の画面と同じ計算）、Esc でやめる、Tab で次の欄
+   ・「↗ 行へ」で、現場の画面のその行へ
+   直した結果は現場の画面と同じ（同じ処理を通す）。元に戻す（Ctrl+Z）も効く
+   ================================================================== */
+(function(){
+/* 本物の書式の欄の位置（pt。左からの位置。上段／下段で欄が分かれるところは 2 つ） */
+const COLS = [
+  [0, 195, 'name', 'name', '品名'],
+  [195, 257, 'denW', null, '伝票番号'],
+  [257, 287, 'kashi', null, '貸出日'],
+  [287, 317, 'start', null, '開始'],
+  [317, 347, 'end', null, '終了'],
+  [347, 377, 'retd', null, '返却'],
+  [377, 418, 'qty', null, '数量'],
+  [418, 436, 'unit', null, '単位'],
+  [480, 524, 'days', 'sdays', '請求日数', 'サポート日数'],
+  [524, 580, 'kb', null, '単価区分'],
+  [580, 640, 'lu', 'su', '賃貸単価', 'サポート単価'],
+  [697, 755, 'bu', null, '基本料・販売 単価']
+];
+const ORDER = ['name', 'denW', 'kashi', 'start', 'end', 'retd', 'qty', 'unit', 'days', 'sdays', 'kb', 'lu', 'su', 'bu'];
+const LBL = { name:'品名', denW:'伝票番号', kashi:'貸出日', start:'開始', end:'終了', retd:'返却', qty:'数量', unit:'単位', days:'請求日数', sdays:'サポート日数', kb:'単価区分', lu:'賃貸単価', su:'サポート単価', bu:'基本料・販売 単価' };
+let pop = null, cur = null;
+function fieldAt(m, ev){
+  const xsb = m.closest('.xsb'); if(!xsb) return null;
+  const xr = xsb.getBoundingClientRect(), mr = m.getBoundingClientRect();
+  const pt = (ev.clientX - xr.left) / xr.width * 842;
+  const low = (ev.clientY - mr.top) / mr.height > 0.52;
+  const c = COLS.find(c => pt >= c[0] && pt < c[1]); if(!c) return null;
+  return low && c[3] ? c[3] : c[2];
+}
+function valOf(l, f){
+  if(f === 'denW') return denOf(l);
+  if(f === 'kashi' || f === 'start' || f === 'end' || f === 'retd') return md(l[f]) || '';
+  if(f === 'lu' || f === 'su' || f === 'bu') return num(l[f]) ? String(num(l[f])) : '';
+  if(f === 'qty' || f === 'days' || f === 'sdays') return num(l[f]) ? String(num(l[f])) : '';
+  return l[f] == null ? '' : String(l[f]);
+}
+let hl = null;
+function close(){ if(pop){ pop.remove(); pop = null; } if(hl){ hl.remove(); hl = null; } cur = null; }
+/* 直している欄を枠で */
+function mark(m, f){
+  const xsb = m.closest('.xsb'); if(!xsb) return; const c = COLS.find(c => c[2] === f || c[3] === f); if(!c) return;
+  const xr = xsb.getBoundingClientRect(), mr = m.getBoundingClientRect(), k = xr.width / 842, split = !!c[3];
+  const top = split && c[3] === f ? mr.top + mr.height * 0.5 : mr.top, h = split ? mr.height * 0.5 : mr.height;
+  hl = document.createElement('div'); hl.className = 'xpe-hl'; Object.assign(hl.style, { left: (xr.left + c[0] * k) + 'px', top: top + 'px', width: ((c[1] - c[0]) * k) + 'px', height: h + 'px' }); document.body.appendChild(hl);
+}
+/* 現場の画面と同じ処理で直す（その行の入力欄に値を入れて「変えた」を送る） */
+function apply(id, f, v){
+  const l = S.lines.find(x => x.id === id); if(!l) return false;
+  if(S.cur !== l.sheet){ S.cur = l.sheet; drawSites(); }
+  let el = document.querySelector('#siteBody tr[data-id="' + id + '"] [data-f="' + f + '"]');
+  if(!el){ drawSites(); el = document.querySelector('#siteBody tr[data-id="' + id + '"] [data-f="' + f + '"]'); }
+  if(!el){
+    /* 入力欄が出ていない欄（返却のない行など）は、直接入れて計算 */
+    if(f === 'retd'){ const d = String(v).trim() ? dateIn(v) : ''; if(String(v).trim() && !d){ toast('日付が読めない（10/1 や 1001 のように）'); return false; } l.retd = d; l.cont = d ? '' : (l.start ? '継続' : ''); if(l.sys) l.edited = true; save(); drawSites(); return true; }
+    toast('この欄はここでは直せない。「↗ 行へ」から直して'); return false;
+  }
+  el.value = v;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+function refresh(docked){
+  if(docked) return;   /* 並べて直すは、現場の画面を描き直すと自動で変わる */
+  const B = document.getElementById('spvBody'); if(!B) return;
+  const st = B.scrollTop; sitePreview(typeof pvAll !== 'undefined' ? pvAll : false);
+  const B2 = document.getElementById('spvBody'); if(B2) B2.scrollTop = st;
+}
+function openAt(m, f, docked, rect){
+  close();
+  const l = S.lines.find(x => x.id === m.dataset.lid); if(!l) return;
+  if(l.head && f !== 'name') f = 'name';
+  cur = { id: l.id, f, docked };
+  mark(m, f);
+  pop = document.createElement('div'); pop.className = 'xpe';
+  const v = valOf(l, f);
+  const sh = sheetById(l.sheet);
+  const inp = f === 'kb'
+    ? '<select class="xpe-i">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>'
+    : '<input class="xpe-i" value="' + esc(v) + '" ' + (f === 'name' || f === 'unit' ? 'inputmode="text"' : 'inputmode="decimal"') + ' placeholder="' + (/^(kashi|start|end)$/.test(f) ? '月/日' : f === 'retd' ? '月/日（空で継続）' : f === 'denW' ? '空でCSVの番号' : '') + '">';
+  pop.innerHTML = '<div class="xpe-h"><b>' + LBL[f] + '</b><span>' + esc(String(l.name).slice(0, 22)) + '</span></div>' + inp +
+    '<div class="xpe-f"><button type="button" class="btn sm primary" data-pe="ok">決定 <kbd>Enter</kbd></button><button type="button" class="btn sm ghost" data-pe="no">やめる</button><span class="sp"></span><button type="button" class="btn sm ghost" data-pe="go" title="現場の画面のこの行へ">↗ 行へ</button></div>' +
+    '<div class="xpe-n">' + (f === 'qty' || f === 'lu' || f === 'su' || f === 'bu' || f === 'days' || f === 'sdays' || f === 'start' || f === 'end' ? '金額・日数は現場の画面と同じく計算し直す' : f === 'denW' ? '紙に出す伝票番号だけ変わる' : '') + '<span>Tab で次の欄</span></div>';
+  document.body.appendChild(pop);
+  const W = 300, x = Math.min(window.innerWidth - W - 8, Math.max(8, rect.left)), y = rect.bottom + 6 + 170 > window.innerHeight ? Math.max(8, rect.top - 176) : rect.bottom + 6;
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  const i = pop.querySelector('.xpe-i'); i.focus(); if(i.select) i.select();
+  const done = () => { const val = i.value; const c = cur; close(); if(!c) return; if(String(val) === String(valOf(l, c.f)) && c.f !== 'kb'){ return; } if(apply(c.id, c.f, val)){ setTimeout(() => { refresh(c.docked); toast(LBL[c.f] + 'を直した（↶ でもどせる）', 2200); }, 60); } };
+  const next = back => { const val = i.value, c = cur; close(); if(c && String(val) !== String(valOf(l, c.f))) apply(c.id, c.f, val);
+    const ok = ORDER.filter(k => k === 'name' || !l.head); let j = ok.indexOf(c.f) + (back ? -1 : 1); if(j < 0) j = ok.length - 1; if(j >= ok.length) j = 0;
+    setTimeout(() => { refresh(c.docked); const B = document.getElementById(c.docked ? 'xDockBody' : 'spvBody'); const m2 = B && B.querySelector('.xlid[data-lid="' + c.id + '"]'); if(m2) openAt(m2, ok[j], c.docked, m2.getBoundingClientRect()); }, 120); };
+  i.addEventListener('keydown', ev => {
+    if(ev.key === 'Enter'){ ev.preventDefault(); ev.stopPropagation(); done(); }
+    else if(ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); close(); }
+    else if(ev.key === 'Tab'){ ev.preventDefault(); ev.stopPropagation(); next(ev.shiftKey); }
+  });
+  if(f === 'kb') i.addEventListener('change', done);
+  pop.addEventListener('click', ev => { ev.stopPropagation(); const b = ev.target.closest('[data-pe]'); if(!b) return;
+    if(b.dataset.pe === 'ok') done(); else if(b.dataset.pe === 'no') close(); else if(b.dataset.pe === 'go'){ const c = cur; close(); window.seikyuExt.goLine(c.id, c.docked); } });
+}
+/* プレビューの行を押したとき（ext2l から呼ばれる）：欄の上ならその場で直す */
+window.seikyuExt.pvEdit = function(m, ev, pg, docked){
+  if(typeof RO === 'function' && RO()) return false;   /* 読むだけの作業 */
+  const f = fieldAt(m, ev); if(!f) return false;
+  const lr = m.getBoundingClientRect();
+  openAt(m, f, docked, { left: ev.clientX - 40, top: lr.top, bottom: lr.bottom });
+  return true;
+};
+/* 外を押したら閉じる */
+document.addEventListener('mousedown', ev => { if(pop && !pop.contains(ev.target)) close(); }, true);
+/* プレビューを閉じたら閉じる */
+const _cl = closeSitePv; closeSitePv = function(){ close(); return _cl.apply(this, arguments); };
+/* なぞったとき、欄の名前を出す */
+document.addEventListener('mousemove', ev => {
+  const m = ev.target.closest && ev.target.closest('.xp') ? document.querySelector('.xlid.xhov') : null;
+  if(!m){ return; }
+  const f = fieldAt(m, ev); m.title = f ? LBL[f] + 'を押すとその場で直せる' : '押すと直す画面へ';
+}, { passive: true });
+const st = document.createElement('style');
+st.textContent = '.xpe{position:fixed;z-index:10000;width:300px;padding:10px 12px;border-radius:12px;background:#fff;color:#14232A;box-shadow:0 14px 40px rgba(0,0,0,.35),0 0 0 1px rgba(20,100,110,.25);font-size:13px}' +
+  '.xpe-h{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}.xpe-h b{color:#14646E}.xpe-h span{color:#667;font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}' +
+  '.xpe-i{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:7px 9px;border:1.5px solid #5EC8D2;border-radius:8px;outline:none;background:#fff;color:#111}' +
+  '.xpe-f{display:flex;gap:6px;align-items:center;margin-top:8px}.xpe-f .sp{flex:1}.xpe .btn{color:#14232A}.xpe .btn.primary{background:#14646E;color:#fff;border-color:#14646E}.xpe kbd{font-size:10px;opacity:.75}' +
+  '.xpe .btn.ghost{color:#14646E;background:#fff;border:1px solid #cfdcdc}.xpe .btn.ghost:hover{background:#EEF7F8}.xpe-hl{position:fixed;z-index:9999;pointer-events:none;border:2px solid #E0A020;border-radius:3px;background:rgba(255,200,60,.18);box-shadow:0 0 0 3px rgba(255,200,60,.25)}' +
+  '.xpe-n{margin-top:6px;font-size:11px;color:#778;display:flex;gap:8px;justify-content:space-between}';
 document.head.appendChild(st);
 })();
 
@@ -8110,7 +8243,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 08:55';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 09:46';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
