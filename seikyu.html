@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 10:16-->
+<!--BUILD:2026-10-31 10:43-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1323,6 +1323,12 @@ function useCust(sh, ps){
   if(!c || !m.custName || rnN(c) === rnN(m.custName)){ return false; }
   sh.custName = c; sh.custZip = ps.zip7 || ''; sh.custAddr = ps.addr8 || ''; return true;
 }
+/* 三貴の工事番号は必ず「T-」から。数字だけ入れたら T- をつける（2394 → T-2394。t2394・Ｔ－２３９４ も同じ） */
+function normKouji(v){
+  let s = String(v == null ? '' : v).normalize('NFKC').trim(); if(!s) return '';
+  if(S.meta && String(S.meta.custCode) === '3057'){ const m = /^[Tt]?\s*[-‐−ー―]?\s*(\d[\d-]*)$/.exec(s); if(m) s = 'T-' + m[1]; }
+  return s;
+}
 function useSk(sh, ps){
   const p = ps && ps.skPrev; if(!p || !Object.keys(p).length) return;
   sh.skv = sh.skv || {}; Object.keys(p).forEach(a => { if(sh.skv[a] == null || sh.skv[a] === '') sh.skv[a] = p[a]; });
@@ -1799,7 +1805,7 @@ function drawSite(){
       (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => p.added ? '<span class="tag ok">✓ ' + esc(p.name) + '</span>' : (/^(日極|月極)$/.test(String(p.kb || '')) ? '<button class="btn sm" data-addprev="' + i + '" title="前月から続く品：基本料は入れません">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa) + (num(p.ba) ? '<small style="opacity:.7">（前月の基本料 ' + yen(p.ba) + ' は入れない）</small>' : '') + '</button>' : (S.sameMonth ? '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>' : '<span class="tag" title="運賃・販売は前月だけの請求。今月もかかるときは「行を足す」で今月の日付で入れて" style="opacity:.6">前月だけ：' + esc(p.name) + '（足さない）</span>'))).join(' ') + '</span>' : '') + relinkBtn() + '</div>' : (S.prev ? '<div class="prev">' + relinkBtn() + '</div>' : '');
   B.innerHTML = '<div class="card">' + '<div class="shead" id="shead">' +
     '<div class="sh"><div class="nm"><input id="shName" value="' + esc(sh.name) + '" aria-label="呼び名"><div class="full">' + esc(sh.siteName) + (sh.csvSite && sh.csvSite !== sh.siteName ? '<small class="muted">（CSVは「' + esc(sh.csvSite) + '」・前月の請求書と同じ名前にしている）</small>' : '') + '　現場コード ' + esc(sh.code) + '<br>宛名 <input id="shCust" value="' + esc(custOf(sh)) + '" style="width:220px" title="この現場の請求書の宛名（得意先名）。空にするとCSVの「' + esc(S.meta.custName) + '」にもどる">' + (sh.custName ? '<small class="muted">（CSVは「' + esc(S.meta.custName) + '」・この現場だけ宛名を変えている）</small>' : '') + '</div></div>' +
-    '<label class="fld">工事番号（三貴）<input id="shKouji" value="' + esc((sh.skv && sh.skv.F23) || sh.kouji) + '" placeholder="T-0000"></label>' +
+    '<label class="fld">工事番号（三貴）<input id="shKouji" value="' + esc((sh.skv && sh.skv.F23) || sh.kouji) + '" placeholder="数字だけでOK（T- は自動）" title="数字だけ入れると T- を頭につける"></label>' +
     (S.meta.custCode === '3057' ? '<label class="fld">三貴担当者名<input id="shSkTan" value="' + esc((sh.skv && sh.skv.AD21) || '') + '" placeholder="例：山田"></label>' : '') +
     '<label class="fld">この現場の税抜を<input id="shTarget" inputmode="numeric" placeholder="' + yen(net) + '"></label>' +
     '<label class="fld"><span><input type="checkbox" id="shKg"' + (sh.inKagami ? ' checked' : '') + '> 鑑に出す</span></label>' +
@@ -1972,7 +1978,7 @@ function onSiteChange(ev){
   const sh = sheetById(S.cur);
   if(t.id === 'shName'){ const v = t.value.trim(); if(v && !S.sheets.some(s => s !== sh && s.name === v)) sh.name = v; else if(v){ toast('同じ呼び名があります'); t.value = sh.name; } save(); drawSites(); return; }
   if(t.id === 'shCust'){ const v = t.value.trim(); if(!v || rnN(v) === rnN(S.meta.custName)){ delete sh.custName; delete sh.custZip; delete sh.custAddr; } else if(v !== sh.custName){ sh.custName = v; sh.custZip = ''; sh.custAddr = ''; } save(); drawSites(); toast(sh.custName ? 'この現場の宛名を「' + sh.custName + '」にした（住所の欄は空）' : '宛名をCSVの「' + S.meta.custName + '」にもどした'); return; }
-  if(t.id === 'shKouji'){ sh.kouji = t.value.trim(); if(sh.skv && sh.skv.F23 != null){ if(sh.kouji) sh.skv.F23 = sh.kouji; else delete sh.skv.F23; } save(); drawSites(); return; }
+  if(t.id === 'shKouji'){ sh.kouji = normKouji(t.value); t.value = sh.kouji; if(sh.skv && sh.skv.F23 != null){ if(sh.kouji) sh.skv.F23 = sh.kouji; else delete sh.skv.F23; } save(); drawSites(); return; }
   if(t.id === 'shSkTan'){ const v = t.value.trim(); sh.skv = sh.skv || {}; if(v) sh.skv.AD21 = v; else delete sh.skv.AD21; save(); drawSites(); return; }
   if(t.id === 'shKg'){ sh.inKagami = t.checked; save(); drawSites(); return; }
   if(t.id === 'shTarget'){ const v = num(t.value); if(!v){ t.value = ''; return; } const net = sheetNet(sh), d = v - net; if(!d){ toast('もうその金額です'); return; }
@@ -2746,7 +2752,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 10:16';
+const BUILD = '2026-10-31 10:43';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -4710,6 +4716,7 @@ async function skEdit(sh){
   const out = {};
   Object.keys(k).forEach(a => { if(/^r\d+(name|qty|price|amt)$/.test(a) || a === 'rows') return; if(k[a] !== '' && k[a] != null) out[a] = k[a]; });
   if(isYours()){ const rs = []; for(let i = 0; i < 7; i++){ const r = { name: k['r' + i + 'name'] || '', qty: k['r' + i + 'qty'] || '', price: k['r' + i + 'price'] || '', amt: k['r' + i + 'amt'] || '' }; if(r.name || r.amt) rs.push(r); } if(rs.length) out.rows = rs; }
+  if(out.F23 != null){ out.F23 = normKouji(out.F23); if(!out.F23) delete out.F23; }
   sh.skv = out; save(); drawSites(); toast('指定用紙を直した（プレビューで見られる）');
 }
 document.addEventListener('input', ev => { const a = ev.target.dataset && ev.target.dataset.skv; if(a && window.__skv) window.__skv[a] = ev.target.value; }, true);
@@ -7789,7 +7796,7 @@ document.head.appendChild(st);
 /* ---------- 表紙・指定用紙の欄も、プレビューでそのまま直す（2026-10-31） ---------- */
 (function(){
 const CELL = {
-  kouji: { t:'工事番号', get: sh => (sh.skv && sh.skv.F23) || sh.kouji || '', set: (sh, v) => { sh.kouji = v; if(sh.skv && sh.skv.F23 != null){ if(v) sh.skv.F23 = v; else delete sh.skv.F23; } } },
+  kouji: { t:'工事番号', get: sh => (sh.skv && sh.skv.F23) || sh.kouji || '', n:'数字だけ入れれば T- を頭につける', set: (sh, v) => { v = normKouji(v); sh.kouji = v; if(sh.skv && sh.skv.F23 != null){ if(v) sh.skv.F23 = v; else delete sh.skv.F23; } } },
   chuban: { t:'注文番号', get: sh => (sh.skv && (isSanki() ? sh.skv.S23 : sh.skv.chuban)) || '', set: (sh, v) => { sh.skv = sh.skv || {}; const k = isSanki() ? 'S23' : 'chuban'; if(v) sh.skv[k] = v; else delete sh.skv[k]; } },
   tan: { t:'三貴担当者名', get: sh => (sh.skv && sh.skv.AD21) || '', set: (sh, v) => { sh.skv = sh.skv || {}; if(v) sh.skv.AD21 = v; else delete sh.skv.AD21; } },
   kname: { t:'工事名称', get: sh => (sh.skv && sh.skv.F21) || sh.siteName || sh.name, set: (sh, v) => { sh.skv = sh.skv || {}; if(v && v !== (sh.siteName || sh.name)) sh.skv.F21 = v; else delete sh.skv.F21; }, n:'空にすると現場名にもどる（この用紙だけ）' },
@@ -8377,7 +8384,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 10:16';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 10:43';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
