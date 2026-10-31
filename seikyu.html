@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-10-31 12:02-->
+<!--BUILD:2026-10-31 12:11-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2816,7 +2816,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-10-31 12:02';
+const BUILD = '2026-10-31 12:11';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8123,7 +8123,7 @@ const pendPut = o => { try{ localStorage.setItem(PK, JSON.stringify(o)); }catch(
 const idOfReal = R => (R.cust && R.date) ? workIdOf({ custCode: R.cust, custBr: R.br || '0', seikyuDate: R.date }) : '';
 function takePendingFor(meta){
   if(!meta) return null; const id = workIdOf(meta), P = pendGet();
-  const R = P[id] || null; if(R){ delete P[id]; pendPut(P); }
+  const R = P[id] || null; if(R){ delete P[id]; pendPut(P); setTimeout(() => { try{ paintPending(); }catch(e){} }, 0); }
   return R;
 }
 /* 本物を、その得意先・締めの作業に覚えさせる（開いている作業ならそのまま。ほかは保存してある作業に書きこむ） */
@@ -8147,6 +8147,7 @@ async function takeReal(f){
   R.file = f.name;
   const r = await storeReal(R); r.file = f.name; r.ns = ns; r.date = R.date;
   if(r.how === 'unknown' && !S.built){ pendingReal = R; r.how = 'pending'; }
+  try{ paintPending(); }catch(e){}
   return r;
 }
 function realReport(ask){
@@ -8174,31 +8175,57 @@ async function takeAny(files){
   files = Array.from(files || []); if(!files.length) return;
   const prev = [], csv = [], pdf = [], other = [];
   files.forEach(f => { if(/\.csv$/i.test(f.name) || f.type === 'text/csv') csv.push(f); else if(/\.(xlsm|xlsx|json)$/i.test(f.name)) prev.push(f); else if(/\.pdf$/i.test(f.name) || f.type === 'application/pdf') pdf.push(f); else other.push(f); });
-  const log = [];
-  for(const f of prev){ await takePrev(f); log.push('前月：' + f.name); }
-  for(const f of csv){ await takeCsv(f); log.push('CSV：' + f.name); }
+  /* 1つずつ「読んでいます → ✓ 覚えた」をこの欄に出す */
+  const items = files.map(f => ({ f, st: 'wait', txt: '' }));
+  const it = f => items.find(x => x.f === f);
+  const paint = () => {
+    const box = document.getElementById('xAnyMsg'); if(!box) return;
+    const ic = { wait: '<i class="xa-sp"></i>', ok: '✓', ng: '×', q: '？' };
+    box.innerHTML = '<ul class="xa-list">' + items.map(x => '<li class="xa-' + x.st + '"><span class="xa-ic">' + ic[x.st === 'ok' || x.st === 'ng' || x.st === 'q' ? x.st : 'wait'] + '</span><span class="xa-t">' + (x.txt || '読んでいます…') + '</span><span class="xa-f">' + esc(x.f.name) + '</span></li>').join('') + '</ul>';
+  };
+  const set = (f, st, txt) => { const x = it(f); if(x){ x.st = st; x.txt = txt; } paint(); };
+  clearTimeout(window.__xaT); paint();
+  for(const f of prev){ try{ await takePrev(f); set(f, 'ok', '<span class="xa-k">前月のファイル</span>を読んだ' + (window.prevData && prevData.label ? '（' + jdate(prevData.label) + '締め）' : '')); }catch(e){ set(f, 'ng', '前月のファイルを読めなかった'); } }
+  for(const f of csv){ try{ await takeCsv(f); let t = '<span class="xa-k">CSV</span>を読んだ'; try{ const D = readCsv(csvText); t = '<span class="xa-k">CSV</span>：' + esc(D.meta.custName) + '　' + jdate(D.meta.seikyuDate) + '締め'; }catch(e){} set(f, 'ok', t); }catch(e){ set(f, 'ng', 'CSVを読めなかった'); } }
   const chk = [], reals = [];
   for(const f of pdf){
     const k = await pdfKind(f);
-    if(k === 'real'){ const r = await takeReal(f); if(r) reals.push(r); log.push('本物の請求書：' + f.name); }
-    else if(k === 'chk' || k === 'w'){ chk.push(f); log.push((k === 'w' ? 'Wレンタル売上リスト：' : 'チェックリスト：') + f.name); }
-    else log.push('？ わからないPDF：' + f.name);
+    if(k === 'real'){
+      const r = await takeReal(f);
+      if(!r){ set(f, 'ng', '本物の請求書の明細が読めなかった'); continue; }
+      reals.push(r);
+      const how = { open: 'いま開いている作業に入れた', saved: 'その作業に覚えさせた', pending: '覚えた（作業を作ったら自動で当てる）', unknown: '得意先・締めが読めなかった' }[r.how];
+      set(f, r.how === 'unknown' ? 'ng' : 'ok', '<span class="xa-k">本物の請求書</span>：' + esc(r.nm) + (r.date ? '　' + jdate(r.date) + '締め' : '') + '　' + r.ns + '現場 → ' + how);
+    }
+    else if(k === 'chk' || k === 'w'){ chk.push(f); set(f, 'ok', k === 'w' ? '<span class="xa-k">Wレンタル売上リスト</span> → チェックタブの赤入れへ' : '<span class="xa-k">チェックリスト</span> → チェックタブの赤入れへ'); }
+    else set(f, 'q', 'なにのPDFか分からなかった（入れていない）');
   }
   if(chk.length && window.x3 && window.x3.addFiles){ window.x3.addFiles(chk); }
-  if(reals.length){
-    const how = { open:'いま開いている作業に当てて突き合わせた', saved:'保存してある作業に覚えさせた（開くと突き合わせ）', pending:'まだ作業がないので取っておいた（CSVで作ると自動で突き合わせ）', unknown:'得意先・締めが読めなかった' };
-    const cur = reals.find(r => r.how === 'open');
-    const v = await askDialog('本物の請求書を ' + reals.length + ' 件 振り分けた',
-      '<ul style="max-height:46vh;overflow:auto">' + reals.map(r => '<li><b>' + esc(r.nm) + '</b>　' + (r.date ? jdate(r.date) + '締め　' : '') + r.ns + '現場<br><small>' + esc(r.file) + '　→ ' + how[r.how] + '</small></li>').join('') + '</ul>' +
-      '<p class="muted">得意先・締めごとに覚えておくので、あとは自動。作業を開くと現場の画面とプレビューに「本物とのちがい」が出ます。</p>',
-      [{ t: cur ? 'いまの作業の突き合わせを見る' : '閉じる', v: cur ? 'see' : null, primary: true }]);
-    if(v === 'see') realReport(true);
-  }
-  other.forEach(f => log.push('？ 読めない形：' + f.name));
-  say2(log.join('　／　'));
-  if(log.length) toast('入れたもの：' + log.join('・'), 6000);
+  other.forEach(f => set(f, 'q', '読めない形（入れていない）'));
+  const ok = items.filter(x => x.st === 'ok').length, bad = items.length - ok;
+  toast('完了：' + ok + '件 入れた' + (bad ? '・' + bad + '件 入れられなかった' : ''), 5000);
+  /* しばらくしたら1行にまとめて、そのあと消す（入れられなかったものは残す） */
+  window.__xaT = setTimeout(() => {
+    const box = document.getElementById('xAnyMsg'); if(!box) return;
+    const ng = items.filter(x => x.st !== 'ok');
+    box.innerHTML = '<div class="xa-done">✓ 完了　' + ok + '件 入れた' + (reals.length ? '（本物の請求書 ' + reals.length + '件：' + reals.map(r => esc(String(r.nm).replace(/\s*株式会社\s*/g, ''))).join('・') + '）' : '') + '</div>' +
+      (ng.length ? '<ul class="xa-list">' + ng.map(x => '<li class="xa-' + x.st + '"><span class="xa-ic">' + (x.st === 'ng' ? '×' : '？') + '</span><span class="xa-t">' + x.txt + '</span><span class="xa-f">' + esc(x.f.name) + '</span></li>').join('') + '</ul>' : '');
+    if(!ng.length) window.__xaT = setTimeout(() => { const b2 = document.getElementById('xAnyMsg'); if(b2) b2.innerHTML = ''; paintPending(); }, 15000);
+    paintPending();
+  }, 9000);
+  paintPending();
   if(chk.length) setTimeout(() => toast('チェックリストは「チェック」タブの赤入れに入れた', 4000), 1500);
+  if(reals.some(r => r.how === 'open')) setTimeout(() => realReport(true), 600);
 }
+/* 取っておいてある本物（まだ作業がない得意先の分） */
+function paintPending(){
+  const z = document.getElementById('xAny'); if(!z) return;
+  let el = document.getElementById('xAnyPend'); if(!el){ el = document.createElement('div'); el.id = 'xAnyPend'; el.className = 'xa-pend'; z.appendChild(el); }
+  const P = pendGet(), ks = Object.keys(P);
+  el.innerHTML = ks.length ? '取っておいてある本物の請求書 ' + ks.length + '件（その得意先の作業を作ると自動で当てる）：' + ks.map(k => esc(String(P[k].custName || P[k].cust || k).replace(/\s*株式会社\s*/g, '')) + (P[k].date ? ' ' + jdate(P[k].date).replace(/^\d+年/, '') : '')).join('・') : '';
+  el.hidden = !ks.length;
+}
+window.seikyuExt.paintPending = paintPending;
 window.seikyuExt.takeAny = takeAny;
 /* 読み込みの画面に置き場 */
 function mount(){
@@ -8206,6 +8233,7 @@ function mount(){
   const h = card.querySelector('h2');
   h.insertAdjacentHTML('afterend', '<label class="drop xany" id="xAny"><b>なんでも置く</b><span class="muted">CSV・本物の請求書PDF・前月の請求ナビ（.xlsm）・引き継ぎ（.json）・チェックリストPDF を、まとめて置くか押して選ぶ。中身を見て振り分けて、覚えておく</span><input type="file" id="fAny" multiple accept=".csv,.pdf,.xlsm,.xlsx,.json,text/csv,application/pdf" hidden><div class="st" id="xAnyMsg"></div></label>');
   const z = document.getElementById('xAny'), fi = document.getElementById('fAny');
+  document.getElementById('xAnyMsg').addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); });
   fi.addEventListener('change', () => { const fs = Array.from(fi.files); fi.value = ''; takeAny(fs); });
   ['dragenter', 'dragover'].forEach(e => z.addEventListener(e, ev => { ev.preventDefault(); z.classList.add('on'); }));
   ['dragleave', 'drop'].forEach(e => z.addEventListener(e, ev => { ev.preventDefault(); z.classList.remove('on'); }));
@@ -8213,7 +8241,7 @@ function mount(){
   /* 前からある2つの置き場にも、なんでも置ける（ちがう種類なら振り分ける） */
   ['dropCsv', 'dropPrev'].forEach(id => { const d = document.getElementById(id); if(!d) return; d.addEventListener('drop', ev => { const fs = Array.from(ev.dataTransfer.files || []); const want = id === 'dropCsv' ? /\.csv$/i : /\.(xlsm|xlsx|json)$/i; if(fs.length > 1 || fs.some(f => !want.test(f.name))){ ev.preventDefault(); ev.stopImmediatePropagation(); takeAny(fs); } }, true); });
 }
-mount(); document.addEventListener('DOMContentLoaded', mount);
+mount(); document.addEventListener('DOMContentLoaded', mount); setTimeout(() => { try{ paintPending(); }catch(e){} }, 300);
 /* 作ったあと・開いたあと：覚えていた本物を当てる */
 const _build = build;
 build = function(){ S.real = null; const r = _build.apply(this, arguments); { const pr = takePendingFor(S.meta); if(pr){ S.real = pr; setTimeout(() => { save(); realReport(true); }, 900); } } if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; setTimeout(() => { save(); realReport(true); }, 900); } return r; };
@@ -8245,7 +8273,7 @@ document.addEventListener('click', ev => {
   if(b.dataset.xr === 'apply'){ const n = applyReal(sh); save(); drawSites(); toast('本物のとおりにした（' + n + '行・↶でもどせる）', 4000); }
 }, true);
 const st = document.createElement('style');
-st.textContent = '.drop.xany{display:block;margin:0 0 12px;border-style:dashed;border-width:2px}.drop.xany.on{border-color:var(--brand,#14646E);background:rgba(94,200,210,.08)}.drop.xany b{font-size:15px}.tag.xreal.ok{background:rgba(46,160,90,.15);color:#2E9F5A}.tag.xreal.ng{background:rgba(226,92,92,.14);color:#E25C5C}';
+st.textContent = '.drop.xany{display:block;margin:0 0 12px;border-style:dashed;border-width:2px}.drop.xany.on{border-color:var(--brand,#14646E);background:rgba(94,200,210,.08)}.drop.xany b{font-size:15px}.xa-list{list-style:none;margin:10px auto 0;padding:0;max-width:900px;text-align:left;display:grid;gap:4px}.xa-list li{display:grid;grid-template-columns:22px 1fr;gap:2px 8px;align-items:baseline;padding:6px 10px;border-radius:8px;background:rgba(127,127,127,.08);font-size:13px}.xa-list .xa-f{grid-column:2;font-size:11px;opacity:.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.xa-list .xa-ic{font-weight:800;text-align:center}.xa-ok .xa-ic{color:#3CC37A}.xa-ng .xa-ic{color:#E25C5C}.xa-q .xa-ic{color:#E0A020}.xa-ok{background:rgba(60,195,122,.10) !important}.xa-ng{background:rgba(226,92,92,.12) !important}.xa-sp{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:xaspin .8s linear infinite;vertical-align:-1px;opacity:.7}@keyframes xaspin{to{transform:rotate(360deg)}}.xa-k{font-weight:800}.xa-list li span{display:inline}.xa-done{margin-top:10px;font-weight:800;color:#3CC37A}.xa-pend{margin-top:8px;font-size:12px;opacity:.8}.tag.xreal.ok{background:rgba(46,160,90,.15);color:#2E9F5A}.tag.xreal.ng{background:rgba(226,92,92,.14);color:#E25C5C}';
 document.head.appendChild(st);
 })();
 
@@ -8754,7 +8782,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 12:02';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-10-31 12:11';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
