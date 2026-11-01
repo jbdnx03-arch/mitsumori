@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 00:41-->
+<!--BUILD:2026-11-01 10:10-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2867,7 +2867,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 00:41';
+const BUILD = '2026-11-01 10:10';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -9847,6 +9847,7 @@ function goBack(st){
   requestAnimationFrame(put); setTimeout(put, 250);
 }
 window.seikyuExt.pvBack = { show: showBack, hide: hideBack, state: () => backSt };
+window.seikyuExt.pvOk = { setOk: (l, v) => setOk(l, v), isOk: l => isOk(l), ckFor: l => ckFor(l), repaint: d => repaint(d) };
 /* プレビューから飛ぶ操作を覚えておく（行を押す・ずれの行・「現場の画面へ」・「↗ 行へ」） */
 window.addEventListener('click', ev => {
   const t = ev.target; if(!t || !t.closest) return;
@@ -10079,6 +10080,151 @@ window.addEventListener('click', ev => { const b = ev.target && ev.target.closes
   const x = (window.__chk || [])[+b.dataset.xfix]; if(!x) return; const l = S.lines.find(y => y.id === x.id); if(!l) return;
   if(fixLine(l, x.xfix)){ save(); drawChecks(); try{ drawSites(); }catch(e){} toast('「' + l.name + '」：' + ({ pm: '前月の日付にもどした', sys: 'CSVの日付にもどした', ret: '終了を返却日にした', base: '基本料を外した', sup: 'サポート料を入れた' })[x.xfix] + '（↶でもどせる）', 3500); }
 }, true);
+})();
+/* ==================================================================
+   T5 OK をすばやく（2026-11-01「品目ごとに選んで一気に何個もOK／PCは右端をダブルクリックでOK・もう一度でアラームにもどる／スマホは右端のボタン」）
+   ・プレビュー：気になる行の右（紙の外の右はし）に丸いボタン。スマホは押すと OK（緑の✓）、もう一度でアラームにもどる。PCはダブルクリック
+   ・チェックの一覧：それぞれの右はしにも同じボタン（スマホは押す・PCはダブルクリック）。その場で緑になる（消えない）
+   ・「まとめてOK」：種類ごと（数量がCSVより多い・0円の行…）に並べて、チェックを入れたものを一気に OK。種類ごとに「ぜんぶ」も
+   ================================================================== */
+(function(){
+const X = window.seikyuExt, mq = window.matchMedia('(max-width: 760px)');
+const touch = () => { try{ return mq.matches || window.matchMedia('(pointer:coarse)').matches; }catch(e){ return false; } };
+const kindOf = x => String(x.t || '').replace(/：[\s\S]*$/, '').replace(/\s*[\d,]+\s*(件|行|現場)?$/, '');
+const shName = x => { try{ const sh = x.sh ? sheetById(x.sh) : (x.id ? sheetById((S.lines.find(l => l.id === x.id) || {}).sheet) : null); return sh ? sh.name : ''; }catch(e){ return ''; } };
+const okSet = (x, v, why) => { const e = E(); e.chk = e.chk || {}; const k = chkKey(x); if(v) e.chk[k] = e.chk[k] || { st: 'ok', why: why || 'OKにした', at: nowIso() }; else delete e.chk[k]; };
+let hinted = false;
+const pcHint = () => { if(hinted) return; hinted = true; toast('PCはダブルクリックで OK（もう一度ダブルクリックでアラームにもどる）', 2600); };
+const buzz = () => { try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){} };
+const afterToggle = () => { save(); try{ updChkBadge(); }catch(e){} try{ if(X.paintTot) X.paintTot(); }catch(e){} };
+
+/* ---- プレビュー：右はしの丸ボタン ---- */
+function lineOk(lid){ if(X.pvOk && X.pvOk.isOk(lid)) return true; const xs = X.pvOk ? X.pvOk.ckFor(lid) : []; return !!xs.length && xs.every(x => chkDone(x)); }
+function layer(B){
+  if(!B || !B.isConnected) return;
+  let L = B.querySelector(':scope > .xokL'); if(!L){ L = document.createElement('div'); L.className = 'xokL'; B.appendChild(L); }
+  if(getComputedStyle(B).position === 'static') B.style.position = 'relative';
+  const Br = B.getBoundingClientRect(), seen = new Set(); let h = '';
+  B.querySelectorAll('.xp .xlid.xflag, .xp .xlid.xinfo, .xp .xlid.xokd').forEach(m => {
+    const lid = m.dataset.lid, r = m.getBoundingClientRect(); if(!r.height || seen.has(lid + '@' + Math.round(r.top))) return; seen.add(lid + '@' + Math.round(r.top));
+    const pg = m.closest('.xp').getBoundingClientRect(), ok = m.classList.contains('xokd') || lineOk(lid), ng = m.classList.contains('xflag');
+    const sz = Math.max(16, Math.min(26, Math.round(r.height * 1.15)));
+    const top = r.top - Br.top + B.scrollTop + r.height / 2 - sz / 2, left = Math.min(pg.right - Br.left + B.scrollLeft + 5, B.scrollWidth - sz - 3);
+    h += '<button type="button" class="xokb2' + (ok ? ' on' : ng ? ' ng' : '') + '" data-xok2="' + esc(lid) + '" style="top:' + Math.round(top) + 'px;left:' + Math.round(left) + 'px;width:' + sz + 'px;height:' + sz + 'px;font-size:' + Math.round(sz * .55) + 'px" title="' + (touch() ? '押すと OK／もう一度でアラームにもどる' : 'ダブルクリックで OK／もう一度ダブルクリックでアラームにもどる') + '" aria-label="' + (ok ? 'OK（押すとアラームにもどす）' : 'OKにする') + '">' + (ok ? '✓' : '!') + '</button>';
+  });
+  L.innerHTML = h;
+}
+const relayout = () => ['spvBody', 'xDockBody'].forEach(id => { const B = document.getElementById(id); if(B && B.offsetParent !== null) layer(B); });
+const _am = X.afterMark;
+X.afterMark = function(B){ const r = _am ? _am.apply(this, arguments) : undefined; try{ if(B && (B.id === 'spvBody' || B.id === 'xDockBody')){ layer(B); requestAnimationFrame(() => layer(B)); setTimeout(() => layer(B), 300); } }catch(e){ console.warn(e); } return r; };
+window.addEventListener('resize', () => setTimeout(relayout, 120));
+document.addEventListener('click', ev => { if(ev.target.closest && ev.target.closest('#sitePv .spv-bar, #xDock')) setTimeout(relayout, 260); }, true);
+function toggleLine(b){
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const lid = b.dataset.xok2, v = !b.classList.contains('on');
+  X.pvOk.setOk(lid, v); buzz();
+  const docked = !!b.closest('#xDockBody');
+  X.pvOk.repaint(docked); afterToggle();
+  toast(v ? 'OK にした（緑の✓）' : 'アラームにもどした', 1400);
+}
+window.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('.xokb2'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault(); if(touch()) toggleLine(b); else pcHint(); }, true);
+window.addEventListener('dblclick', ev => { const b = ev.target.closest && ev.target.closest('.xokb2'); if(!b || touch()) return; ev.stopImmediatePropagation(); ev.preventDefault(); toggleLine(b); }, true);
+
+/* ---- チェックの一覧：右はしの丸ボタン ---- */
+function decorateChk(){
+  try{
+    const c = window.__chk || [];
+    document.querySelectorAll('#chkList li[data-i]').forEach(li => { const x = c[+li.dataset.i]; if(!x || x.lv === 'sales' || li.querySelector('.xck')) return;
+      const ok = chkDone(x); li.classList.toggle('xckok', ok);
+      li.insertAdjacentHTML('beforeend', '<button type="button" class="xck' + (ok ? ' on' : x.never || x.lv === 'warn' ? ' ng' : '') + '" data-xck="' + li.dataset.i + '" title="' + (touch() ? '押すと OK／もう一度でアラームにもどる' : 'ダブルクリックで OK／もう一度ダブルクリックでアラームにもどる') + '">' + (ok ? '✓' : '!') + '</button>'); });
+    const head = document.querySelector('#chkList'); if(head && !document.getElementById('xBulkBtn')){ head.insertAdjacentHTML('beforebegin', '<div class="xbulkbar" id="xBulkBar"><button type="button" class="btn primary" id="xBulkBtn">✓ まとめてOK（種類ごとに選ぶ）</button><span class="muted">右はしの丸：' + (touch() ? '押すと OK・もう一度でもどす' : 'ダブルクリックで OK・もう一度でもどす') + '</span></div>'); }
+  }catch(e){ console.warn(e); }
+}
+/* チェックの一覧は、動きをつけて描きなおすことがある（スマホ）ので、描かれたら毎回つける */
+const _dc = drawChecks;
+drawChecks = function(){ const r = _dc.apply(this, arguments); decorateChk(); setTimeout(decorateChk, 60); setTimeout(decorateChk, 400); return r; };
+(function watch(){ const L = document.getElementById('chkList'); if(!L){ setTimeout(watch, 500); return; } let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; decorateChk(); }); }).observe(L, { childList: true }); })();
+function toggleChk(b){
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const x = (window.__chk || [])[+b.dataset.xck]; if(!x) return;
+  const v = !chkDone(x); okSet(x, v); buzz();
+  const li = b.closest('li'); li.classList.toggle('xckok', v); b.classList.toggle('on', v); b.classList.toggle('ng', !v && (x.never || x.lv === 'warn')); b.textContent = v ? '✓' : '!';
+  afterToggle();
+  toast(v ? 'OK にした（緑）。並びは次に開いたとき「済み」へ' : 'アラームにもどした', 1600);
+}
+window.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('.xck'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault(); if(touch()) toggleChk(b); else pcHint(); }, true);
+window.addEventListener('dblclick', ev => { const b = ev.target.closest && ev.target.closest('.xck'); if(!b || touch()) return; ev.stopImmediatePropagation(); ev.preventDefault(); toggleChk(b); }, true);
+
+/* ---- まとめてOK ---- */
+function scopeItems(pv){
+  let c = []; try{ c = checks(); }catch(e){}
+  c = c.filter(x => x.lv !== 'sales' && !chkDone(x));
+  if(pv){ const M = document.getElementById('sitePv'); if(M && !M.hidden){ const all = typeof pvAll !== 'undefined' && pvAll; if(!all){ c = c.filter(x => (x.sh === S.cur) || (x.id && (S.lines.find(l => l.id === x.id) || {}).sheet === S.cur)); } } }
+  return c;
+}
+function openBulk(pv){
+  const items = scopeItems(pv); if(!items.length){ toast('OK にするものはありません ✓'); return; }
+  const g = {}; items.forEach((x, i) => { const k = kindOf(x); (g[k] = g[k] || []).push(i); });
+  const kinds = Object.keys(g).sort((a, b) => { const na = items[g[a][0]].never ? 0 : items[g[a][0]].lv === 'warn' ? 1 : 2, nb = items[g[b][0]].never ? 0 : items[g[b][0]].lv === 'warn' ? 1 : 2; return na - nb || g[b].length - g[a].length; });
+  const V = document.createElement('div'); V.className = 'xbulk-v';
+  V.innerHTML = '<div class="xbulk" role="dialog" aria-modal="true"><div class="xbulk-h"><b>まとめて OK</b><span>' + (pv && !(typeof pvAll !== 'undefined' && pvAll) ? 'この現場の' : 'ぜんぶの') + 'アラーム ' + items.length + ' 件。種類ごとに「ぜんぶ」か、1つずつチェック</span><button type="button" class="xbulk-x" aria-label="閉じる">✕</button></div>' +
+    '<div class="xbulk-b">' + kinds.map((k, gi) => { const ix = g[k], f = items[ix[0]];
+      return '<section class="xbg"><label class="xbg-h ' + (f.never ? 'ng' : f.lv === 'warn' ? 'w' : 'i') + '"><input type="checkbox" data-bg="' + gi + '"><b>' + (f.never ? '絶対ダメ：' : '') + esc(k) + '</b><span>' + ix.length + ' 件</span><button type="button" class="xbg-t" data-bt="' + gi + '">中を見る</button></label>' +
+        '<ul class="xbg-l" data-bl="' + gi + '" hidden>' + ix.map(i => { const x = items[i]; return '<li><label><input type="checkbox" data-bi="' + i + '" data-g="' + gi + '"><span>' + esc(String(x.t).replace(/^[^：]*：/, '') || x.t) + '<small>' + esc(shName(x)) + (x.s ? '　' + esc(String(x.s).slice(0, 60)) : '') + '</small></span></label></li>'; }).join('') + '</ul></section>'; }).join('') + '</div>' +
+    '<div class="xbulk-f"><button type="button" class="btn" data-ba="all">ぜんぶ選ぶ</button><button type="button" class="btn" data-ba="none">選ぶのをやめる</button><span class="sp"></span><button type="button" class="btn primary" data-ba="ok" disabled>選んだ 0 件を OK</button></div></div>';
+  document.body.appendChild(V); requestAnimationFrame(() => V.classList.add('in'));
+  const sel = () => [...V.querySelectorAll('[data-bi]:checked')].map(i => items[+i.dataset.bi]);
+  const upd = () => { const n = sel().length, ng = sel().filter(x => x.never).length; const b = V.querySelector('[data-ba="ok"]'); b.disabled = !n; b.textContent = '選んだ ' + n + ' 件を OK' + (ng ? '（絶対ダメ ' + ng + '）' : '');
+    V.querySelectorAll('[data-bg]').forEach(h => { const all = [...V.querySelectorAll('[data-g="' + h.dataset.bg + '"]')], on = all.filter(i => i.checked).length; h.checked = on === all.length; h.indeterminate = on > 0 && on < all.length; }); };
+  const close = () => { V.classList.remove('in'); setTimeout(() => V.remove(), 200); };
+  V.addEventListener('change', ev => { const t = ev.target; if(t.dataset.bg != null) V.querySelectorAll('[data-g="' + t.dataset.bg + '"]').forEach(i => { i.checked = t.checked; }); upd(); });
+  V.addEventListener('click', async ev => {
+    if(ev.target === V || ev.target.closest('.xbulk-x')){ close(); return; }
+    const t = ev.target.closest('[data-bt]'); if(t){ ev.preventDefault(); const l = V.querySelector('[data-bl="' + t.dataset.bt + '"]'); l.hidden = !l.hidden; t.textContent = l.hidden ? '中を見る' : 'とじる'; return; }
+    const a = ev.target.closest('[data-ba]'); if(!a) return;
+    if(a.dataset.ba === 'all' || a.dataset.ba === 'none'){ V.querySelectorAll('[data-bi]').forEach(i => { i.checked = a.dataset.ba === 'all'; }); upd(); return; }
+    if(a.dataset.ba === 'ok'){
+      if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+      const s = sel(); if(!s.length) return;
+      const ng = s.filter(x => x.never).length;
+      if(ng && !confirm('絶対ダメ ' + ng + ' 件も入っています。確かめた上で OK にしますか？')) return;
+      s.forEach(x => okSet(x, true, 'まとめてOK')); afterToggle(); close();
+      try{ if(S.tab === 'check') drawChecks(); }catch(e){}
+      try{ const M = document.getElementById('sitePv'); if(M && !M.hidden) X.pvOk.repaint(false); else drawSites(); }catch(e){}
+      toast(s.length + ' 件を OK にした（緑・消えない。もどすときは右はしの丸）', 3000);
+    }
+  });
+  upd();
+}
+X.openBulk = openBulk;
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('#xBulkBtn, #spvBulk'); if(!b) return; ev.stopPropagation(); openBulk(b.id === 'spvBulk'); }, true);
+/* プレビューの上の帯にも「まとめてOK」 */
+const _sp2 = sitePreview;
+sitePreview = function(){ const r = _sp2.apply(this, arguments); try{ const bar = document.querySelector('#sitePv .spv-bar'); if(bar && !document.getElementById('spvBulk')){ const ref = document.getElementById('spvDiff') || document.getElementById('spvMk'); const b = document.createElement('button'); b.type = 'button'; b.id = 'spvBulk'; b.className = 'btn xpvbulk'; b.textContent = '✓ まとめてOK'; if(ref) ref.insertAdjacentElement('afterend', b); else bar.appendChild(b); } }catch(e){} return r; };
+
+const st = document.createElement('style');
+st.textContent =
+'#spvBody{padding-right:46px!important}#xDockBody{padding-right:42px!important}@media (max-width:760px){#spvBody{padding-right:34px!important}}' +
+'.xokL{position:absolute;left:0;top:0;width:0;height:0;z-index:6}' +
+'.xokb2{position:absolute;border-radius:50%;border:2px solid #E0A020;background:#FFF6D6;color:#8A5A00;font-weight:900;line-height:1;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 2px 6px rgba(0,0,0,.25);-webkit-tap-highlight-color:transparent;user-select:none}' +
+'.xokb2::after{content:"";position:absolute;inset:-8px}' +
+'.xokb2.ng{border-color:#D23B3B;background:#FDE2E2;color:#A01F1F}.xokb2.on{border-color:#2E8B57;background:#2E8B57;color:#fff}.xokb2:active{transform:scale(.92)}' +
+'#chkList li{position:relative;padding-right:52px!important}#chkList li .xck{position:absolute;right:10px;top:50%;margin-top:-16px;width:32px;height:32px;border-radius:50%;border:2px solid #E0A020;background:#FFF6D6;color:#8A5A00;font:900 15px/1 system-ui,-apple-system,sans-serif;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;align-self:center;user-select:none}' +
+'#chkList li .xck.ng{border-color:#D23B3B;background:#FDE2E2;color:#A01F1F}#chkList li .xck.on{border-color:#2E8B57;background:#2E8B57;color:#fff}' +
+'#chkList li.xckok{background:rgba(46,139,87,.10)!important;box-shadow:inset 4px 0 0 #2E8B57}#chkList li.xckok .tx{opacity:.8}' +
+'.xbulkbar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 10px}.xbulkbar .muted{font-size:12px}' +
+'.xpvbulk{margin-left:6px;white-space:nowrap;background:#2E8B57!important;color:#fff!important;border-color:#2E8B57!important}' +
+'.xbulk-v{position:fixed;inset:0;z-index:250;background:rgba(10,20,22,0);display:flex;align-items:center;justify-content:center;transition:background .2s}.xbulk-v.in{background:rgba(10,20,22,.55)}' +
+'.xbulk{width:min(720px,94vw);max-height:86vh;display:flex;flex-direction:column;background:var(--bg,#fff);color:var(--ink,#14232A);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden;transform:translateY(12px);opacity:0;transition:transform .2s,opacity .2s}.xbulk-v.in .xbulk{transform:none;opacity:1}' +
+'.xbulk-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:14px 16px 10px;border-bottom:1px solid var(--line,#E3EBEC)}.xbulk-h b{font-size:17px}.xbulk-h span{font-size:12px;color:var(--ink3,#667);flex:1}.xbulk-x{border:0;background:none;font-size:18px;cursor:pointer;color:inherit}' +
+'.xbulk-b{overflow:auto;padding:8px 12px;flex:1}.xbg{margin:6px 0;border:1px solid var(--line,#E3EBEC);border-radius:12px;overflow:hidden}' +
+'.xbg-h{display:flex;gap:8px;align-items:center;padding:10px 12px;cursor:pointer;border-left:5px solid #E0A020}.xbg-h.w{border-left-color:#D2493A}.xbg-h.ng{border-left-color:#8A1F1F}.xbg-h b{flex:1;font-size:14px}.xbg-h span{font-size:12px;color:var(--ink3,#667)}' +
+'.xbg-h input,.xbg-l input{width:20px;height:20px;flex:none}.xbg-t{border:1px solid var(--line,#cfdcdc);background:none;border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer;color:inherit}' +
+'.xbg-l{list-style:none;margin:0;padding:0 12px 8px 30px;display:grid;gap:4px}.xbg-l label{display:flex;gap:8px;align-items:flex-start;cursor:pointer;padding:4px 0;font-size:13px}.xbg-l small{display:block;color:var(--ink3,#667);font-size:11px}' +
+'.xbulk-f{display:flex;gap:8px;align-items:center;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line,#E3EBEC)}.xbulk-f .sp{flex:1}.xbulk-f .btn.primary{background:#2E8B57;border-color:#2E8B57;color:#fff}.xbulk-f .btn[disabled]{opacity:.5}' +
+'@media (max-width:760px){#chkList li .xck{top:12px;margin-top:0;width:36px;height:36px}#chkList li{padding-right:56px!important}.xbulk-v{align-items:flex-end}.xbulk{width:100%;max-height:88vh;border-radius:18px 18px 0 0}.xbulk-f{flex-wrap:wrap}.xbulk-f .btn{min-height:44px}.xbulk-f .btn.primary{flex-basis:100%}}' +
+'@media print{.xokL,.xbulkbar,.xpvbulk{display:none!important}}';
+document.head.appendChild(st);
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -10586,7 +10732,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 00:41';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 10:10';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
