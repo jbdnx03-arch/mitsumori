@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 11:25-->
+<!--BUILD:2026-11-01 11:46-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2875,7 +2875,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 11:25';
+const BUILD = '2026-11-01 11:46';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -10323,6 +10323,32 @@ document.head.appendChild(st);
 (function(){
 const day = v => String(v || '').slice(0, 10);
 const nk = x => String(x || '').normalize('NFKC').replace(/\(TR-KT\)/g, '').replace(/\*\s*歴月/g, '').replace(/\*\s*S\b/g, '').replace(/[\s　]+S$/, '').replace(/[\s　]/g, '');
+const mdOf = v => day(v).slice(5);
+function sanchaFix(){
+  let n = 0; const PL = window.seikyuExt.prevLinesOf;
+  S.sheets.forEach(sh => {
+    const ls = linesOf(sh); const hi = ls.findIndex(l => l.head && /三軒茶屋事務所/.test(String(l.name))); if(hi < 0) return;
+    let pl = []; try{ pl = PL ? PL(sh) : []; }catch(e){}
+    const ph = pl.findIndex(L => L.head && /三軒茶屋事務所/.test(String(L.name))); if(ph < 0) return;
+    let pe = pl.findIndex((L, i) => i > ph && L.head); if(pe < 0) pe = pl.length;
+    const prev = pl.slice(ph + 1, pe).filter(L => !L.head && L.name).map(L => ({ nm: nk(L.name), md: mdOf(L.kashi), q: num(L.qty), used: false }));
+    if(!prev.length) return;
+    let ce = ls.findIndex((l, i) => i > hi && l.head); if(ce < 0) ce = ls.length;
+    const cur = ls.slice(hi + 1, ce).filter(l => l.ovl && !l.head);
+    /* まず同じ品名・同じ貸出日で合うものを取っておく */
+    cur.forEach(l => { const p = prev.find(p => !p.used && p.nm === nk(l.name) && p.md === mdOf(l.kashi)); if(p){ p.used = true; l._sOk = 1; } });
+    cur.forEach(l => {
+      if(l._sOk){ delete l._sOk; return; }
+      const p = prev.find(p => !p.used && p.nm === nk(l.name) && (p.q === num(l.qty) || true)); if(!p || !p.md) return;
+      const b = ls.find(x => !x.ovl && !x.manual && !x.head && x.sys && (nk(x.sys.name) === p.nm || nk(x.name) === p.nm) && mdOf(x.kashi) === p.md); if(!b) return;
+      p.used = true;
+      Object.assign(l, { ovlOf: b.id, key: b.key, sys: b.sys, csvIx: b.csvIx, kashi: b.kashi, start: b.start, end: b.end, kanri: b.kanri, den: b.den });
+      l.carried = String(l.carried || '').replace(/。CSVでは「[^」]*」.*$/, '') + '。CSVでは「' + b.sys.name + '」（' + p.md.replace('-', '/') + '貸出）の1行。貸出日は前月の請求書どおり';
+      calcLine(l); l.bu = 0; l.ba = 0; n++;
+    });
+  });
+  return n;
+}
 function fixDates(){
   const e = E(); let n = 0, ov = 0, vir = 0;
   if(!e.serialFix && S.csvRaw){ try{ const D = readCsv(S.csvRaw); const by = {}; D.lines.forEach(x => { by[x.csvIx] = x; });
@@ -10331,21 +10357,19 @@ function fixDates(){
   /* 重ねた行の空の日付 */
   S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(!b) return; ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])){ l[f] = b[f]; ov++; } }); });
   /* Yours【三軒茶屋事務所】ウイルス対策ソフト 2台 → 05/14 の行 */
-  if(!e.yfVirus && window.seikyuExt.isYours && window.seikyuExt.isYours()){
-    S.sheets.forEach(sh => { const ls = linesOf(sh); const hi = ls.findIndex(l => l.head && /三軒茶屋事務所/.test(String(l.name))); if(hi < 0) return;
-      const v = ls.find((l, i) => i > hi && l.ovl && nk(l.name) === nk('ｳｨﾙｽ対策ｿﾌﾄ *歴月') && num(l.qty) === 2 && day(l.kashi).slice(5) === '10-21'); if(!v) return;
-      const b = ls.find(l => !l.ovl && !l.manual && l.sys && nk(l.sys.name) === nk('ｳｨﾙｽ対策ｿﾌﾄ *歴月') && day(l.kashi).slice(5) === '05-14'); if(!b) return;
-      Object.assign(v, { ovlOf: b.id, key: b.key, sys: b.sys, csvIx: b.csvIx, kashi: b.kashi, start: b.start, end: b.end, kanri: b.kanri, den: b.den });
-      v.carried = String(v.carried || '').replace(/。CSVでは「[^」]*」の1行/, '') + '。CSVでは「' + b.sys.name + '」（' + String(b.kashi).slice(5).replace('-', '/') + '貸出・2台）の1行'; calcLine(v); v.bu = 0; v.ba = 0; vir++; });
-    e.yfVirus = 1;
-  }
-  if(n || ov || vir){ try{ if(!(typeof RO === 'function' && RO())) save(); }catch(err){} setTimeout(() => { try{ if(S.tab === 'sites') drawSites(); }catch(err){} toast('日付を入れ直した：' + [n ? 'CSVの日付が数字になっていた ' + n + ' か所' : '', ov ? '重ねた行の空の日付 ' + ov + ' か所' : '', vir ? '【三軒茶屋事務所】ウイルス対策ソフトを 05/14 貸出（2台）の行に' : ''].filter(Boolean).join('・'), 6000); }, 300); }
+  /* Yours【三軒茶屋事務所】：重ねた行の貸出日を前月の請求書（同じ見出しの下）とそろえる（毎回見る。2026-11-01「貸出日変わってない」） */
+  if(window.seikyuExt.isYours && window.seikyuExt.isYours()) vir = sanchaFix();
+  if(n || ov || vir){ try{ if(!(typeof RO === 'function' && RO())) save(); }catch(err){} setTimeout(() => { try{ if(S.tab === 'sites') drawSites(); }catch(err){} toast('日付を入れ直した：' + [n ? 'CSVの日付が数字になっていた ' + n + ' か所' : '', ov ? '重ねた行の空の日付 ' + ov + ' か所' : '', vir ? '【三軒茶屋事務所】の貸出日を前月の請求書どおりに ' + vir + ' 行' : ''].filter(Boolean).join('・'), 6000); }, 300); }
 }
 const _ow = openWork;
 openWork = function(){ const r = _ow.apply(this, arguments); const go = () => { try{ fixDates(); }catch(e){ console.warn(e); } }; if(r && typeof r.then === 'function') r.then(() => setTimeout(go, 50)); else setTimeout(go, 50); return r; };
+/* CSVで更新したあと（前月を照らし直したあと）にも */
+if(typeof updateFromCsv === 'function'){ const _uf = updateFromCsv; updateFromCsv = async function(){ const r = await _uf.apply(this, arguments); try{ fixDates(); }catch(e){ console.warn(e); } return r; }; window.updateFromCsv = updateFromCsv; }
+/* CSVで更新（今の手直しを残して更新）は最後に現場の画面を開くので、そのときにも見る（何度見ても同じ結果になる直し） */
+const _stb = setTab; setTab = function(t){ const r = _stb.apply(this, arguments); try{ if(t === 'sites' && S.built && !S.sameMonth && !(typeof RO === 'function' && RO()) && window.seikyuExt.isYours && window.seikyuExt.isYours()){ const k = sanchaFix(); if(k){ save(); drawSites(); toast('【三軒茶屋事務所】の貸出日を前月の請求書どおりに ' + k + ' 行', 5000); } } }catch(e){ console.warn(e); } return r; };
 /* 作ったときも（重ねた行の空の日付） */
 const _bd = build;
-build = function(){ const r = _bd.apply(this, arguments); try{ S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(b) ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])) l[f] = b[f]; }); }); const e = E(); e.serialFix = 1; e.yfVirus = 1; }catch(e){} return r; };
+build = function(){ const r = _bd.apply(this, arguments); try{ S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(b) ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])) l[f] = b[f]; }); }); const e = E(); e.serialFix = 1; if(!S.sameMonth && window.seikyuExt.isYours && window.seikyuExt.isYours()){ const k = sanchaFix(); if(k) toast('【三軒茶屋事務所】の貸出日を前月の請求書どおりに ' + k + ' 行', 5000); } }catch(e){} return r; };
 })();
 
 /* ==================================================================
@@ -10922,7 +10946,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 11:25';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 11:46';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
