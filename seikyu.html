@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 10:10-->
+<!--BUILD:2026-11-01 10:33-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2867,7 +2867,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 10:10';
+const BUILD = '2026-11-01 10:33';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -9772,7 +9772,7 @@ const LSg = (k, d) => { try{ const v = localStorage.getItem('seikyuNaviWeb.' + k
 const LSs = (k, v) => { try{ localStorage.setItem('seikyuNaviWeb.' + k, v); }catch(e){} };
 
 /* ---------------- T1 ---------------- */
-if(isIOS){ const v = document.querySelector('meta[name="viewport"]'); if(v && !/maximum-scale/.test(v.content)) v.content += ', maximum-scale=1'; }   /* iPhone は指で広げるのはそのままできる */
+/* 2026-11-01：iPhone に maximum-scale=1 を足していたら指で広げられなくなった → やめた（入力欄は 16px なので勝手に拡大しない） */
 let on = false;
 const B = () => document.body;
 const want = () => mob() && touch() && LSg('xshell', '1') !== '0';
@@ -10732,7 +10732,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 10:10';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 10:33';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
