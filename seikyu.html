@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 10:33-->
+<!--BUILD:2026-11-01 11:25-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -719,6 +719,8 @@ function iso(v){
   if(v instanceof Date && !isNaN(v)) return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
   if(typeof v === 'number'){ if(v > 20000 && v < 80000){ const d = new Date(Date.UTC(1899, 11, 30) + v * 864e5); return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()); } return ''; }
   const s = String(v).normalize('NFKC').trim();
+  /* 2026-11-01：CSVをExcelで開いて保存し直すと、日付が 45586 のような数字（Excelの日付の番号）になる行がある（Yours 堀切・三軒茶屋）→ 日付に直す */
+  if(/^\d{5}(\.\d+)?$/.test(s) && +s > 20000 && +s < 80000) return iso(+s);
   let m = /^(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/.exec(s); if(m) return m[1] + '-' + pad2(+m[2]) + '-' + pad2(+m[3]);
   return '';
 }
@@ -1006,7 +1008,7 @@ const YOURS_AUG = { head: '【三軒茶屋事務所】', den: '692212', rows: [
   ['無線ﾏｳｽ･ﾜｲﾔﾚｽｷｰﾎﾞｰﾄﾞ', '04-04', 2, 900], ['ﾌﾟﾛｯﾀｰ(SC-T3150)', '02-04', 1, 12000], ['ﾌﾟﾛｯﾀｰｽﾀﾝﾄﾞ', '02-04', 1, 900],
   ['ﾌﾞﾛｰﾄﾞﾊﾞﾝﾄﾞﾙｰﾀｰ', '02-04', 1, 1200], ['HUB8ﾎﾟｰﾄ', '02-04', 1, 600], ['複合FAXｺﾋﾟｰ機', '02-04', 1, 9000],
   ['42ｲﾝﾁ ﾓﾆﾀｰ(TR-KT)', '05-14', 2, 28800], ['ﾓﾆﾀｰ用卓上ｽﾀﾝﾄﾞ', '05-14', 2, 6300], ['無線ﾏｳｽ･ﾜｲﾔﾚｽｷｰﾎﾞｰﾄﾞ', '10-21', 1, 900],
-  ['ｳｨﾙｽ対策ｿﾌﾄ *歴月', '10-21', 2, 2100]   /* 10/30：ウイルス対策ソフトは2台でいい */ ] };
+  ['ｳｨﾙｽ対策ｿﾌﾄ *歴月', '05-14', 2, 2100]   /* 10/30：ウイルス対策ソフトは2台でいい。11/01：2台なのは 60627（05/14 貸出・2台）。前月（9月）も 05/14 → 貸出日は 05/14 */ ] };
 function yoursAugFix(){
   const r = { rows: 0, add: 0, del: 0, miss: [], cust: '' };
   if(!(window.seikyuExt && seikyuExt.isYours && seikyuExt.isYours()) || (S.yfVer || 0) >= 2) return r;
@@ -2384,11 +2386,17 @@ function paperHtml(){
   ks.forEach(sh => { if(sk && o.sk) h += paperSkSheet(sh); if(o.sheets) h += paperSheet(sh); });
   return h;
 }
+/* PDFの名前は Excel版の請求ナビと同じ（2026-11-01「pdf保存は色々ルールあったよね？」）
+   まとめて1本：26.10.31_御請求書_株式会社Yours御中　／　現場ごと：Yours は 26.10.31_堀切、ほかは 26.10.31_御請求書_○○御中_現場名 */
+function pdfYm(){ const d = String(S.meta && S.meta.seikyuDate || ''); return d ? d.slice(2, 4) + '.' + d.slice(5, 7) + '.' + d.slice(8, 10) : ''; }
+function pdfTok(){ let t = String(S.meta && S.meta.custName || '').replace(/[ 　]/g, '').replace(/㈱|\(株\)|（株）/g, '株式会社').replace(/㈲/g, '有限会社'); t = t.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)); return t || '御得意先'; }
+function pdfBase(){ return pdfYm() + '_御請求書_' + pdfTok() + '御中'; }
+function pdfSiteName(site){ const s = String(site || '').replace(/[\\/:*?"<>|\s]/g, ''); const yo = window.seikyuExt && window.seikyuExt.isYours && window.seikyuExt.isYours(); return yo ? pdfYm() + '_' + s : pdfBase() + '_' + s; }
 function doPrint(html, opt){
   if(S.built && (!S.status || S.status === 'draft')){ S.status = 'printed'; S.printedAt = new Date().toISOString(); save(); }
   $('#print').innerHTML = typeof html === 'string' ? html : paperHtml(); $('#print').style.display = 'block'; XR.fitShrink($('#print')); XR.sysFit($('#print')); $('#print').style.display = '';
-  const t = document.title; document.title = (S.meta.seikyuDate || '').replace(/-/g, '').slice(2) + '_御請求書_' + S.meta.custName.replace(/\s/g, '') + '御中';
-  if(opt && opt.pdf){ const nm = document.title + (opt.site ? '_' + String(opt.site).replace(/[\\/:*?"<>|\s]/g, '') : ''); document.title = t; makePdf($('#print'), nm); return; }
+  const t = document.title; document.title = opt && opt.site ? pdfSiteName(opt.site) : pdfBase();
+  if(opt && opt.pdf){ const nm = document.title; document.title = t; if(!opt.site && window.seikyuExt && window.seikyuExt.yoursPdf) return window.seikyuExt.yoursPdf($('#print'), nm); makePdf($('#print'), nm); return; }
   (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(() => { window.print(); setTimeout(() => { document.title = t; }, 500); }, 100));
 }
 
@@ -2867,7 +2875,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 10:33';
+const BUILD = '2026-11-01 11:25';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -4474,7 +4482,7 @@ drawPaper = function(){
   _drawPaper();
   const o = $('#pvOpts'); if(!o || $('#xPaperX')) return;
   const iss = E().issued || [];
-  const name = (S.meta.seikyuDate || '').replace(/-/g, '').slice(2) + '_御請求書_' + String(S.meta.custName || '').replace(/\s/g, '') + '御中';
+  const name = pdfBase();
   const d = document.createElement('div'); d.id = 'xPaperX'; d.className = 'xpaper';
   d.innerHTML = '<label><input type="checkbox" id="xThumb"' + (S._thumb ? ' checked' : '') + '> 全ページを小さく並べて見る</label>' +
     '<div class="xp-row"><b>PDFの名前</b> <code id="xPdfName">' + esc(name) + '</code> <button class="btn sm" data-cp="xPdfName">写す</button><span class="muted">印刷の画面で「PDFに保存」を選ぶと、この名前になります</span></div>' +
@@ -5260,7 +5268,7 @@ doPrint = async function(html, opt){
   }
   const n0 = (E().issued || []).length;
   const r = await _x2print(html, opt);
-  if(all && S.built && (E().issued || []).length > n0){ const pdfName = opt && opt.pdf ? (S.meta.seikyuDate || '').replace(/-/g, '').slice(2) + '_御請求書_' + String(S.meta.custName || '').replace(/\s/g, '') + '御中.pdf' : ''; await x2Ledger(opt && opt.pdf ? 'PDF' : '印刷', pdfName); }
+  if(all && S.built && (E().issued || []).length > n0){ const pdfName = opt && opt.pdf ? pdfBase() + '.pdf' : ''; await x2Ledger(opt && opt.pdf ? 'PDF' : '印刷', pdfName); }
   return r;
 };
 /* 印刷・PDFのタブに足す */
@@ -5476,7 +5484,7 @@ function x2Type(){
   const c = card(), m = S.meta;
   const lay = []; S.sheets.forEach(sh => { if(!sh.prev) return; try{ const L = prevLayoutOf(sh.prev.lines || []); const h = L.filter(p => p.head).map(p => p.name), o = L.filter(p => p.ovl).length; if(h.length || o) lay.push(sh.name + '：見出し ' + h.join('・') + (o ? '・重ねる行 ' + o : '')); }catch(e){} });
   const form = [isSanki() ? '三貴の指定用紙（表紙・指定用紙）' : '', isYours() ? 'Yours の指定用紙（請求書）' : ''].filter(Boolean).join('・') || 'なし（本物の書式だけ）';
-  const pdfName = (m.seikyuDate || '').replace(/-/g, '').slice(2) + '_御請求書_' + String(m.custName || '').replace(/\s/g, '') + '御中';
+  const pdfName = pdfBase() + (isYours && isYours() ? '（現場ごと：' + pdfYm() + '_現場名 を zip に）' : '');
   const due = X2.dueOf(m.seikyuDate, c.due);
   const html = '<div class="xtype">' +
     '<h4>書類</h4><table class="xfin"><tr><td>指定用紙</td><td>' + esc(form) + '</td></tr><tr><td>現場名</td><td>' + (S.sheets.filter(s => s.csvSite).map(s => esc(s.name) + '：' + esc(s.siteName) + '（CSVは ' + esc(s.csvSite) + '）').join('<br>') || 'CSVのとおり') + '</td></tr><tr><td>見出し・重ね</td><td>' + (lay.map(esc).join('<br>') || 'なし') + '</td></tr><tr><td>PDFの名前</td><td>' + esc(pdfName) + '</td></tr></table>' +
@@ -9847,7 +9855,7 @@ function goBack(st){
   requestAnimationFrame(put); setTimeout(put, 250);
 }
 window.seikyuExt.pvBack = { show: showBack, hide: hideBack, state: () => backSt };
-window.seikyuExt.pvOk = { setOk: (l, v) => setOk(l, v), isOk: l => isOk(l), ckFor: l => ckFor(l), repaint: d => repaint(d) };
+window.seikyuExt.pvOk = { setOk: (l, v) => setOk(l, v), isOk: l => isOk(l), ckFor: l => ckFor(l), repaint: (d, lids) => repaint(d, lids) };
 /* プレビューから飛ぶ操作を覚えておく（行を押す・ずれの行・「現場の画面へ」・「↗ 行へ」） */
 window.addEventListener('click', ev => {
   const t = ev.target; if(!t || !t.closest) return;
@@ -9867,17 +9875,45 @@ if(_ow){ openWork = async function(){ hideBack(); return _ow.apply(this, argumen
 
 /* ---------------- T3 OK のチェック ---------------- */
 const okMap = () => { const e = E(); return e.pvOk || {}; };
-const ckFor = lid => { try{ return checks().filter(x => x.id === lid); }catch(e){ return []; } };
+/* 2026-11-01「OKにするとき重い」：checks() を何回も呼ばない（同じ処理のあいだは1回だけ） */
+let ckCache = null;
+const allCk = () => { if(!ckCache){ try{ ckCache = checks(); }catch(e){ ckCache = []; } setTimeout(() => { ckCache = null; }, 0); } return ckCache; };
+const ckFor = lid => allCk().filter(x => x.id === lid);
+let badgeT = 0;
+const badgeLater = () => { clearTimeout(badgeT); badgeT = setTimeout(() => { try{ if(typeof updChkBadge === 'function') updChkBadge(); }catch(e){} try{ if(window.seikyuExt.paintTot) window.seikyuExt.paintTot(); }catch(e){} }, 700); };
+window.seikyuExt.badgeLater = badgeLater;
 function isOk(lid){ if(okMap()[lid]) return true; return false; }
 function setOk(lid, v){
   const e = E(); e.pvOk = e.pvOk || {}; e.chk = e.chk || {};
   const cs = ckFor(lid);
   if(v){ e.pvOk[lid] = nowIso(); cs.forEach(x => { const k = chkKey(x); if(!e.chk[k]) e.chk[k] = { st: 'ok', why: 'プレビューで OK にした', at: nowIso(), pv: 1 }; }); }
   else { delete e.pvOk[lid]; cs.forEach(x => { delete e.chk[chkKey(x)]; }); }
-  save();
-  try{ if(typeof updChkBadge === 'function') updChkBadge(); }catch(err){}
+  save(); badgeLater();
 }
-function repaint(docked){
+/* 行だけ書きかえる（プレビュー全体を作り直すと、全現場で何秒もかかっていた） */
+function patchLids(lids, docked){
+  const Bs = [document.getElementById(docked ? 'xDockBody' : 'spvBody'), document.getElementById('pv')].filter(Boolean);
+  const all = allCk(), rk = x => x.never ? 0 : x.lv === 'warn' ? 1 : /^本物/.test(x.t) ? 2 : 3;
+  lids.forEach(lid => {
+    const xs = all.filter(x => x.id === lid), done = x => { try{ return chkDone(x); }catch(e){ return false; } };
+    const pend = xs.filter(x => !done(x)).sort((a, b) => rk(a) - rk(b)), ok = isOk(lid) || (xs.length && !pend.length);
+    Bs.forEach(B => {
+      B.querySelectorAll('.xlid[data-lid="' + lid + '"]').forEach(m => {
+        m.querySelectorAll('.xnote').forEach(n => n.remove()); m.classList.remove('xflag', 'xinfo', 'xokd');
+        if(ok){ m.classList.add('xokd'); m.insertAdjacentHTML('beforeend', '<span class="xnote ok" data-xok="' + esc(lid) + '" title="OK にした（押すと元にもどす）"><b class="xokb on">☑</b>OK：' + esc(xs.length ? shortT(xs[0].t) + (xs.length > 1 ? ' ほか' + (xs.length - 1) : '') : 'システムとのずれ') + '</span>'); }
+        else if(pend.length){ const warn = pend.some(x => x.lv === 'warn' || x.never); m.classList.add(warn ? 'xflag' : 'xinfo');
+          m.insertAdjacentHTML('beforeend', '<span class="xnote' + (warn ? '' : ' i') + '" title="' + esc(pend.map(x => x.t + (x.s ? '　' + x.s : '')).join('\n')) + '"><b class="xokb" data-xok="' + esc(lid) + '" title="このままでいいなら押す（緑になる・消えない）">☐</b>' + (pend.some(x => x.never) ? '絶対ダメ：' : '') + esc(shortT(pend[0].t)) + (pend.length > 1 ? ' ほか' + (pend.length - 1) : '') + '</span>'); }
+      });
+      B.querySelectorAll('.xokb2[data-xok2="' + lid + '"]').forEach(b => { b.classList.toggle('on', !!ok); b.classList.toggle('ng', !ok && pend.some(x => x.lv === 'warn' || x.never)); b.textContent = ok ? '✓' : '!'; });
+      B.querySelectorAll('.xsysd li[data-lid="' + lid + '"]').forEach(li => { li.classList.toggle('okd', !!ok); const c = li.querySelector('.xsd-ok'); if(c){ c.classList.toggle('on', !!ok); c.textContent = ok ? '✓' : ''; } });
+    });
+  });
+  Bs.forEach(B => { B.querySelectorAll('.xsysd').forEach(card => { const lis = [...card.querySelectorAll('li[data-lid]')], n = lis.filter(li => li.classList.contains('okd')).length, o = card.querySelector('.xsd-okn'); if(o){ o.textContent = 'OK ' + n + '/' + lis.length; o.classList.toggle('all', n === lis.length); } });
+    if(B.id === 'spvBody'){ const t = document.getElementById('spvMk'); if(t){ const n = B.querySelectorAll('.xlid.xflag, .xlid.xinfo').length; t.textContent = n ? '気になる行 ' + n : ''; } } });
+}
+function repaint(docked, lids){
+  if(lids && lids.length){ patchLids(lids, docked); return; }
+  if(docked){ drawSites(); return; }
   if(docked){ drawSites(); return; }
   const Bd = document.getElementById('spvBody'); if(!Bd) return;
   const st = Bd.scrollTop; backFrom = true;
@@ -9931,20 +9967,20 @@ function paintSysd(Bx){
 }
 /* OK を押したとき（行へ飛ぶより先に） */
 window.addEventListener('click', ev => {
-  const b = ev.target && ev.target.closest && ev.target.closest('[data-xok]'); if(!b) return;
+  if(document.documentElement.classList.contains('xselmode')) return; const b = ev.target && ev.target.closest && ev.target.closest('[data-xok]'); if(!b) return;
   if(!b.closest('#spvBody, #xDockBody, #pv')) return;
   ev.stopImmediatePropagation(); ev.stopPropagation(); ev.preventDefault();
   if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
   const lid = b.dataset.xok, v = !(isOk(lid) || b.classList.contains('on') || b.closest('.xnote.ok, li.okd'));
   setOk(lid, v);
   const docked = !!b.closest('#xDockBody');
-  if(b.closest('#pv')) drawPaper(); else repaint(docked);
+  repaint(docked, [lid]);
   try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){}
   toast(v ? 'OK にした（緑）。もう一度押すと元にもどる' : 'OK をはずした', 1800);
 }, true);
 /* スマホ：書き込みのある行を押したら、下から「OK にする／この行を直す」 */
 window.addEventListener('click', ev => {
-  if(!mob()) return;
+  if(!mob()) return; if(document.documentElement.classList.contains('xselmode')) return; 
   const t = ev.target; if(!t || !t.closest || t.closest('[data-xok]')) return;
   const pg = t.closest('#spvBody .xp'); if(!pg) return;
   const m = lidAt(pg, ev.clientX, ev.clientY); if(!m || !(m.classList.contains('xflag') || m.classList.contains('xinfo') || m.classList.contains('xokd'))) return;
@@ -9960,7 +9996,7 @@ window.addEventListener('click', ev => {
     window.seikyuExt.closeSheet();
     if(b.dataset.ok2 === 'go'){ pend = { at: Date.now(), lid }; window.seikyuExt.goLine(lid, false); return; }
     if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
-    setOk(lid, b.dataset.ok2 === 'on'); repaint(false);
+    setOk(lid, b.dataset.ok2 === 'on'); repaint(false, [lid]);
     toast(b.dataset.ok2 === 'on' ? 'OK にした（緑）' : 'OK をはずした', 1800);
   });
 }, true);
@@ -10096,7 +10132,7 @@ const okSet = (x, v, why) => { const e = E(); e.chk = e.chk || {}; const k = chk
 let hinted = false;
 const pcHint = () => { if(hinted) return; hinted = true; toast('PCはダブルクリックで OK（もう一度ダブルクリックでアラームにもどる）', 2600); };
 const buzz = () => { try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){} };
-const afterToggle = () => { save(); try{ updChkBadge(); }catch(e){} try{ if(X.paintTot) X.paintTot(); }catch(e){} };
+const afterToggle = () => { save(); if(X.badgeLater) X.badgeLater(); };
 
 /* ---- プレビュー：右はしの丸ボタン ---- */
 function lineOk(lid){ if(X.pvOk && X.pvOk.isOk(lid)) return true; const xs = X.pvOk ? X.pvOk.ckFor(lid) : []; return !!xs.length && xs.every(x => chkDone(x)); }
@@ -10124,11 +10160,11 @@ function toggleLine(b){
   const lid = b.dataset.xok2, v = !b.classList.contains('on');
   X.pvOk.setOk(lid, v); buzz();
   const docked = !!b.closest('#xDockBody');
-  X.pvOk.repaint(docked); afterToggle();
+  X.pvOk.repaint(docked, [lid]); afterToggle();
   toast(v ? 'OK にした（緑の✓）' : 'アラームにもどした', 1400);
 }
-window.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('.xokb2'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault(); if(touch()) toggleLine(b); else pcHint(); }, true);
-window.addEventListener('dblclick', ev => { const b = ev.target.closest && ev.target.closest('.xokb2'); if(!b || touch()) return; ev.stopImmediatePropagation(); ev.preventDefault(); toggleLine(b); }, true);
+window.addEventListener('click', ev => { if(document.documentElement.classList.contains('xselmode')) return; const b = ev.target.closest && ev.target.closest('.xokb2'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault(); if(touch()) toggleLine(b); else pcHint(); }, true);
+window.addEventListener('dblclick', ev => { if(document.documentElement.classList.contains('xselmode')) return; const b = ev.target.closest && ev.target.closest('.xokb2'); if(!b || touch()) return; ev.stopImmediatePropagation(); ev.preventDefault(); toggleLine(b); }, true);
 
 /* ---- チェックの一覧：右はしの丸ボタン ---- */
 function decorateChk(){
@@ -10190,17 +10226,64 @@ function openBulk(pv){
       if(ng && !confirm('絶対ダメ ' + ng + ' 件も入っています。確かめた上で OK にしますか？')) return;
       s.forEach(x => okSet(x, true, 'まとめてOK')); afterToggle(); close();
       try{ if(S.tab === 'check') drawChecks(); }catch(e){}
-      try{ const M = document.getElementById('sitePv'); if(M && !M.hidden) X.pvOk.repaint(false); else drawSites(); }catch(e){}
+      try{ const M = document.getElementById('sitePv'); const ids = [...new Set(s.filter(x => x.id).map(x => x.id))]; if(M && !M.hidden) X.pvOk.repaint(false, ids); else if(S.tab === 'sites') drawSites(); }catch(e){}
       toast(s.length + ' 件を OK にした（緑・消えない。もどすときは右はしの丸）', 3000);
     }
   });
   upd();
 }
 X.openBulk = openBulk;
+/* ---- 請求書（プレビュー）の上で選んでまとめて OK（2026-11-01「まとめてチェックも請求書画面でできるように」） ---- */
+let selOn = false; const sel = new Set();
+const selBar = document.createElement('div'); selBar.id = 'xSelBar'; selBar.hidden = true;
+selBar.innerHTML = '<span class="xsb-n">0 行</span><button type="button" class="btn" data-sb="all" title="気になる行をぜんぶ選ぶ">ぜんぶ</button><button type="button" class="btn" data-sb="none">はずす</button><button type="button" class="btn primary" data-sb="ok" disabled>OK</button><button type="button" class="btn ghost" data-sb="end">やめる</button>';
+(document.body || document.documentElement).appendChild(selBar);
+const pvB = () => document.getElementById('spvBody');
+function selPaint(){
+  const B = pvB(); if(B){ B.querySelectorAll('.xlid.xsel').forEach(m => m.classList.remove('xsel')); B.querySelectorAll('.xokb2.sel').forEach(b => b.classList.remove('sel'));
+    sel.forEach(lid => { B.querySelectorAll('.xlid[data-lid="' + lid + '"]').forEach(m => m.classList.add('xsel')); B.querySelectorAll('.xokb2[data-xok2="' + lid + '"]').forEach(b => b.classList.add('sel')); }); }
+  selBar.querySelector('.xsb-n').textContent = sel.size + ' 行えらんだ'; selBar.querySelector('[data-sb="ok"]').disabled = !sel.size;
+  selBar.querySelector('[data-sb="ok"]').textContent = sel.size + ' 行を OK';
+  const t = document.getElementById('spvSel'); if(t){ t.classList.toggle('on', selOn); t.textContent = selOn ? '☑ えらんでいる…' : '☑ えらんでOK'; }
+}
+function selMode(v){ selOn = v; if(!v) sel.clear(); selBar.hidden = !v; document.documentElement.classList.toggle('xselmode', v); selPaint(); if(v) toast('OK にしたい行を押して選ぶ（もう一度押すとはずす）。最後に下の「選んだ行を OK」', 3200); }
+const lidAtPt = (pg, x, y) => { let hit = null; pg.querySelectorAll('.xlid').forEach(m => { const r = m.getBoundingClientRect(); if(x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) hit = m; }); return hit; };
+window.addEventListener('click', ev => {
+  if(!selOn) return; const t = ev.target; if(!t || !t.closest) return;
+  if(t.closest('#xSelBar, #sitePv .spv-bar')) return;
+  const B = pvB(); if(!B || !B.contains(t)) return;
+  let lid = '';
+  const g = t.closest('.xokb2'); if(g) lid = g.dataset.xok2;
+  else { const pg = t.closest('.xp'); if(pg){ const m = lidAtPt(pg, ev.clientX, ev.clientY); if(m && (m.classList.contains('xflag') || m.classList.contains('xinfo') || m.classList.contains('xokd'))) lid = m.dataset.lid; } }
+  ev.stopImmediatePropagation(); ev.preventDefault();
+  if(!lid) return;
+  if(sel.has(lid)) sel.delete(lid); else sel.add(lid); buzz(); selPaint();
+}, true);
+window.addEventListener('dblclick', ev => { if(selOn && ev.target.closest && ev.target.closest('#spvBody')){ ev.stopImmediatePropagation(); ev.preventDefault(); } }, true);
+selBar.addEventListener('click', ev => { const b = ev.target.closest('[data-sb]'); if(!b) return;
+  const a = b.dataset.sb, B = pvB();
+  if(a === 'end'){ selMode(false); return; }
+  if(a === 'none'){ sel.clear(); selPaint(); return; }
+  if(a === 'all'){ if(B) B.querySelectorAll('.xlid.xflag, .xlid.xinfo').forEach(m => sel.add(m.dataset.lid)); selPaint(); return; }
+  if(a === 'ok'){
+    if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+    const lids = [...sel]; if(!lids.length) return;
+    const e = E(); e.pvOk = e.pvOk || {}; let all = []; try{ all = checks(); }catch(err){}
+    const ng = all.filter(x => x.never && lids.includes(x.id) && !chkDone(x)).length;
+    if(ng && !confirm('絶対ダメ ' + ng + ' 件の行も入っています。確かめた上で OK にしますか？')) return;
+    lids.forEach(lid => { e.pvOk[lid] = nowIso(); all.filter(x => x.id === lid).forEach(x => okSet(x, true, '請求書の上でまとめてOK')); });
+    afterToggle(); X.pvOk.repaint(false, lids); selMode(false);
+    toast(lids.length + ' 行を OK にした（緑・消えない。もどすときは右はしの丸）', 3000);
+  }
+});
+const _cl3 = closeSitePv; closeSitePv = function(){ if(selOn) selMode(false); return _cl3.apply(this, arguments); };
+const _am2 = X.afterMark; X.afterMark = function(){ const r = _am2 ? _am2.apply(this, arguments) : undefined; if(selOn) setTimeout(selPaint, 320); return r; };
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('#spvSel'); if(!b) return; ev.stopPropagation(); selMode(!selOn); }, true);
 document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('#xBulkBtn, #spvBulk'); if(!b) return; ev.stopPropagation(); openBulk(b.id === 'spvBulk'); }, true);
 /* プレビューの上の帯にも「まとめてOK」 */
 const _sp2 = sitePreview;
-sitePreview = function(){ const r = _sp2.apply(this, arguments); try{ const bar = document.querySelector('#sitePv .spv-bar'); if(bar && !document.getElementById('spvBulk')){ const ref = document.getElementById('spvDiff') || document.getElementById('spvMk'); const b = document.createElement('button'); b.type = 'button'; b.id = 'spvBulk'; b.className = 'btn xpvbulk'; b.textContent = '✓ まとめてOK'; if(ref) ref.insertAdjacentElement('afterend', b); else bar.appendChild(b); } }catch(e){} return r; };
+sitePreview = function(){ const r = _sp2.apply(this, arguments); try{ const bar = document.querySelector('#sitePv .spv-bar'); if(bar && !document.getElementById('spvBulk')){ const ref = document.getElementById('spvDiff') || document.getElementById('spvMk'); const b = document.createElement('button'); b.type = 'button'; b.id = 'spvBulk'; b.className = 'btn xpvbulk'; b.textContent = '✓ まとめてOK'; if(ref) ref.insertAdjacentElement('afterend', b); else bar.appendChild(b);
+      const b3 = document.createElement('button'); b3.type = 'button'; b3.id = 'spvSel'; b3.className = 'btn xpvsel'; b3.textContent = '☑ えらんでOK'; b3.title = '請求書の上で行を押して選び、まとめて OK'; b.insertAdjacentElement('afterend', b3); } }catch(e){} return r; };
 
 const st = document.createElement('style');
 st.textContent =
@@ -10223,8 +10306,115 @@ st.textContent =
 '.xbg-l{list-style:none;margin:0;padding:0 12px 8px 30px;display:grid;gap:4px}.xbg-l label{display:flex;gap:8px;align-items:flex-start;cursor:pointer;padding:4px 0;font-size:13px}.xbg-l small{display:block;color:var(--ink3,#667);font-size:11px}' +
 '.xbulk-f{display:flex;gap:8px;align-items:center;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line,#E3EBEC)}.xbulk-f .sp{flex:1}.xbulk-f .btn.primary{background:#2E8B57;border-color:#2E8B57;color:#fff}.xbulk-f .btn[disabled]{opacity:.5}' +
 '@media (max-width:760px){#chkList li .xck{top:12px;margin-top:0;width:36px;height:36px}#chkList li{padding-right:56px!important}.xbulk-v{align-items:flex-end}.xbulk{width:100%;max-height:88vh;border-radius:18px 18px 0 0}.xbulk-f{flex-wrap:wrap}.xbulk-f .btn{min-height:44px}.xbulk-f .btn.primary{flex-basis:100%}}' +
-'@media print{.xokL,.xbulkbar,.xpvbulk{display:none!important}}';
+'.xpvsel{margin-left:6px;white-space:nowrap}.xpvsel.on{background:#1F6FB2!important;color:#fff!important;border-color:#1F6FB2!important}' +
+'html.xselmode #spvBody .xlid{cursor:copy}#spvBody .xlid.xsel{outline:2.2pt solid #1F6FB2!important;background:rgba(31,111,178,.16)!important}.xokb2.sel{box-shadow:0 0 0 3px #1F6FB2,0 2px 6px rgba(0,0,0,.25)}' +
+'#xSelBar{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;padding:10px 12px;border-radius:16px;background:#14232A;color:#fff;box-shadow:0 12px 36px rgba(0,0,0,.4);max-width:calc(100vw - 20px)}' +
+'#xSelBar[hidden]{display:none}#xSelBar .xsb-n{font-weight:800;margin-right:4px}#xSelBar .btn{color:#14232A;background:#fff;border-color:#fff;min-height:40px}#xSelBar .btn.primary{background:#2E8B57;border-color:#2E8B57;color:#fff}#xSelBar .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}#xSelBar .btn[disabled]{opacity:.5}' +
+'@media (max-width:760px){#xSelBar{left:8px;right:8px;transform:none;max-width:none;flex-wrap:nowrap;gap:5px;padding:8px}#xSelBar .xsb-n{font-size:12px;white-space:nowrap}#xSelBar .btn{flex:1 1 auto;min-width:0;padding:6px 8px;font-size:13px;white-space:nowrap}#xSelBar .btn.primary{flex:2 1 auto}}' +
+'@media print{.xokL,.xbulkbar,.xpvbulk,.xpvsel,#xSelBar{display:none!important}}';
 document.head.appendChild(st);
+})();
+/* ==================================================================
+   T6 開いたときの直し（2026-11-01）
+   ・CSVの日付が 45586 のような数字（Excelの日付の番号）だった行は、貸出日・開始・終了が空になっていた → 残してあるCSVから入れ直す
+   ・重ねた行（Yours【三軒茶屋事務所】など）で開始・終了が空 → 元の行の日付を入れる
+   ・Yours【三軒茶屋事務所】のウイルス対策ソフト（2台）は 60627・05/14 貸出の行（前月と同じ）
+   ================================================================== */
+(function(){
+const day = v => String(v || '').slice(0, 10);
+const nk = x => String(x || '').normalize('NFKC').replace(/\(TR-KT\)/g, '').replace(/\*\s*歴月/g, '').replace(/\*\s*S\b/g, '').replace(/[\s　]+S$/, '').replace(/[\s　]/g, '');
+function fixDates(){
+  const e = E(); let n = 0, ov = 0, vir = 0;
+  if(!e.serialFix && S.csvRaw){ try{ const D = readCsv(S.csvRaw); const by = {}; D.lines.forEach(x => { by[x.csvIx] = x; });
+    S.lines.forEach(l => { if(!l.sys || l.csvIx == null || l.ovl) return; const x = by[l.csvIx]; if(!x || x.key !== l.key) return; const xs = x.sys || x;
+      ['kashi', 'start', 'end', 'retd'].forEach(f => { const v = day(xs[f]); if(!v) return; if(!day(l.sys[f])) l.sys[f] = v; if(!day(l[f]) && !(l.uf && l.uf[f])){ l[f] = v; n++; } }); }); }catch(err){ console.warn(err); } e.serialFix = 1; }
+  /* 重ねた行の空の日付 */
+  S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(!b) return; ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])){ l[f] = b[f]; ov++; } }); });
+  /* Yours【三軒茶屋事務所】ウイルス対策ソフト 2台 → 05/14 の行 */
+  if(!e.yfVirus && window.seikyuExt.isYours && window.seikyuExt.isYours()){
+    S.sheets.forEach(sh => { const ls = linesOf(sh); const hi = ls.findIndex(l => l.head && /三軒茶屋事務所/.test(String(l.name))); if(hi < 0) return;
+      const v = ls.find((l, i) => i > hi && l.ovl && nk(l.name) === nk('ｳｨﾙｽ対策ｿﾌﾄ *歴月') && num(l.qty) === 2 && day(l.kashi).slice(5) === '10-21'); if(!v) return;
+      const b = ls.find(l => !l.ovl && !l.manual && l.sys && nk(l.sys.name) === nk('ｳｨﾙｽ対策ｿﾌﾄ *歴月') && day(l.kashi).slice(5) === '05-14'); if(!b) return;
+      Object.assign(v, { ovlOf: b.id, key: b.key, sys: b.sys, csvIx: b.csvIx, kashi: b.kashi, start: b.start, end: b.end, kanri: b.kanri, den: b.den });
+      v.carried = String(v.carried || '').replace(/。CSVでは「[^」]*」の1行/, '') + '。CSVでは「' + b.sys.name + '」（' + String(b.kashi).slice(5).replace('-', '/') + '貸出・2台）の1行'; calcLine(v); v.bu = 0; v.ba = 0; vir++; });
+    e.yfVirus = 1;
+  }
+  if(n || ov || vir){ try{ if(!(typeof RO === 'function' && RO())) save(); }catch(err){} setTimeout(() => { try{ if(S.tab === 'sites') drawSites(); }catch(err){} toast('日付を入れ直した：' + [n ? 'CSVの日付が数字になっていた ' + n + ' か所' : '', ov ? '重ねた行の空の日付 ' + ov + ' か所' : '', vir ? '【三軒茶屋事務所】ウイルス対策ソフトを 05/14 貸出（2台）の行に' : ''].filter(Boolean).join('・'), 6000); }, 300); }
+}
+const _ow = openWork;
+openWork = function(){ const r = _ow.apply(this, arguments); const go = () => { try{ fixDates(); }catch(e){ console.warn(e); } }; if(r && typeof r.then === 'function') r.then(() => setTimeout(go, 50)); else setTimeout(go, 50); return r; };
+/* 作ったときも（重ねた行の空の日付） */
+const _bd = build;
+build = function(){ const r = _bd.apply(this, arguments); try{ S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(b) ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])) l[f] = b[f]; }); }); const e = E(); e.serialFix = 1; e.yfVirus = 1; }catch(e){} return r; };
+})();
+
+/* ==================================================================
+   請求ナビ Web：PDFの保存を Excel版と同じ決まりに（2026-11-01「pdf保存は色々ルールあったよね？ yoursは現場ごとにpdfにするとか」）
+   ・名前：まとめて1本＝26.10.31_御請求書_株式会社○○御中
+   ・Yours：現場ごとに1本（指定用紙＝縦＋明細＝横）＝26.10.31_堀切 … を作り、鑑は 26.10.31_鑑。
+     ぜんぶを zip（26.10.31_御請求書_株式会社Yours御中.zip）にまとめる。「全部まとめて1本」も選べる
+   ・Yours 以外：今までどおり全部まとめて1本（この現場だけは …御中_現場名）
+   ================================================================== */
+(function(){
+const X = window.seikyuExt;
+const yo = () => { try{ return X.isYours && X.isYours(); }catch(e){ return false; } };
+let JSZipP = null;
+const loadZip = () => JSZipP || (JSZipP = new Promise((ok, ng) => { if(window.JSZip) return ok(window.JSZip); const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; s.onload = () => ok(window.JSZip); s.onerror = () => { JSZipP = null; ng(new Error('zip の部品を読めなかった（ネットにつながっているか確かめて）')); }; document.head.appendChild(s); }));
+/* makePdf の出来上がり（ダウンロード）を横取りして、中身だけもらう */
+async function pdfBytes(html, name){
+  const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-30000px;top:0'; box.innerHTML = html; document.body.appendChild(box);
+  const orig = pdfHand; let got = null;
+  pdfHand = async (blob, fn) => { got = { blob, fn }; };
+  try{ await makePdf(box, name); } finally { pdfHand = orig; box.remove(); }
+  return got;
+}
+async function yoursZip(){
+  const ks = S.sheets.filter(s => s.inKagami); if(!ks.length){ toast('鑑に入っている現場がない'); return; }
+  const o = S.opt, ym = pdfYm(), files = [];
+  const t0 = Date.now();
+  try{
+    const JSZip = await loadZip();
+    for(let i = 0; i < ks.length; i++){
+      const sh = ks[i];
+      const html = (o.yk !== false ? X.paperYkSheet(sh) : '') + paperSheet(sh);
+      toast('現場ごとのPDF ' + (i + 1) + ' / ' + ks.length + '：' + sh.name, 60000);
+      const r = await pdfBytes(html, pdfSiteName(sh.name)); if(r) files.push(r);
+    }
+    if(o.kagami){ toast('鑑のPDF', 60000); const r = await pdfBytes(paperKagami(), ym + '_鑑'); if(r) files.push(r); }
+    if(!files.length){ toast('PDFを作れなかった', 6000); return; }
+    const z = new JSZip(); files.forEach(f => z.file(f.fn, f.blob));
+    const blob = await z.generateAsync({ type: 'blob', compression: 'STORE' });
+    const fn = pdfBase() + '.zip';
+    $('#toast').hidden = true;
+    if(S.built && (!S.status || S.status === 'draft')){ S.status = 'printed'; S.printedAt = new Date().toISOString(); save(); }
+    await zipHand(blob, fn, files);
+    try{ if(window.X2 && X2.ledger) X2.ledger('pdf', fn); }catch(e){}
+  }catch(e){ console.error(e); toast('PDFを作れなかった：' + (e.message || e), 7000); }
+}
+async function zipHand(blob, fn, files){
+  const url = URL.createObjectURL(blob);
+  const mob = /iPhone|iPad|Android/.test(navigator.userAgent);
+  const file = new File([blob], fn, { type: 'application/zip' });
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  if(!mob){ const a = document.createElement('a'); a.href = url; a.download = fn; document.body.appendChild(a); a.click(); a.remove(); toast('PDFを保存した：' + fn + '（現場ごと ' + files.length + ' 本を zip に）', 6000); setTimeout(() => URL.revokeObjectURL(url), 60000); return; }
+  const v = await askDialog('PDFができた（現場ごと）', '<b>' + esc(fn) + '</b><br>' + files.map(f => esc(f.fn)).join('<br>') +
+    '<p><a href="' + url + '" download="' + esc(fn) + '">zip を保存</a></p>',
+    (canShare ? [{ t: '保存・送る', v: 'share', primary: true, k: 'Y' }] : []).concat([{ t: '閉じる', v: null, ghost: true, k: 'N' }]));
+  if(v === 'share'){ try{ await navigator.share({ files: [file], title: fn }); }catch(e){ if(e && e.name !== 'AbortError') toast('共有できなかった：「zip を保存」から', 6000); } }
+  setTimeout(() => URL.revokeObjectURL(url), 300000);
+}
+X.yoursZip = yoursZip;
+/* 全部の PDF（印刷の前の点検・絶対ダメのあと）で、Yours なら現場ごとか1本かを聞く */
+X.yoursPdf = async function(box, name){
+  if(!yo() || !S.built) return makePdf(box, name);
+  const n = S.sheets.filter(s => s.inKagami).length;
+  const v = await askDialog('Yours の PDF', 'Excel版と同じく<b>現場ごとに1本ずつ</b>（指定用紙＋明細）作って、zip にまとめます。<br>' +
+    '<small>名前：' + esc(pdfYm()) + '_現場名.pdf（' + n + ' 本）' + (S.opt.kagami ? '・' + esc(pdfYm()) + '_鑑.pdf' : '') + ' → ' + esc(pdfBase()) + '.zip</small>',
+    [{ t: '現場ごとに1本ずつ（zip）', v: 'gen', primary: true, k: 'Y' }, { t: '全部まとめて1本', v: 'one', k: 'O' }, { t: 'やめる', v: null, ghost: true, k: 'N' }]);
+  if(!v) return;
+  if(v === 'gen') return yoursZip();
+  return makePdf(box, name);
+};
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -10732,7 +10922,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 10:33';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 11:25';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
