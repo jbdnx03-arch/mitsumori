@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 16:00-->
+<!--BUILD:2026-11-01 17:16-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1356,7 +1356,9 @@ function pmAnchors(pl, i, noOwner){
   return { pmKey: 'pm:' + i, after, before, pos: i / Math.max(pl.length - 1, 1) };
 }
 function prevManualOf(pl){
-  return pl.map((L, i) => ({ L, i })).filter(x => !x.L.key && !x.L.head && (x.L.la + x.L.sa + x.L.ba) !== 0).map(x => Object.assign({}, x.L, pmAnchors(pl, x.i)));
+  /* 2026-11-01：0円でも、続いて借りている手打ちの行（Yours 池尻 9/1 LEDﾃﾞｨｽｸﾊﾞﾙｰﾝ 三脚 2本）は前月どおり足せるように */
+  const keep0 = L => num(L.qty) > 0 && (L.kb === '日極' || L.kb === '月極') && String(L.ret || L.cont || '').indexOf('継続') >= 0;
+  return pl.map((L, i) => ({ L, i })).filter(x => !x.L.key && !x.L.head && ((x.L.la + x.L.sa + x.L.ba) !== 0 || keep0(x.L))).map(x => Object.assign({}, x.L, pmAnchors(pl, x.i)));
 }
 /* 前月の並び：見出しの行と、重ねて請求した行（同じ品を別の見出しの下にもう一度）。今月も同じところに自動で入れる */
 function prevLayoutOf(pl){
@@ -1515,7 +1517,7 @@ function build(){
   if(P && (S.opt.carry || 'simple') !== 'none') S.sheets.forEach(sh => { if(sh.prev) applyLayout(sh, same); });
   /* 同じ締めのExcelなら、手で足した行もそのまま入れる */
   if(P && same && (S.opt.carry || 'simple') !== 'none') S.sheets.forEach(sh => {
-    (sh.prevManual || []).filter(p => p.saiban == null || p.saiban === '' || /^a/i.test(String(p.saiban))).forEach(p => { const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: 'Excelで手で足した行をそのまま取り込み' }, p); delete n.key; delete n.sys; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); placeLine(sh, n, p); });
+    (sh.prevManual || []).filter(p => p.saiban == null || p.saiban === '' || /^a/i.test(String(p.saiban))).forEach(p => { const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: 'Excelで手で足した行をそのまま取り込み' }, p); delete n.key; delete n.sys; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); if(/^\d{4}-\d{2}-\d{2}/.test(n.cont)){ n.retd = n.cont.slice(0, 10); n.cont = ''; } /* 2026-11-01：手で足した行の返却日が「CSVで更新」で消えていた */ placeLine(sh, n, p); });
     sh.prevManual = [];
   });
   /* 今月の行がない前月の現場シートは、鑑から外して後ろへ */
@@ -2900,7 +2902,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 16:00';
+const BUILD = '2026-11-01 17:16';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3838,7 +3840,10 @@ async function updateFromCsv(x){
   const rank = new Map(); const oi = new Map(oldLines.map((l, i) => [l, i]));
   pair.forEach((o, l) => rank.set(l, oi.get(o)));
   const oldMan = oldLines.filter(l => l.manual);
-  S.lines.filter(l => l.manual).forEach(l => { const o = oldMan.find(x => !x._r && x.name === l.name && num(x.qty) === num(l.qty) && num(x.ba) === num(l.ba) && num(x.la) === num(l.la)); if(o){ o._r = 1; rank.set(l, oi.get(o)); } });
+  S.lines.filter(l => l.manual).forEach(l => { const o = oldMan.find(x => !x._r && x.name === l.name && num(x.qty) === num(l.qty) && num(x.ba) === num(l.ba) && num(x.la) === num(l.la)); if(o){ o._r = 1; rank.set(l, oi.get(o)); }
+    /* 2026-11-01：手で足した行の「前月のどの行か」（pmKey）は前の作業のまま。作り直しのとき今の作業の行番号でふり直されて、別の前月の行（5.5sq延長→騒音振動計など）につながっていた */
+    if(o && o.pmKey) l.pmKey = o.pmKey; else delete l.pmKey;
+    if(o && o.uf) l.uf = JSON.parse(JSON.stringify(o.uf)); });
   oldMan.forEach(x => { delete x._r; });
   const reord = [];
   S.sheets.forEach(sh => { const ls = S.lines.filter(l => l.sheet === sh.id); let last = -1; const r2 = ls.map((l, i) => { const r = rank.has(l) ? rank.get(l) : last + 0.001 * (i + 1); if(rank.has(l)) last = r; return { l, r }; });
@@ -10090,13 +10095,23 @@ document.addEventListener('click', ev => { const b = ev.target && ev.target.clos
   const before = new Map(S.lines.map(l => [l.id, DF.map(f => day(l[f])).join('|')]));
   setTimeout(() => { S.lines.forEach(l => { const a = DF.map(f => day(l[f])).join('|'); if(before.has(l.id) && before.get(l.id) !== a) DF.forEach((f, i) => { if(a.split('|')[i] !== before.get(l.id).split('|')[i]) uf(l, f); }); }); }, 300); }, true);
 
-function prevOf(l){ const sh = sheetById(l.sheet); return sh && l.pmKey ? (sh.prevManual || []).find(p => p.pmKey === l.pmKey) : null; }
+function prevOf(l){ const sh = sheetById(l.sheet); if(!sh || !l.pmKey) return null; const pm = sh.prevManual || [];
+  const p = pm.find(p => p.pmKey === l.pmKey); if(p && normNm(p.name) === normNm(l.name)) return p;
+  /* 前の版の「CSVで更新」で pmKey がずれていた行：品名（と数量）が同じ前月の行を使う */
+  const nm = normNm(l.name), c = pm.filter(x => normNm(x.name) === nm);
+  return c.find(x => num(x.qty) === num(l.qty)) || c[0] || null; }
 const pCont = p => String(p.ret || p.cont || '') === '継続' || (!day(p.retd) && !/^\d/.test(String(p.ret || '')) && rent(p));
 function pmDiff(l){
   if(!l.manual || l.head || !l.pmKey || !rent(l)) return null; const p = prevOf(l); if(!p) return null;
   const out = [];
   if(day(p.kashi) && day(l.kashi) !== day(p.kashi) && !(l.uf && l.uf.kashi)) out.push('貸出 ' + md(p.kashi) + '→' + md(l.kashi));
   if(pCont(p) && day(l.retd) && !(l.uf && l.uf.retd)) out.push('継続→' + md(l.retd) + '返却');
+  /* 2026-11-01 三貴 西池袋：前の版が、手で足した行に返却伝票の伝票番号・管理番号（40627・DD010-6491）を入れていた。日付もちがうときだけ見る */
+  if(out.length){ const pd = String(p.den || '').trim(), ld = String(denOf(l) || '').trim(); if(pd !== ld) out.push('伝票 ' + (pd || '空') + '→' + (ld || '空'));
+    const pk = String(p.kanri || '').trim(), lk = String(l.kanri || '').trim(); if(pk !== lk) out.push('管理番号 ' + (pk || '空') + '→' + (lk || '空')); }
+  /* 前月の期間のまま（9/1〜9/30）になっている */
+  const ps = periodStartOf(S.meta.seikyuDate), pe = S.meta.seikyuDate;
+  if(pCont(p) && !(l.uf && (l.uf.start || l.uf.end)) && ((day(l.start) && day(l.start) < ps) || (day(l.end) && (day(l.end) < ps || day(l.end) > pe)))) out.push('期間 ' + md(l.start) + '〜' + md(l.end) + '（今月は ' + md(ps) + '〜' + md(pe) + '）');
   return out.length ? { p, out } : null;
 }
 function sysDiff(l){
@@ -10110,7 +10125,7 @@ const _ck = checks;
 checks = function(){ const out = _ck.apply(this, arguments);
   try{ if(!S.lines) return out;
     S.lines.forEach(l => { const sh = sheetById(l.sheet); if(!sh || l.nb) return;
-      const d = pmDiff(l); if(d) out.unshift({ lv: 'warn', t: '前月に手で足した行の日付が前月とちがう：' + l.name, s: sh.name + '　' + d.out.join('・') + '（前月は 貸出 ' + md(d.p.kashi) + '・' + (pCont(d.p) ? '継続' : '返却 ' + String(d.p.ret || '')) + '）。直した覚えがなければ「前月の日付にもどす」', id: l.id, sh: sh.id, xfix: 'pm' });
+      const d = pmDiff(l); if(d) out.unshift({ lv: 'warn', t: '前月に手で足した行が前月とちがう：' + l.name, s: sh.name + '　' + d.out.join('・') + '（前月は 貸出 ' + md(d.p.kashi) + '・' + (pCont(d.p) ? '継続' : '返却 ' + String(d.p.ret || '')) + '）。直した覚えがなければ「前月どおりにもどす」', id: l.id, sh: sh.id, xfix: 'pm' });
       const s = sysDiff(l); if(s) out.unshift({ lv: 'warn', t: '日付がCSVとちがう：' + l.name, s: sh.name + '　' + s.join('・') + '（CSV→いま）。直した覚えがなければ「CSVの日付にもどす」', id: l.id, sh: sh.id, xfix: 'sys' });
       if(rent(l) && !l.head && num(l.su) && !num(l.sdays) && day(l.start) && day(l.end) && !(l.uf && l.uf.sdays)) out.unshift({ lv: 'warn', t: 'サポート料が抜けている：' + l.name, s: sh.name + '　サポート単価 ' + yen(num(l.su)) + ' なのにサポート日数が 0（金額 0）。期間どおりなら「サポートを入れる」（' + spanDays(l) + '日・' + yen(Math.floor(num(l.su) * num(l.qty) * spanDays(l))) + '）', id: l.id, sh: sh.id, xfix: 'sup' });
       if(retEnd(l)) out.unshift({ lv: 'warn', t: '返却日のあとまで請求している：' + l.name, s: sh.name + '　終了 ' + md(l.end) + '・返却 ' + md(l.retd) + '（' + num(l.days) + '日）。返却日までなら「終了を返却日に」', id: l.id, sh: sh.id, xfix: 'ret' });
@@ -10124,18 +10139,22 @@ checks = function(){ const out = _ck.apply(this, arguments);
 function fixLine(l, k){
   const ps = periodStartOf(S.meta.seikyuDate), pe = S.meta.seikyuDate;
   if(k === 'pm'){ const p = prevOf(l); if(!p) return false; if(day(p.kashi)) l.kashi = day(p.kashi);
-    if(pCont(p)){ l.retd = ''; l.cont = '継続'; if(!day(l.start) || day(l.start) < ps) l.start = ps; l.end = pe; } 
-    daysFromPeriod(l); noBaseFix(l); calcLine(l); }
+    const pd = String(p.den || '').trim(); if(pd && String(denOf(l) || '').trim() !== pd){ l.den = pd; delete l.denW; }
+    if(String(l.kanri || '').trim() !== String(p.kanri || '').trim()) l.kanri = p.kanri || '';
+    if(pCont(p)){ l.retd = ''; l.cont = '継続'; if(l.ret != null) l.ret = '継続'; if(!day(l.start) || day(l.start) < ps || day(l.start) > pe) l.start = day(l.kashi) > ps ? day(l.kashi) : ps; l.end = pe; } 
+    daysFromPeriod(l); noBaseFix(l); calcLine(l);
+    /* 前月と同じ場所へ（日付がずれていて、貸出日の順で別の場所に置かれていた行） */
+    try{ const R = window.seikyuExt.restorePrevOrder; if(R) R(sheetById(l.sheet), x => x === l); }catch(e){} }
   else if(k === 'sys'){ DF.forEach(f => { if(f in l.sys && !(l.uf && l.uf[f])) l[f] = l.sys[f]; }); if(!day(l.retd) && l.sys.cont != null) l.cont = l.sys.cont; else if(day(l.retd)) l.cont = ''; daysFromPeriod(l); calcLine(l); }
   else if(k === 'ret'){ l.end = day(l.retd); daysFromPeriod(l); calcLine(l); }
   else if(k === 'base'){ l.bu = 0; l.ba = 0; l.noBase = true; calcLine(l); }
   else if(k === 'sup'){ l.sdays = spanDays(l); calcLine(l); if(!num(l.sa)) l.sa = Math.floor(num(l.su) * num(l.qty) * num(l.sdays) + 1e-9); }
   else return false;
-  l.carried = (l.carried ? l.carried + '／' : '') + ({ pm: '前月の日付にもどした', sys: 'CSVの日付にもどした', ret: '終了を返却日にした', base: '続く品なので基本料を外した', sup: 'サポート料を期間どおり入れた' })[k];
+  l.carried = (l.carried ? l.carried + '／' : '') + ({ pm: '前月どおりにもどした', sys: 'CSVの日付にもどした', ret: '終了を返却日にした', base: '続く品なので基本料を外した', sup: 'サポート料を期間どおり入れた' })[k];
   if(l.sys && !l.manual) l.edited = true;
   return true;
 }
-const LBL = { pm: '前月の日付にもどす', sys: 'CSVの日付にもどす', ret: '終了を返却日に', base: '基本料を外す', sup: 'サポートを入れる' };
+const LBL = { pm: '前月どおりにもどす', sys: 'CSVの日付にもどす', ret: '終了を返却日に', base: '基本料を外す', sup: 'サポートを入れる' };
 window.seikyuExt.dateFix = { fixLine, LBL, pmDiff, sysDiff, retEnd };
 const _dc = drawChecks;
 drawChecks = function(){ const r = _dc.apply(this, arguments);
@@ -10145,7 +10164,7 @@ drawChecks = function(){ const r = _dc.apply(this, arguments);
 window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xfix]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
   if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
   const x = (window.__chk || [])[+b.dataset.xfix]; if(!x) return; const l = S.lines.find(y => y.id === x.id); if(!l) return;
-  if(fixLine(l, x.xfix)){ save(); drawChecks(); try{ drawSites(); }catch(e){} toast('「' + l.name + '」：' + ({ pm: '前月の日付にもどした', sys: 'CSVの日付にもどした', ret: '終了を返却日にした', base: '基本料を外した', sup: 'サポート料を入れた' })[x.xfix] + '（↶でもどせる）', 3500); }
+  if(fixLine(l, x.xfix)){ save(); drawChecks(); try{ drawSites(); }catch(e){} toast('「' + l.name + '」：' + ({ pm: '前月どおりにもどした', sys: 'CSVの日付にもどした', ret: '終了を返却日にした', base: '基本料を外した', sup: 'サポート料を入れた' })[x.xfix] + '（↶でもどせる）', 3500); }
 }, true);
 })();
 /* ==================================================================
@@ -10439,7 +10458,7 @@ function kashiCarry(){
   }catch(e){} });
   return n;
 }
-build = function(){ const r = _bd.apply(this, arguments); try{ S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(b) ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])) l[f] = b[f]; }); }); const e = E(); e.serialFix = 1; { const kc = kashiCarry(); if(kc) setTimeout(() => toast('前月に手で直していた貸出日を ' + kc + ' 行 引き継いだ（CSVの日付とちがう行）', 6000), 1800); } if(!S.sameMonth && S.prev && S.prev.fromWeb && window.seikyuExt.isYours && window.seikyuExt.isYours()){ const k = sanchaFix(); if(k) toast('【三軒茶屋事務所】の貸出日を前月の請求書どおりに ' + k + ' 行', 5000); } }catch(e){} return r; };
+build = function(){ const r = _bd.apply(this, arguments); try{ S.dateOrd = 2; S.pmOrd = 3; /* 2026-11-01：作ったばかりの作業は今の決まりで並んでいる。開いたとき1回だけの置き直しをしない（勝手に並びが変わっていた） */ S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(b) ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])) l[f] = b[f]; }); }); const e = E(); e.serialFix = 1; { const kc = kashiCarry(); if(kc) setTimeout(() => toast('前月に手で直していた貸出日を ' + kc + ' 行 引き継いだ（CSVの日付とちがう行）', 6000), 1800); } if(!S.sameMonth && S.prev && S.prev.fromWeb && window.seikyuExt.isYours && window.seikyuExt.isYours()){ const k = sanchaFix(); if(k) toast('【三軒茶屋事務所】の貸出日を前月の請求書どおりに ' + k + ' 行', 5000); } }catch(e){} return r; };
 })();
 /* ==================================================================
    T7（2026-11-01）
@@ -10516,6 +10535,58 @@ const st = document.createElement('style');
 st.textContent = '#xDockZ{display:inline-flex;gap:4px;align-items:center;margin-left:4px}#xDockZ b{min-width:42px;text-align:center;font-size:12px}' +
   '@media (max-width:760px){html.xdockopen #xBot,html.xdockopen #xTot,html.xdockopen #xFab{display:none!important}#xDock.b{height:72vh!important}html.xdockopen.xshell body::after{height:74vh}}';
 document.head.appendChild(st);
+})();
+
+/* 2026-11-01：前に作った作業でも、前月の「手で足した行」のボタンに、あとから足せるようになった行（0円の三脚など）を出す。行は変えない（ボタンが増えるだけ） */
+(function(){
+const _ow = openWork;
+openWork = function(o){ const r = _ow.apply(this, arguments);
+  try{ const P = S.prev; if(P && P.sheets && !S.sameMonth) S.sheets.forEach(sh => {
+    const ps = P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code)); if(!ps) return;
+    const cur = sh.prevManual || (sh.prevManual = []), have = new Set(cur.map(p => p.pmKey));
+    prevManualOf(ps.lines || []).forEach(p => { if(have.has(p.pmKey)) return;
+      p.added = linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey); cur.push(p); });
+    cur.sort((a, b) => +String(a.pmKey).slice(3) - +String(b.pmKey).slice(3));
+    /* 前の版の「CSVで更新」でずれた pmKey（騒音振動計 → 5.5sq延長 の前月の行、など）を、品名が同じ前月の行につなぎ直す（表示も金額も変わらない） */
+    const ms = linesOf(sh).filter(l => l.manual && !l.head && l.pmKey), ok = new Set();
+    ms.forEach(l => { const p = cur.find(x => x.pmKey === l.pmKey); if(p && normNm(p.name) === normNm(l.name)) ok.add(l.pmKey); });
+    ms.forEach(l => { const p = cur.find(x => x.pmKey === l.pmKey); if(p && normNm(p.name) === normNm(l.name)) return;
+      const c = cur.filter(x => !ok.has(x.pmKey) && normNm(x.name) === normNm(l.name)); const q = c.find(x => num(x.qty) === num(l.qty)) || c[0];
+      if(q){ l.pmKey = q.pmKey; ok.add(q.pmKey); } });
+    cur.forEach(p => { p.added = linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey); });
+  }); if(S.tab === 'sites') drawSites(); }catch(e){ console.warn(e); }
+  return r; };
+})();
+
+/* 2026-11-01：「前月に手で足した行が前月とちがう」をまとめて直す（チェックの上のボタン）／CSVを入れ直したときにも聞く */
+(function(){
+const D = () => window.seikyuExt.dateFix;
+const pmRows = () => { const d = D(); if(!d || !S.lines) return []; return S.lines.filter(l => { const sh = sheetById(l.sheet); return sh && !l.nb && d.pmDiff(l); }); };
+function fixAll(ls){ const d = D(); let n = 0; if(typeof undoPush === 'function'){ try{ undoPush(); }catch(e){} }
+  const fx = new Set(); ls.forEach(l => { if(d.fixLine(l, 'pm')){ n++; fx.add(l); } });
+  /* なおした行をいっしょに前月の場所へ（1行ずつだと、まだずれている行どうしを目印にしてしまう） */
+  try{ const R = window.seikyuExt.restorePrevOrder; if(R && fx.size) new Set([...fx].map(l => l.sheet)).forEach(id => R(sheetById(id), x => x.manual && !x.head && !x.ovl && !/値引|調整/.test(x.name || ''))); }catch(e){}
+  if(n){ save(); try{ drawChecks(); }catch(e){} try{ drawSites(); }catch(e){} } return n; }
+const _dc = drawChecks;
+drawChecks = function(){ const r = _dc.apply(this, arguments);
+  try{ const L = document.getElementById('chkList'); if(!L || L.querySelector('#xPmAll')) return r; const ls = pmRows(); if(ls.length < 2) return r;
+    const nm = [...new Set(ls.map(l => (sheetById(l.sheet) || {}).name))].join('・');
+    L.insertAdjacentHTML('afterbegin', '<li id="xPmAll" style="list-style:none;padding:10px 12px;margin:0 0 8px;border:1.5px solid var(--warn);border-radius:10px;background:color-mix(in srgb,var(--warn) 10%,transparent)"><b>前月に手で足した行が前月とちがう：' + ls.length + ' 行</b>（' + esc(nm) + '）<br><span style="font-size:12px">貸出日・継続／返却・伝票番号・期間が前月の請求書とちがう。直した覚えがなければ、まとめて前月どおりに。</span><br><button class="btn sm primary" data-xpmall style="margin-top:6px">ぜんぶ前月どおりにもどす（' + ls.length + ' 行）</button></li>');
+  }catch(e){ console.warn(e); }
+  return r; };
+window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xpmall]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const n = fixAll(pmRows()); toast(n + ' 行を前月どおりにもどした（↶でもどせる）', 4000); }, true);
+async function askPm(){ const ls = pmRows(); if(!ls.length) return;
+  const list = ls.slice(0, 12).map(l => '<li>' + esc((sheetById(l.sheet) || {}).name || '') + '：' + esc(l.name) + '　<span style="color:var(--ink3)">' + esc(D().pmDiff(l).out.join('・')) + '</span></li>').join('') + (ls.length > 12 ? '<li>ほか ' + (ls.length - 12) + ' 行</li>' : '');
+  const v = await askDialog('前月に手で足した行が前月とちがう', '前月の請求書から足した行のうち <b>' + ls.length + ' 行</b>が、前月とちがっています（前の版が勝手に変えていたことがある）。<ul style="font-size:12.5px;margin:6px 0 0 1em;padding:0">' + list + '</ul>',
+    [{ t:'ぜんぶ前月どおりにもどす', v:'fix', primary:true, k:'Y' }, { t:'このまま（自分で直した）', v:null, ghost:true, k:'N' }]);
+  if(v === 'fix'){ const n = fixAll(ls); toast(n + ' 行を前月どおりにもどした（↶でもどせる）', 5000); } }
+window.seikyuExt.askPm = askPm;
+/* CSVで更新し終わった（「CSVで今月を更新した」を閉じた）あとに聞く。ext.js の中から呼ばれるので askDialog を包む */
+const _ad = askDialog;
+askDialog = function(t){ const r = _ad.apply(this, arguments); if(t === 'CSVで今月を更新した' && r && r.then) r.then(() => setTimeout(() => { askPm().catch(() => {}); }, 400)); return r; };
+for(const k of Object.keys(_ad)) try{ Object.defineProperty(askDialog, k, { get: () => _ad[k], set: v => { _ad[k] = v; }, configurable: true }); }catch(e){}
 })();
 
 /* ==================================================================
@@ -11092,7 +11163,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 16:00';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 17:16';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
