@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 21:40-->
+<!--BUILD:2026-11-01 22:06-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -152,7 +152,7 @@ details.help{font-size:12px;color:var(--ink2);margin-top:8px}
 #print{display:none}
 tr.nbrow td{opacity:.55}
 tr.nbrow td:first-child,tr.nbrow td:last-child{opacity:1}
-tr.nbrow input.e{text-decoration:line-through}
+tr.nbrow input.e{color:#9aa5a8}
 .spv{position:fixed;inset:0;z-index:60;background:rgba(20,30,32,.72);display:flex;flex-direction:column}
 .spv[hidden]{display:none}
 .spv-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--brand2);color:#fff}
@@ -169,7 +169,7 @@ tr.nbrow input.e{text-decoration:line-through}
 tr.flash td{animation:flash 1.6s ease-out}@keyframes flash{0%{background:#FFE58A}100%{background:transparent}}
 .seg2{display:inline-flex;gap:0;vertical-align:middle}.seg2 .btn{border-radius:0;margin:0}.seg2 .btn:first-child{border-radius:6px 0 0 6px}.seg2 .btn:last-child{border-radius:0 6px 6px 0;margin-left:-1px}.seg2 .btn.on{background:#2a6670;color:#fff;border-color:#2a6670}.seg2 .btn.on.ng{background:#b3412f;border-color:#b3412f}
 .ckh{display:flex;justify-content:space-between;align-items:center;margin:10px 0 2px;font-size:12.5px;color:var(--ink3)}.ckh a{color:var(--acc,#2a6670);font-weight:600}
-.dlg-b ul.ckl{list-style:none;padding:0;margin:4px 0}.ckl li{border-top:1px solid #eee}.ckl li:first-child{border-top:0}.ckl label{display:flex;gap:10px;align-items:flex-start;padding:7px 4px;cursor:pointer;border-radius:6px}.ckl label:hover{background:#f4f8f8}.ckl input{width:18px;height:18px;margin-top:2px;flex:none;accent-color:#2a6670}.ckl li.off span{color:#999;text-decoration:line-through}
+.dlg-b ul.ckl{list-style:none;padding:0;margin:4px 0}.ckl li{border-top:1px solid #eee}.ckl li:first-child{border-top:0}.ckl label{display:flex;gap:10px;align-items:flex-start;padding:7px 4px;cursor:pointer;border-radius:6px}.ckl label:hover{background:#f4f8f8}.ckl input{width:18px;height:18px;margin-top:2px;flex:none;accent-color:#2a6670}.ckl li.off span{color:#999}
 .dlg-f{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px}
 .tabs .cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:#F2B544;color:#3A2A00;font-size:11px;font-weight:800;line-height:18px;text-align:center}
 .tabs .cnt.ng{background:#E25B4B;color:#fff}
@@ -353,7 +353,8 @@ table.wl small{color:var(--ink3)}
       </div>
       <div class="row" style="margin-top:12px;font-size:13px" id="carryOpt">
         <b style="font-size:12px;color:var(--ink2)">前月の手直し：</b>
-        <label><input type="radio" name="carry" value="simple" checked> 単価・数量・品名の書きかえは自動（1行を分けた・別の品にした行は、確かめてから）</label>
+        <label><input type="radio" name="carry" value="real" checked> まず本物の請求書どおり（前月の引き継ぎ・ETC888 などは、あとで「前月の引き継ぎ」ボタンでまとめて入れる／出す）</label>
+        <label><input type="radio" name="carry" value="simple"> 単価・数量・品名の書きかえは自動（1行を分けた・別の品にした行は、確かめてから）</label>
         <label><input type="radio" name="carry" value="all"> 全部自動</label>
         <label><input type="radio" name="carry" value="none"> 引き継がない</label>
       </div>
@@ -1495,11 +1496,12 @@ function build(){
     if(e && sheetFor[e.sheet] && sheetFor[e.sheet].code === l.site) sh = sheetFor[e.sheet];
     if(!sh) sh = sheetOfCode(l.site);
     if(!sh.siteName && D.sites[l.site]) sh.siteName = D.sites[l.site].name;
-    const mode = S.opt.carry || 'simple';
+    /* 2026-11-01「最初は本物の請求書どおりに出して、前月の引き継ぎはあとでボタンで」：real は前月の手直しを全部「候補」にして、自動では入れない */
+    let mode = S.opt.carry || 'simple'; if(mode === 'real') mode = same ? 'simple' : 'sugg';
     if(e && e.edited && mode !== 'none' && same){
       /* 同じ締めのExcel（今月の作業の続き）：Excelで直したとおりに、期間・日数・金額までそのまま入れる */
       applyVers(l, e, sh, true).forEach(n => S.lines.push(n));
-    }else if(e && e.edited && mode !== 'none' && ((mode === 'all' && (!l.name || nameNear(e.vers[0] && e.vers[0].name, l.name) || e.vers.length > 1)) || simpleEdit(e, l))){
+    }else if(e && e.edited && mode !== 'none' && mode !== 'sugg' && ((mode === 'all' && (!l.name || nameNear(e.vers[0] && e.vers[0].name, l.name) || e.vers.length > 1)) || simpleEdit(e, l))){
       /* 前月の手直しを今月にも（何行かに分けていたら、そのまま分ける）。金額は今月の日数で計算し直す */
       applyVers(l, e, sh).forEach(n => S.lines.push(n));
     }else{
@@ -1518,7 +1520,7 @@ function build(){
   /* 前月の手入力の行（システムにない行）は、候補として各シートに覚えておく */
   if(P) S.sheets.forEach(sh => { if(sh.prev) sh.prevManual = prevManualOf(sh.prev.lines || []); });
   /* 前月と同じ見出し・重ねて請求した行は、自動で同じところへ */
-  if(P && (S.opt.carry || 'simple') !== 'none') S.sheets.forEach(sh => { if(sh.prev) applyLayout(sh, same); });
+  if(P && (S.opt.carry || 'simple') !== 'none' && !(S.opt.carry === 'real' && !same)) S.sheets.forEach(sh => { if(sh.prev) applyLayout(sh, same); });
   /* 同じ締めのExcelなら、手で足した行もそのまま入れる */
   if(P && same && (S.opt.carry || 'simple') !== 'none') S.sheets.forEach(sh => {
     (sh.prevManual || []).filter(p => p.saiban == null || p.saiban === '' || /^a/i.test(String(p.saiban))).forEach(p => { const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: 'Excelで手で足した行をそのまま取り込み' }, p); delete n.key; delete n.sys; delete n.after; delete n.before; delete n.pos; n.retd = ''; n.cont = String(p.ret || ''); if(/^\d{4}-\d{2}-\d{2}/.test(n.cont)){ n.retd = n.cont.slice(0, 10); n.cont = ''; } /* 2026-11-01：手で足した行の返却日が「CSVで更新」で消えていた */ placeLine(sh, n, p); });
@@ -2601,13 +2603,13 @@ async function askCarrySugg(){
 async function askNoBillSales(){
   const ls = S.lines.filter(l => isNbCand(l) && !l.nbDec && !l.nb);
   if(!ls.length) return;
-  const list = ckList(ls, l => esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + yen(lineAmt(l)) + '）', true, true);
+  const list = ckList(ls, l => esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + yen(lineAmt(l)) + '）', false);
   const v = await askDialog('販売の品を決める',
-    '商品番号 <b>' + esc(nbCodes().join('・')) + '</b> の販売の品が <b>' + ls.length + ' 件</b>あります（ふだんは請求書に出さない品）。<br><b>チェックした品を請求書に出さない</b>にします。' + list,
-    [{ t:'チェックした品を出さない', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
+    '商品番号 <b>' + esc(nbCodes().join('・')) + '</b> の販売の品が <b>' + ls.length + ' 件</b>あります（ふだんは請求書に出さない品）。<br><b>チェックした品は請求書に出す</b>・チェックなしは出さない。' + list,
+    [{ t:'決めた', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
   if(v === 'ok'){
     const on = new Set(askDialog.checked || []); let n = 0;
-    ls.forEach(l => { l.nbDec = true; if(on.has(l.id)){ l.nb = true; n++; } });
+    ls.forEach(l => { l.nbDec = true; if(!on.has(l.id)){ l.nb = true; n++; } });
     save(); if(S.tab === 'sites') drawSites(); toast(n + ' 件を請求書に出さない・' + (ls.length - n) + ' 件は出す（行は残る。⊘ で戻せる）');
   }
   else toast('あとで決める：チェックに出しておきます');
@@ -2709,7 +2711,7 @@ function lineDecHtml(l){
     const dec = l.nbDec || l.nb;
     return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">' + esc(l.shohin) + '：ふだん請求書に出さない品（基本出さない）　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
   }
-  if(!l.nb && window.seikyuExt && seikyuExt.pxCand && seikyuExt.pxCand(l)) return '<div class="why" style="color:var(--ng)"><b>先月は請求書に出していなかった品</b>（伝票が変わっても同じ品）　出すか決めていない　' + seg(false, false) + '</div>';
+  if(!l.nb && window.seikyuExt && seikyuExt.pxCand && seikyuExt.pxCand(l) && !(seikyuExt.realSame && seikyuExt.realSame().has(l.id))) return '<div class="why" style="color:var(--ng)"><b>先月は請求書に出していなかった品</b>（伝票が変わっても同じ品）　出すか決めていない　' + seg(false, false) + '</div>';
   if(window.seikyuExt && seikyuExt.saleCand && (seikyuExt.saleCand(l) || l.saleAsk)){
     const dec = l.nbDec || l.nb;
     return '<div class="why" style="color:' + (l.nb ? 'var(--ng)' : dec ? 'var(--ink3)' : 'var(--warn)') + '">今月はじめて出てきた販売の品　' + (l.nb ? '→ 請求書に出さない' : dec ? '→ 請求書に出す' : '出すか決めていない') + '　' + seg(l.nb, dec) + '</div>';
@@ -2908,7 +2910,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 21:40';
+const BUILD = '2026-11-01 22:06';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3923,25 +3925,26 @@ function matchExcluded(ex, l){
 async function askPrevExcluded(){
   const P = S.prev; if(!P || S.sameMonth) return;
   const ex = prevExcluded(P); if(!ex.length) return;
-  const ls = S.lines.filter(l => !l.nb && !l.pxDec && l.sys && matchExcluded(ex, l));
+  const rs = realSame(); const ls = S.lines.filter(l => !l.nb && !l.pxDec && l.sys && matchExcluded(ex, l) && !rs.has(l.id));
   if(!ls.length) return;
-  const list = ckList(ls, l => esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + yen(lineAmt(l)) + '）', true);
-  const v = await askDialog('前月「出さない」にした品', '前月の請求書に<b>出していなかった品</b>が、今月のCSVに <b>' + ls.length + ' 件</b>あります（伝票が変わっていても、同じ品なら出します）。<br><b>チェックした品を、今月も出さない</b>にします。' + list,
-    [{ t:'チェックした品を出さない', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
+  /* 2026-11-01「チェックしたのは請求書に出す、外したら出さない」にそろえた */
+  const list = ckList(ls, l => esc(sheetById(l.sheet).name) + '：' + esc(l.name) + '（' + yen(lineAmt(l)) + '）', false);
+  const v = await askDialog('前月「出さない」にした品', '前月の請求書に<b>出していなかった品</b>が、今月のCSVに <b>' + ls.length + ' 件</b>あります。<br><b>チェックした品は請求書に出す</b>・チェックなしは前月どおり出さない。' + list,
+    [{ t:'決めた', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
   if(v !== 'ok'){ toast('あとで決める：チェックに出しておきます'); return; }
   const on = new Set(askDialog.checked || []); let n = 0;
-  ls.forEach(l => { l.pxDec = true; if(on.has(l.id)){ l.nb = true; l.nbDec = true; l.luDec = true; n++; } });
-  save(); if(S.tab === 'sites') drawSites(); toast(n + ' 件を前月どおり出さないにした');
+  ls.forEach(l => { l.pxDec = true; if(!on.has(l.id)){ l.nb = true; l.nbDec = true; l.luDec = true; n++; } });
+  save(); if(S.tab === 'sites') drawSites(); toast((ls.length - n) + ' 件を出す・' + n + ' 件は前月どおり出さない');
 }
 async function askNewSales(){
   const ls = S.lines.filter(saleCand); if(!ls.length) return;
   ls.forEach(l => { l.saleAsk = true; });
-  const list = ckList(ls, l => esc((sheetById(l.sheet) || {}).name || '') + '：' + esc(l.name) + '（' + esc(l.shohin || '') + '・' + yen(lineAmt(l)) + '）', false);
-  const v = await askDialog('今月はじめて出てきた販売の品', '先月はなかった<b>販売の品</b>が <b>' + ls.length + ' 件</b>あります。<br><b>チェックした品は請求書に出しません</b>（チェックなしは出す）。' + list,
+  const list = ckList(ls, l => esc((sheetById(l.sheet) || {}).name || '') + '：' + esc(l.name) + '（' + esc(l.shohin || '') + '・' + yen(lineAmt(l)) + '）', true);
+  const v = await askDialog('今月はじめて出てきた販売の品', '先月はなかった<b>販売の品</b>が <b>' + ls.length + ' 件</b>あります。<br><b>チェックした品は請求書に出す</b>・チェックを外した品は出さない。' + list,
     [{ t:'決めた', v:'ok', primary:true, k:'Y' }, { t:'あとで決める', v:null, ghost:true, k:'L' }]);
   if(v !== 'ok'){ toast('あとで決める：チェックに「絶対ダメ」で出しておきます'); return; }
   const on = new Set(askDialog.checked || []); let n = 0;
-  ls.forEach(l => { l.nbDec = true; if(on.has(l.id)){ l.nb = true; n++; } });
+  ls.forEach(l => { l.nbDec = true; if(!on.has(l.id)){ l.nb = true; n++; } });
   save(); if(S.tab === 'sites') drawSites(); toast('販売の品：' + (ls.length - n) + ' 件を出す・' + n + ' 件は出さない');
 }
 const _askNoBill = askNoBill;
@@ -4085,12 +4088,20 @@ function saleCand(l){
   const site = String(l.site || ''), n = dnm(l.name);
   return !(P.all || []).some(e => { const nm = (e.sys && e.sys.name) || (e.vers[0] && e.vers[0].name) || ''; const ps = (P.sheets || []).find(x => x.name === e.sheet); const sc = e.sys && e.sys.site ? String(e.sys.site) : ps ? String(ps.code) : ''; return sc === site && dnm(nm) === n; });
 }
+/* 本物の請求書に同じ金額である行（id の集まり） */
+let rsC = null, rsT = 0;
+function realSame(){ if(rsC && Date.now() - rsT < 400) return rsC; rsT = Date.now(); const st = rsC = new Set(); try{ const C = window.seikyuExt && window.seikyuExt.cmpReal; if(S.real && C) S.sheets.forEach(sh => { const c = C(sh); if(c) c.match.forEach(m => { if(m.diff.indexOf('金額') < 0) st.add(m.l.id); }); }); }catch(e){} return st; }
+window.seikyuExt.realSame = realSame;
 window.seikyuExt.pxCand = pxCand; window.seikyuExt.saleCand = saleCand;
 function extraChecks(){
   const out = [];
   const shn = l => (sheetById(l.sheet) || {}).name || '';
   /* 絶対ダメ：先月「出さない」にした品が、今月は出ている（伝票が変わっても品で見る） */
-  S.lines.filter(pxCand).forEach(l => out.unshift({ lv:'warn', t:'先月出さなかった品が今月出ている：' + l.name, s: shn(l) + '　先月は請求書に出していません（' + yen(lineAmt(l)) + '）。行の「出す／出さない」で決めて', id: l.id, sh: l.sheet }));
+  /* 2026-11-01 三貴 西池袋：本物の請求書（システムの印刷）に同じ金額である行は、先月出さなかった品でもアラームにしない（9/28 の3日保証・返却したﾄﾞﾗﾑなど、今月はふつうに請求する行） */
+  const inReal = realSame();
+  /* ただし、同じ現場に同じ品で数量をまとめた行がある（前月 LEDﾃｰﾌﾟﾗｲﾄ 1→10 など）なら、二重になるかもしれないので残す */
+  const merged = l => linesOf(sheetById(l.sheet) || { id: '' }).some(x => x !== l && normNm(x.name) === normNm(l.name) && ((x.sys && num(x.qty) > num(x.sys.qty)) || (x.sugg && x.sugg.vers && !x.suggDec && x.sugg.vers.some(v => num(v.qty) > num(x.qty)))));
+  S.lines.filter(pxCand).filter(l => !inReal.has(l.id) || merged(l)).forEach(l => out.unshift({ lv:'warn', t:'先月出さなかった品が今月出ている：' + l.name, s: shn(l) + '　先月は請求書に出していません（' + yen(lineAmt(l)) + '）。行の「出す／出さない」で決めて', id: l.id, sh: l.sheet }));
   /* 絶対ダメ：今月はじめて出てきた販売の品を、聞かずに出す */
   S.lines.filter(saleCand).forEach(l => { l.saleAsk = true; out.unshift({ lv:'warn', t:'今月はじめて出てきた販売の品：' + l.name, s: shn(l) + '　' + yen(lineAmt(l)) + '・先月はなかった販売の品。出すか決めて', id: l.id, sh: l.sheet }); });
   /* 絶対ダメ：前月の手直しが、別の品に付いている */
@@ -8716,9 +8727,9 @@ function markSkip(){
   return n;
 }
 const _b = build;
-build = function(){ const r = _b.apply(this, arguments); try{ markSkip(); }catch(e){ console.warn(e); } try{ const n = etc888Auto(); if(n){ save(); setTimeout(() => toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000), 1200); } }catch(e){ console.warn(e); } return r; };
+build = function(){ const r = _b.apply(this, arguments); try{ markSkip(); }catch(e){ console.warn(e); } try{ const n = (S.opt.carry === 'real' && !S.sameMonth) ? 0 : etc888Auto(); if(n){ save(); setTimeout(() => toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000), 1200); } }catch(e){ console.warn(e); } return r; };
 const _o = openWork;
-openWork = function(o){ const r = _o.apply(this, arguments); S.skipFix = (o && o.skipFix) || 0; try{ if(markSkip()) setTimeout(() => { save(); drawSites(); }, 1300); }catch(e){} try{ const n = etc888Auto(); if(n){ setTimeout(() => { save(); drawSites(); toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000); }, 1300); } }catch(e){ console.warn(e); } return r; };
+openWork = function(o){ const r = _o.apply(this, arguments); S.skipFix = (o && o.skipFix) || 0; try{ if(markSkip()) setTimeout(() => { save(); drawSites(); }, 1300); }catch(e){} try{ const n = (S.opt.carry === 'real' && !S.sameMonth) ? 0 : etc888Auto(); if(n){ setTimeout(() => { save(); drawSites(); toast('ETC888 の品 ' + n + ' 件は、基本どおり請求書に出さないにした（出すなら ◎）', 6000); }, 1300); } }catch(e){ console.warn(e); } return r; };
 
 /* ---- 手で足した行は貸出日の順に ---- */
 const dk = l => String(l.kashi || '').slice(0, 10);
@@ -10476,7 +10487,7 @@ function kashiCarry(){
   }catch(e){} });
   return n;
 }
-build = function(){ const r = _bd.apply(this, arguments); try{ S.dateOrd = 2; S.pmOrd = 3; /* 2026-11-01：作ったばかりの作業は今の決まりで並んでいる。開いたとき1回だけの置き直しをしない（勝手に並びが変わっていた） */ S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(b) ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])) l[f] = b[f]; }); }); const e = E(); e.serialFix = 1; { const kc = kashiCarry(); if(kc) setTimeout(() => toast('前月に手で直していた貸出日を ' + kc + ' 行 引き継いだ（CSVの日付とちがう行）', 6000), 1800); } if(!S.sameMonth && S.prev && S.prev.fromWeb && window.seikyuExt.isYours && window.seikyuExt.isYours()){ const k = sanchaFix(); if(k) toast('【三軒茶屋事務所】の貸出日を前月の請求書どおりに ' + k + ' 行', 5000); } }catch(e){} return r; };
+build = function(){ const r = _bd.apply(this, arguments); try{ S.dateOrd = 2; S.pmOrd = 3; /* 2026-11-01：作ったばかりの作業は今の決まりで並んでいる。開いたとき1回だけの置き直しをしない（勝手に並びが変わっていた） */ S.lines.forEach(l => { if(!l.ovl || !l.ovlOf) return; const b = S.lines.find(x => x.id === l.ovlOf); if(b) ['kashi', 'start', 'end'].forEach(f => { if(!day(l[f]) && day(b[f])) l[f] = b[f]; }); }); const e = E(); e.serialFix = 1; { const kc = (S.opt.carry === 'real') ? 0 : kashiCarry(); if(kc) setTimeout(() => toast('前月に手で直していた貸出日を ' + kc + ' 行 引き継いだ（CSVの日付とちがう行）', 6000), 1800); } if(S.opt.carry !== 'real' && !S.sameMonth && S.prev && S.prev.fromWeb && window.seikyuExt.isYours && window.seikyuExt.isYours()){ const k = sanchaFix(); if(k) toast('【三軒茶屋事務所】の貸出日を前月の請求書どおりに ' + k + ' 行', 5000); } }catch(e){} return r; };
 })();
 /* ==================================================================
    T7（2026-11-01）
@@ -10776,6 +10787,153 @@ X.yoursPdf = async function(box, name){
   if(v === 'gen') return yoursZip();
   return makePdf(box, name);
 };
+})();
+
+/* ====================================================================
+   2026-11-01「最初は本物の請求書どおりに出して、それぞれ前月引き継ぎを入れるボタン、一括で入れたり出したり。ETC888 も一括で」
+   前月の引き継ぎパネル：チェックした行＝入れる／請求書に出す、外した行＝入れない／出さない
+   ==================================================================== */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const day = v => String(v || '').slice(0, 10);
+const md = v => { const d = day(v); return d ? +d.slice(5, 7) + '/' + +d.slice(8, 10) : '空'; };
+const rent = l => l.kb === '日極' || l.kb === '月極';
+const shn = l => ((sheetById(l.sheet) || {}).name || '');
+const realMode = () => S.opt && S.opt.carry === 'real' && S.prev && !S.sameMonth;
+
+/* ---- グループを作る ---- */
+function groups(){
+  const G = [];
+  /* 1) 前月の手直し（数量・単価・品名・1行を分けた） */
+  { const rows = [];
+    S.lines.forEach(l => { if(l.head || !l.sys || l.manual) return;
+      if(l.suggKeep && l.carried && /前月の手直しを引き継ぎ/.test(l.carried) && !l.dup) rows.push({ id: 'c:' + l.id, l, on: true, t: shn(l) + '：' + l.name, s: '前月は手で ' + (l.suggKeep.diff || '') + '（入れてある）' });
+      else if(l.sugg && l.sugg.vers && !l.dup && !(typeof suggSame === 'function' && suggSame(l))) rows.push({ id: 'c:' + l.id, l, on: false, t: shn(l) + '：' + l.name, s: '前月は手で ' + (l.sugg.diff || '') + (l.sugg.how ? '（' + l.sugg.how + '）' : '') + '・今月の日数で ' + yen(l.sugg.amt) + '（いまは ' + yen(lineAmt(l)) + '）' }); });
+    if(rows.length) G.push({ k: 'carry', t: '前月の手直し（数量・単価・品名・分け方）', rows }); }
+  /* 2) 前月に手で足した行 */
+  { const rows = [];
+    S.sheets.forEach(sh => (sh.prevManual || []).forEach((p, i) => { if(!p.pmKey) return;
+      const has = linesOf(sh).find(l => l.manual && l.pmKey === p.pmKey);
+      if(!has && !/^(日極|月極)$/.test(String(p.kb || ''))) return;   /* 前月だけの運賃・販売は出さない */
+      rows.push({ id: 'm:' + sh.id + ':' + p.pmKey, sh, p, i, on: !!has, t: sh.name + '：' + p.name, s: '数量 ' + num(p.qty) + '・貸出 ' + md(p.kashi) + '・前月 ' + yen(num(p.la) + num(p.sa)) }); }));
+    if(rows.length) G.push({ k: 'manual', t: '前月に手で足した行', rows }); }
+  /* 3) 前月と同じ見出し・重ねた行（現場ごと） */
+  { const rows = [];
+    S.sheets.forEach(sh => { if(!sh.prev || typeof prevLayoutOf !== 'function') return; let lay = []; try{ lay = prevLayoutOf(sh.prev.lines || []); }catch(e){} if(!lay.length) return;
+      const has = linesOf(sh).some(l => l.ovl || (l.head && l.manual && /前月と同じ見出し/.test(l.carried || '')));
+      rows.push({ id: 'y:' + sh.id, sh, on: has, t: sh.name, s: '見出し ' + lay.filter(x => x.head).length + '・重ねた行 ' + lay.filter(x => !x.head).length }); });
+    if(rows.length) G.push({ k: 'layout', t: '前月と同じ見出し・重ねて請求した行', rows }); }
+  /* 4) 前月に手で直した貸出日 */
+  { const rows = [];
+    S.lines.forEach(l => { const v = l.pv; if(!v || v.fuzzy || !l.sys || l.manual || l.head || l.ovl || !v.pk || !v.sk || v.pk === v.sk) return; if(!rent(l)) return;
+      const on = !!l.kpv; if(!on && (day(l.kashi) !== v.sk || !(v.pk < day(l.start)))) return;
+      rows.push({ id: 'k:' + l.id, l, on, t: shn(l) + '：' + l.name, s: '貸出 ' + md(v.sk) + '（CSV）→ ' + md(v.pk) + '（前月に手で直した日）' }); });
+    if(rows.length) G.push({ k: 'kashi', t: '前月に手で直した貸出日', rows }); }
+  /* 5) ETC888 など（基本は出さない） */
+  { const rows = S.lines.filter(l => !l.head && typeof isNbCand === 'function' && isNbCand(l)).map(l => ({ id: 'n:' + l.id, l, on: !l.nb, t: shn(l) + '：' + l.name, s: (l.shohin || '') + '・' + l.kb + '・' + yen(sysAmt(l)) }));
+    if(rows.length) G.push({ k: 'nb', t: 'ETC888 など（ふだんは請求書に出さない品）', rows, out: true }); }
+  /* 6) 前月出さなかった品 */
+  { const pc = X.pxCand; const rows = S.lines.filter(l => !l.head && (l.pxGrp || (pc && (pc(l) || (l.nb && l.pxDec))))).filter(l => !(typeof isNbCand === 'function' && isNbCand(l)));
+    rows.forEach(l => { l.pxGrp = true; });
+    if(rows.length) G.push({ k: 'px', t: '前月は請求書に出さなかった品', rows: rows.map(l => ({ id: 'p:' + l.id, l, on: !l.nb, t: shn(l) + '：' + l.name, s: yen(sysAmt(l)) })), out: true }); }
+  /* 7) リースアップ */
+  { const rows = S.lines.filter(l => !l.head && typeof isLeaseUp === 'function' && isLeaseUp(l) && !(typeof isNbCand === 'function' && isNbCand(l)));
+    if(rows.length) G.push({ k: 'lu', t: 'リースアップの品', rows: rows.map(l => ({ id: 'u:' + l.id, l, on: !l.nb, t: shn(l) + '：' + l.name, s: (l.shohin || '') + '・' + yen(sysAmt(l)) + (l.pv ? '・前月も請求' : '・前月はなし') })), out: true }); }
+  /* 8) 今月はじめての販売の品 */
+  { const sc = X.saleCand; const rows = S.lines.filter(l => !l.head && (l.saleGrp || (sc && sc(l)) || (l.saleAsk && l.kb === '販売')));
+    rows.forEach(l => { l.saleGrp = true; });
+    if(rows.length) G.push({ k: 'sale', t: '今月はじめて出てきた販売の品', rows: rows.map(l => ({ id: 's:' + l.id, l, on: !l.nb, t: shn(l) + '：' + l.name, s: yen(sysAmt(l)) })), out: true }); }
+  return G;
+}
+X.carryGroups = groups;
+function pending(){ let n = 0; try{ groups().forEach(g => { if(!g.out) n += g.rows.filter(r => !r.on).length; else n += g.rows.filter(r => !r.l.nbDec && !r.l.pxDec && !r.l.luDec).length; }); }catch(e){} return n; }
+
+/* ---- 入れる／外す ---- */
+function revertCarry(l){
+  S.lines = S.lines.filter(x => !(x !== l && x.dup && x.key === l.key && x.sheet === l.sheet && x.carried && /前月の手直し/.test(x.carried)));
+  Object.assign(l, { name: l.sys.name, qty: l.sys.qty, unit: l.sys.unit || l.unit, lu: l.sys.lu, su: l.sys.su, bu: l.sys.bu, la: l.sys.la, sa: l.sys.sa, ba: l.sys.ba, kb: l.sys.kb || l.kb, days: l.sys.days, sdays: l.sys.sdays, carried: '', edited: false });
+  l.sugg = l.suggKeep; delete l.suggKeep; l.suggDec = true;
+}
+function addManual(sh, p){
+  if(linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey)) return false;
+  const n = Object.assign({ id: uid(), sheet: sh.id, manual: true, carried: '前月に手で足していた行（前月と同じ場所に入れた）' }, p);
+  ['key', 'added', 'after', 'before', 'pos', 'ownerSaiban', 'sys'].forEach(k => delete n[k]);
+  n.retd = ''; n.cont = String(p.ret || ''); if(/^\d{4}-\d\d-\d\d/.test(n.cont)){ n.retd = n.cont.slice(0, 10); n.cont = ''; }
+  const ps = periodStartOf(S.meta.seikyuDate), pe = S.meta.seikyuDate;
+  if(n.cont === '継続' || !n.retd){ n.start = day(n.kashi) > ps ? day(n.kashi) : ps; n.end = pe; n.cont = '継続'; n.retd = ''; if(n.ret != null) n.ret = '継続'; }
+  if(rent(n)){ n.bu = 0; n.ba = 0; }
+  if(typeof daysFromPeriod === 'function') daysFromPeriod(n); calcLine(n);
+  placeLine(sh, n, p); p.added = true; return true;
+}
+function removeManual(sh, p){
+  const ls = linesOf(sh).filter(l => l.manual && l.pmKey === p.pmKey);
+  ls.forEach(l => { const a = linesOf(sh), ix = a.indexOf(l); (S.trash = S.trash || []).push({ line: l, afterId: ix > 0 ? a[ix - 1].id : '', beforeId: a[ix + 1] ? a[ix + 1].id : '', at: nowIso(), why: '前月の引き継ぎで外した' }); S.lines.splice(S.lines.indexOf(l), 1); });
+  p.added = false; return ls.length;
+}
+function removeLayout(sh){
+  const ls = linesOf(sh).filter(l => l.ovl || (l.head && l.manual && /前月と同じ見出し/.test(l.carried || '')));
+  ls.forEach(l => S.lines.splice(S.lines.indexOf(l), 1)); return ls.length;
+}
+function apply(G, on){
+  let n = 0;
+  G.forEach(g => g.rows.forEach(r => {
+    const want = on.has(r.id);
+    if(g.k === 'carry'){
+      if(want && !r.on){ const l = r.l, keep = l.sugg; const ix = S.lines.indexOf(l); if(ix >= 0 && typeof applySugg === 'function'){ applySugg(l); l.suggKeep = keep; l.suggDec = true; n++; } }
+      else if(!want && r.on){ revertCarry(r.l); n++; }
+      else if(!want) r.l.suggDec = true;
+    }
+    else if(g.k === 'manual'){ if(want && !r.on){ if(addManual(r.sh, r.p)) n++; } else if(!want && r.on){ n += removeManual(r.sh, r.p) ? 1 : 0; } }
+    else if(g.k === 'layout'){ if(want && !r.on){ try{ applyLayout(r.sh, false); n++; }catch(e){} } else if(!want && r.on){ removeLayout(r.sh); n++; } }
+    else if(g.k === 'kashi'){ const l = r.l, v = l.pv;
+      if(want && !r.on){ l.kpv = v.sk; l.kashi = v.pk; (l.uf = l.uf || {}).kashi = 1; l.carried = (l.carried ? l.carried + '・' : '') + '貸出日は前月に手で直したとおり ' + md(v.pk) + '（CSVは ' + md(v.sk) + '）'; n++; }
+      else if(!want && r.on){ l.kashi = l.kpv; delete l.kpv; if(l.uf) delete l.uf.kashi; l.carried = String(l.carried || '').replace(/・?貸出日は前月に手で直したとおり[^・]*/, ''); n++; } }
+    else { const l = r.l, was = !l.nb; l.nb = !want; l.nbDec = true; l.pxDec = true; l.luDec = true; if(g.k === 'sale') l.saleAsk = true; if(was !== want) n++; }
+  }));
+  try{ S.sheets.forEach(sh => (sh.prevManual || []).forEach(p => { p.added = linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey); })); }catch(e){}
+  return n;
+}
+
+/* ---- パネル ---- */
+async function openPanel(){
+  if(!S.built){ toast('作業を開いてから'); return; }
+  const G = groups();
+  if(!G.length){ toast('前月から引き継ぐものはない（本物の請求書どおり）', 3000); return; }
+  const T = totals();
+  const body = '<p style="margin:0 0 6px">いまの合計 <b>税込 ' + yti(T.net) + '</b>　システム（本物）との差 <b>' + (T.diff ? yti(T.diff, true) : 'ぴったり ✓') + '</b></p>' +
+    '<p style="margin:0 0 8px"><b>チェックした行＝入れる・請求書に出す</b>／チェックを外した行＝入れない・出さない。グループごとに「ぜんぶ」で一括。</p>' +
+    G.map((g, gi) => '<div class="xcg" data-g="' + gi + '" style="margin:10px 0 0;border:1px solid var(--line,#dde5e6);border-radius:10px;overflow:hidden">' +
+      '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:color-mix(in srgb,var(--brand,#2a6670) 10%,transparent)"><b style="flex:1">' + esc(g.t) + '　' + g.rows.length + '</b>' +
+      '<button type="button" class="btn sm" data-cga="' + gi + '" data-v="1">ぜんぶ' + (g.out ? '出す' : '入れる') + '</button><button type="button" class="btn sm" data-cga="' + gi + '" data-v="0">ぜんぶ' + (g.out ? '出さない' : '外す') + '</button></div>' +
+      '<ul class="ckl" style="margin:0;padding:0 8px;max-height:240px;overflow:auto">' + g.rows.map(r => '<li><label><input type="checkbox" data-ck="' + esc(r.id) + '"' + (r.on ? ' checked' : '') + '><span><b>' + esc(r.t) + '</b><br><small>' + esc(r.s) + '</small></span></label></li>').join('') + '</ul></div>').join('');
+  const p = askDialog('前月の引き継ぎ（入れる／出す）', body, [{ t:'決めた', v:'ok', primary:true, k:'Y' }, { t:'あとで', v:null, ghost:true, k:'L' }]);
+  setTimeout(() => { document.querySelectorAll('[data-cga]').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); const box = document.querySelector('.xcg[data-g="' + b.dataset.cga + '"]'); if(box) box.querySelectorAll('input[data-ck]').forEach(c => { c.checked = b.dataset.v === '1'; c.dispatchEvent(new Event('change', { bubbles: true })); }); })); }, 0);
+  const v = await p; if(v !== 'ok') return;
+  const on = new Set(askDialog.checked || []);
+  const n = apply(G, on);
+  save(); try{ drawSites(); }catch(e){} try{ if(S.tab === 'check') drawChecks(); }catch(e){}
+  try{ const pv = document.getElementById('spvBody'); if(pv && pv.offsetParent !== null){ const st = pv.scrollTop; sitePreview(typeof pvAll !== 'undefined' ? pvAll : false); const B2 = document.getElementById('spvBody'); if(B2) B2.scrollTop = st; } }catch(e){}
+  const T2 = totals(); toast('前月の引き継ぎ：' + n + ' 件を変えた。いまの合計 税込 ' + yti(T2.net) + '・システムとの差 ' + (T2.diff ? yti(T2.diff, true) : 'ぴったり'), 6000);
+}
+X.carryPanel = openPanel;
+
+/* 作ったあと（本物どおり）：いろいろ聞くかわりに、このパネルを出す */
+const _anb = askNoBill;
+askNoBill = async function(){ if(realMode()){ if(typeof RO === 'function' && RO()) return; S._justBuilt = false; return openPanel(); } return _anb.apply(this, arguments); };
+
+/* ボタン：現場の画面の上・プレビューの上の帯 */
+function label(){ const n = pending(); return '前月の引き継ぎ' + (n ? '（' + n + ' まだ）' : ''); }
+const _ds = drawSites;
+drawSites = function(){ const r = _ds.apply(this, arguments);
+  try{ const H = document.getElementById('shead'); if(H && S.prev){ let b = H.querySelector('#xCarryBtn'); if(!b){ H.insertAdjacentHTML('afterbegin', '<div style="margin:0 0 8px"><button type="button" class="btn primary" id="xCarryBtn" data-xcarry></button> <small class="muted">本物どおりのまま、前月の手直し・手で足した行・ETC888 などをまとめて入れる／出す</small></div>'); b = H.querySelector('#xCarryBtn'); } b.textContent = label(); } }catch(e){}
+  return r; };
+const _sp = sitePreview;
+sitePreview = function(){ const r = _sp.apply(this, arguments);
+  try{ const pdf = document.getElementById('spvPdf'); if(pdf && S.prev && !document.getElementById('xCarryPv')){ const b = document.createElement('button'); b.type = 'button'; b.id = 'xCarryPv'; b.className = 'btn'; b.dataset.xcarry = '1'; const sb = document.getElementById('xShBar'); (sb || pdf).parentNode.insertBefore(b, sb || pdf); }
+    const b = document.getElementById('xCarryPv'); if(b) b.textContent = label(); }catch(e){}
+  return r; };
+window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xcarry]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; } openPanel(); }, true);
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -11283,7 +11441,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 21:40';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 22:06';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
