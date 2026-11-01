@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 20:48-->
+<!--BUILD:2026-11-01 21:40-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2908,7 +2908,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 20:48';
+const BUILD = '2026-11-01 21:40';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -10119,11 +10119,14 @@ const pCont = p => String(p.ret || p.cont || '') === '継続' || (!day(p.retd) &
 function pmDiff(l){
   if(!l.manual || l.head || !rent(l)) return null; const p = prevOf(l); if(!p) return null;
   const out = [];
-  if(day(p.kashi) && day(l.kashi) !== day(p.kashi) && !(l.uf && l.uf.kashi)) out.push('貸出 ' + md(p.kashi) + '→' + md(l.kashi));
-  if(pCont(p) && day(l.retd) && !(l.uf && l.uf.retd)) out.push('継続→' + md(l.retd) + '返却');
-  /* 2026-11-01 三貴 西池袋：前の版が、手で足した行に返却伝票の伝票番号・管理番号（40627・DD010-6491）を入れていた。日付もちがうときだけ見る */
-  if(out.length){ const pd = String(p.den || '').trim(), ld = String(denOf(l) || '').trim(); if(pd !== ld) out.push('伝票 ' + (pd || '空') + '→' + (ld || '空'));
-    const pk = String(p.kanri || '').trim(), lk = String(l.kanri || '').trim(); if(pk !== lk) out.push('管理番号 ' + (pk || '空') + '→' + (lk || '空')); }
+  /* 2026-11-01 三貴 西池袋：前の版が、手で足した行に返却伝票の伝票番号・管理番号（40627・DD010-6491）と日付を入れていた。
+     伝票か管理番号も前月とちがうときは、前の版が「手で直した」印をつけていても日付をくらべる（勝手に変えられた行） */
+  const pd = String(p.den || '').trim(), ld = String(denOf(l) || '').trim(), pk = String(p.kanri || '').trim(), lk = String(l.kanri || '').trim();
+  const idDiff = (pd && pd !== ld) || (pk !== lk && !!lk), uf = idDiff ? {} : (l.uf || {});
+  if(day(p.kashi) && day(l.kashi) !== day(p.kashi) && !uf.kashi) out.push('貸出 ' + md(p.kashi) + '→' + md(l.kashi));
+  if(pCont(p) && day(l.retd) && !uf.retd) out.push('継続→' + md(l.retd) + '返却');
+  if(out.length){ if(pd !== ld) out.push('伝票 ' + (pd || '空') + '→' + (ld || '空'));
+    if(pk !== lk) out.push('管理番号 ' + (pk || '空') + '→' + (lk || '空')); }
   /* 前月の期間のまま（9/1〜9/30）になっている */
   const ps = periodStartOf(S.meta.seikyuDate), pe = S.meta.seikyuDate;
   if(pCont(p) && !(l.uf && (l.uf.start || l.uf.end)) && ((day(l.start) && day(l.start) < ps) || (day(l.end) && (day(l.end) < ps || day(l.end) > pe)))) out.push('期間 ' + md(l.start) + '〜' + md(l.end) + '（今月は ' + md(ps) + '〜' + md(pe) + '）');
@@ -10153,7 +10156,7 @@ checks = function(){ const out = _ck.apply(this, arguments);
   return out; };
 function fixLine(l, k){
   const ps = periodStartOf(S.meta.seikyuDate), pe = S.meta.seikyuDate;
-  if(k === 'pm'){ const p = prevOf(l); if(!p) return false; if(p.pmKey) l.pmKey = p.pmKey; if(day(p.kashi)) l.kashi = day(p.kashi);
+  if(k === 'pm'){ const p = prevOf(l); if(!p) return false; if(p.pmKey) l.pmKey = p.pmKey; if(l.uf){ ['kashi', 'retd', 'start', 'end'].forEach(f => delete l.uf[f]); } if(day(p.kashi)) l.kashi = day(p.kashi);
     const pd = String(p.den || '').trim(); if(pd && String(denOf(l) || '').trim() !== pd){ l.den = pd; delete l.denW; }
     if(String(l.kanri || '').trim() !== String(p.kanri || '').trim()) l.kanri = p.kanri || '';
     if(pCont(p)){ l.retd = ''; l.cont = '継続'; if(l.ret != null) l.ret = '継続'; if(!day(l.start) || day(l.start) < ps || day(l.start) > pe) l.start = day(l.kashi) > ps ? day(l.kashi) : ps; l.end = pe; } 
@@ -10584,14 +10587,15 @@ function fixAll(ls){ const d = D(); let n = 0; if(typeof undoPush === 'function'
   if(n){ save(); try{ drawChecks(); }catch(e){} try{ drawSites(); }catch(e){} } return n; }
 const _dc = drawChecks;
 drawChecks = function(){ const r = _dc.apply(this, arguments);
-  try{ const L = document.getElementById('chkList'); if(!L || L.querySelector('#xPmAll')) return r; const ls = pmRows(); if(ls.length < 2) return r;
+  try{ const L = document.getElementById('chkList'); if(!L || L.querySelector('#xPmAll')) return r; const ls = pmRows(); if(!ls.length) return r;
     const nm = [...new Set(ls.map(l => (sheetById(l.sheet) || {}).name))].join('・');
     L.insertAdjacentHTML('afterbegin', '<li id="xPmAll" style="list-style:none;padding:10px 12px;margin:0 0 8px;border:1.5px solid var(--warn);border-radius:10px;background:color-mix(in srgb,var(--warn) 10%,transparent)"><b>前月に手で足した行が前月とちがう：' + ls.length + ' 行</b>（' + esc(nm) + '）<br><span style="font-size:12px">貸出日・継続／返却・伝票番号・期間が前月の請求書とちがう。直した覚えがなければ、まとめて前月どおりに。</span><br><button class="btn sm primary" data-xpmall style="margin-top:6px">ぜんぶ前月どおりにもどす（' + ls.length + ' 行）</button></li>');
   }catch(e){ console.warn(e); }
   return r; };
 window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xpmall]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
   if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
-  const n = fixAll(pmRows()); toast(n + ' 行を前月どおりにもどした（↶でもどせる）', 4000); }, true);
+  const n = fixAll(pmRows()); toast(n + ' 行を前月どおりにもどした（↶でもどせる）', 4000);
+  try{ const pv = document.getElementById('spvBody'); if(pv && pv.offsetParent !== null){ const st = pv.scrollTop; sitePreview(typeof pvAll !== 'undefined' ? pvAll : false); const B2 = document.getElementById('spvBody'); if(B2) B2.scrollTop = st; } }catch(e){} }, true);
 async function askPm(){ const ls = pmRows(); if(!ls.length) return;
   const list = ls.slice(0, 12).map(l => '<li>' + esc((sheetById(l.sheet) || {}).name || '') + '：' + esc(l.name) + '　<span style="color:var(--ink3)">' + esc(D().pmDiff(l).out.join('・')) + '</span></li>').join('') + (ls.length > 12 ? '<li>ほか ' + (ls.length - 12) + ' 行</li>' : '');
   const v = await askDialog('前月に手で足した行が前月とちがう', '前月の請求書から足した行のうち <b>' + ls.length + ' 行</b>が、前月とちがっています（前の版が勝手に変えていたことがある）。<ul style="font-size:12.5px;margin:6px 0 0 1em;padding:0">' + list + '</ul>',
@@ -10687,6 +10691,22 @@ const _ds = drawSites;
 drawSites = function(){ const r = _ds.apply(this, arguments);
   try{ document.querySelectorAll('#siteList .site[data-id]').forEach(btn => { const sh = sheetById(btn.dataset.id); if(!sh || !doneOk(sh)) return; const b = btn.querySelector('.b'); if(b && !b.querySelector('.xdone')) b.insertAdjacentHTML('afterbegin', '<span class="tag ok xdone">完了</span>'); }); }catch(e){}
   return r; };
+})();
+
+/* 2026-11-01「ぜんぶ前月どおりにもどすはどこ？」→ 現場の画面の上と、プレビューの上の帯にも出す */
+(function(){
+const rowsOf = sh => { const d = window.seikyuExt.dateFix; if(!d || !sh) return []; return linesOf(sh).filter(l => !l.nb && d.pmDiff(l)); };
+const _ds = drawSites;
+drawSites = function(){ const r = _ds.apply(this, arguments);
+  try{ const H = document.getElementById('shead'); const sh = sheetById(S.cur); if(H && sh){ H.querySelectorAll('.xpmSite').forEach(x => x.remove()); const ls = rowsOf(sh);
+    if(ls.length) H.insertAdjacentHTML('afterbegin', '<div class="xpmSite" style="margin:0 0 8px;padding:8px 12px;border:1.5px solid #E0A020;border-radius:10px;background:rgba(224,160,32,.12);font-size:13px"><b>前月に手で足した行が前月とちがう：' + ls.length + ' 行</b>（' + esc(ls.map(l => l.name).join('・')) + '）　<button class="btn sm primary" data-xpmall>ぜんぶ前月どおりにもどす（' + ls.length + ' 行）</button></div>'); } }catch(e){}
+  return r; };
+const _sp = sitePreview;
+sitePreview = function(){ const r = _sp.apply(this, arguments); try{ pvBtn(); }catch(e){} return r; };
+function pvBtn(){ const g = document.getElementById('xShBar'); if(!g) return; document.querySelectorAll('.xpmPv').forEach(x => x.remove());
+  let n = 0; try{ const d = window.seikyuExt.dateFix; n = S.lines.filter(l => !l.nb && sheetById(l.sheet) && d.pmDiff(l)).length; }catch(e){}
+  if(n) g.insertAdjacentHTML('beforebegin', '<button type="button" class="btn primary xpmPv" data-xpmall style="margin-right:6px" title="前月の請求書から足した行で、日付・伝票番号などが前月とちがう行">前月どおりにもどす（' + n + ' 行）</button>'); }
+window.addEventListener('click', () => setTimeout(() => { try{ pvBtn(); }catch(e){} }, 400), true);
 })();
 
 /* ==================================================================
@@ -11263,7 +11283,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 20:48';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 21:40';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
