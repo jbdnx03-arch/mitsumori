@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-01 11:46-->
+<!--BUILD:2026-11-01 12:14-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2875,7 +2875,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-01 11:46';
+const BUILD = '2026-11-01 12:14';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7436,6 +7436,7 @@ document.head.appendChild(st);
 const SRC_PDFLIB = ['https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'];
 const SRC_FONTKIT = ['https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js', 'https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js'];
 const PT = { land: [841.89, 595.28], port: [595.28, 841.89] };
+const SEG = (() => { try{ return new Intl.Segmenter('ja', { granularity: 'grapheme' }); }catch(e){ return null; } })();
 let FG = null, FM = null;
 async function loadList(list, ok){ if(ok()) return; for(const s of list){ try{ await loadJs(s); if(ok()) return; }catch(e){} } if(!ok()) throw new Error('PDFの部品が読めない'); }
 async function bin(names){ for(const n of names){ try{ const r = await fetch(n, { cache: 'force-cache' }); if(r.ok){ const b = await r.arrayBuffer(); if(b.byteLength > 1000) return b; } }catch(e){} } return null; }
@@ -7575,16 +7576,18 @@ async function vecPdf(pages){
       const pe = n.parentElement; if(!pe || pe.closest('svg')) continue;
       const I = infoOf(pe); if(!I.vis) continue;
       const cl = clip(pe);
-      let i = 0;
-      for(const ch of s){
-        const len = ch.length; const at = i; i += len;
+      /* 字のかたまり（半角カナの濁点・半濁点 ﾌﾟ ｼﾞ などは前の字とひとかたまり）ごとに置く。
+         2026-11-01：1字ずつ置いていたので、ﾟ ﾞ が前の字に重なって「ﾌﾟﾛｼﾞｪｸﾄ」がくずれていた */
+      const segs = SEG ? [...SEG.segment(s)].map(g => [g.segment, g.index]) : (() => { const o = []; let j = 0; for(const c of s){ o.push([c, j]); j += c.length; } return o; })();
+      for(const [ch, at] of segs){
+        const len = ch.length;
         if(!ch.trim()) continue;
         rg.setStart(n, at); rg.setEnd(n, at + len);
         const rs = rg.getClientRects(); const r = rs && rs[0]; if(!r || r.width <= 0 || r.height <= 0) continue;
         const mx = (r.left + r.right) / 2, my = (r.top + r.bottom) / 2;
         if(cl && (mx < cl.l - 0.5 || mx > cl.r + 0.5 || my < cl.t - 0.5 || my > cl.b + 0.5)) continue;
-        const cp = ch.codePointAt(0);
-        const font = I.min && setM.has(cp) ? fM : setG.has(cp) ? fG : (setM.has(cp) ? fM : null);
+        const cps = [...ch].map(c => c.codePointAt(0)), has = set => cps.every(c => set.has(c));
+        const font = I.min && has(setM) ? fM : has(setG) ? fG : (has(setM) ? fM : null);
         if(!font) continue;
         const size = parseFloat(I.cs.fontSize) * I.sy * k; if(!(size > 0.5)) continue;
         const adv = font.widthOfTextAtSize(ch, size), rw = r.width * k;
@@ -10051,7 +10054,8 @@ const rent = l => l.kb === '日極' || l.kb === '月極';
 const DF = ['kashi', 'start', 'end', 'retd'], LB = { kashi: '貸出', start: '開始', end: '終了', retd: '返却' };
 const legit = l => /単価の改定|本物の請求書のとおり|Excelの手直しをそのまま|同じ締め/.test(l.carried || '');
 /* 人が直した日付の欄を覚える */
-const uf = (l, f) => { if(!l) return; l.uf = l.uf || {}; l.uf[f] = 1; };
+const uf = (l, f) => { if(!l) return; l.uf = l.uf || {}; l.uf[f] = 1;
+  if(f === 'kashi' && l.ovl && window.seikyuExt.rebaseOvl){ try{ if(window.seikyuExt.rebaseOvl(l)){ save(); setTimeout(() => { try{ drawSites(); }catch(e){} toast('重ねた行を、その貸出日の「' + l.name + '」につなぎ直した（来月もこの貸出日で）', 4000); }, 50); } }catch(e){} } };
 if(window.seikyuExt.applyField){ const _af = window.seikyuExt.applyField; window.seikyuExt.applyField = function(id, f){ const r = _af.apply(this, arguments); if(r && DF.includes(f)) uf(S.lines.find(x => x.id === id), f); return r; }; }
 document.addEventListener('change', ev => { const t = ev.target; if(!t || !t.matches || !t.matches('#siteBody [data-f]')) return; const f = t.dataset.f; const map = { kashi: 'kashi', start: 'start', end: 'end', retd: 'retd', ret: 'retd' }; if(!map[f]) return;
   const tr = t.closest('tr[data-id]'); if(tr) setTimeout(() => uf(S.lines.find(x => x.id === tr.dataset.id), map[f]), 0); }, true);
@@ -10339,6 +10343,7 @@ function sanchaFix(){
     cur.forEach(l => { const p = prev.find(p => !p.used && p.nm === nk(l.name) && p.md === mdOf(l.kashi)); if(p){ p.used = true; l._sOk = 1; } });
     cur.forEach(l => {
       if(l._sOk){ delete l._sOk; return; }
+      if(l.uf && l.uf.kashi) return;   /* 手で直した貸出日はさわらない（2026-11-01「前月のも間違ってた。手直しで直す」） */
       const p = prev.find(p => !p.used && p.nm === nk(l.name) && (p.q === num(l.qty) || true)); if(!p || !p.md) return;
       const b = ls.find(x => !x.ovl && !x.manual && !x.head && x.sys && (nk(x.sys.name) === p.nm || nk(x.name) === p.nm) && mdOf(x.kashi) === p.md); if(!b) return;
       p.used = true;
@@ -10349,6 +10354,19 @@ function sanchaFix(){
   });
   return n;
 }
+/* 重ねた行の貸出日を手で直したら、その貸出日の同じ品（CSVの行）につなぎ直す（伝票・管理番号・期間もその行のものに）。
+   来月は、この作業を前月として同じ貸出日の行に重ねる */
+function rebaseOvl(l){
+  if(!l || !l.ovl || !day(l.kashi)) return false;
+  const sh = sheetById(l.sheet); if(!sh) return false;
+  const nm = nk(l.name), md = mdOf(l.kashi);
+  const b = linesOf(sh).find(x => !x.ovl && !x.manual && !x.head && x.sys && (nk(x.sys.name) === nm || nk(x.name) === nm) && mdOf(x.kashi) === md);
+  if(!b || b.id === l.ovlOf) return false;
+  Object.assign(l, { ovlOf: b.id, key: b.key, sys: b.sys, csvIx: b.csvIx, start: b.start, end: b.end, kanri: b.kanri, den: b.den });
+  l.carried = String(l.carried || '').replace(/。CSVでは「[^」]*」.*$/, '') + '。CSVでは「' + b.sys.name + '」（' + md.replace('-', '/') + '貸出）の1行。貸出日は手で直した';
+  calcLine(l); l.bu = 0; l.ba = 0; return true;
+}
+window.seikyuExt.rebaseOvl = rebaseOvl;
 function fixDates(){
   const e = E(); let n = 0, ov = 0, vir = 0;
   if(!e.serialFix && S.csvRaw){ try{ const D = readCsv(S.csvRaw); const by = {}; D.lines.forEach(x => { by[x.csvIx] = x; });
@@ -10946,7 +10964,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 11:46';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-01 12:14';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
