@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-02 11:47-->
+<!--BUILD:2026-11-02 12:06-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2915,7 +2915,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-02 11:47';
+const BUILD = '2026-11-02 12:06';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -11095,7 +11095,7 @@ async function ask(){
   const dst = sheetById(X.__mg.to), mode = X.__mg.mode, head = X.__mg.head, rule = X.__mg.rule;
   if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
   const n = mergeSheet(src, dst, mode, head);
-  if(rule){ const c = cardOf(); if(c){ c.merge = (c.merge || []).filter(r => String(r.from) !== String(src.code)); c.merge.push({ from: src.code, fromName: src.name, to: dst.code, toName: dst.name, mode, head }); cardSv(); } }
+  if(rule){ const c = cardOf(); if(c){ c.merge = (c.merge || []).filter(r => String(r.from) !== String(src.code)); c.merge.push({ from: src.code, fromName: src.name, to: dst.code, toName: dst.name, mode, head, at: nowIso() }); cardSv(); } }
   save(); drawSites(); toast('「' + src.name + '」の ' + n + ' 行を「' + dst.name + '」の' + ({ back: 'うしろ', front: '前', date: '貸出日の順' })[mode] + 'にまとめた' + (rule ? '（来月からも同じ）' : '') + '。↶でもどせる', 6000);
 }
 /* ダイアログの値はボタンを押す前に読む */
@@ -11104,7 +11104,7 @@ document.addEventListener('click', ev => { if(!document.getElementById('xMgTo'))
 /* 作ったときに、決まりをあてる（来月から） */
 const _bd = build;
 build = function(){ const r = _bd.apply(this, arguments);
-  try{ if(!S.sameMonth){ const c = cardOf(), rs = (c && c.merge) || []; const done = [];
+  try{ if(!S.sameMonth){ const c = cardOf(), rs = ((c && c.merge) || []).filter(r => r.at); const done = [];   /* 自分でチェックして覚えた決まりだけ（日時つき） */
       rs.forEach(rl => { const src = S.sheets.find(s => String(s.code) === String(rl.from)), dst = S.sheets.find(s => String(s.code) === String(rl.to) && s !== src); if(src && dst){ const n = mergeSheet(src, dst, rl.mode, rl.head); if(n) done.push(src.name + '→' + dst.name); } });
       if(done.length) setTimeout(() => toast('決まりどおり現場をまとめた：' + done.join('・'), 6000), 1500); } }catch(e){ console.warn(e); }
   return r; };
@@ -11112,7 +11112,7 @@ build = function(){ const r = _bd.apply(this, arguments);
 const _ds = drawSites;
 drawSites = function(){ const r = _ds.apply(this, arguments);
   /* CSVで更新したあと、まとめた現場が空のまま出てきたら消す（決まりにある現場だけ） */
-  try{ const c = cardOf(), rs = (c && c.merge) || []; if(rs.length){ const gone = S.sheets.filter(s => !linesOf(s).length && rs.some(r => String(r.from) === String(s.code))); if(gone.length){ S.sheets = S.sheets.filter(s => gone.indexOf(s) < 0); if(gone.some(s => s.id === S.cur)) S.cur = S.sheets[0] && S.sheets[0].id; save(); setTimeout(() => { try{ drawSites(); }catch(e){} }, 0); } } }catch(e){}
+  try{ const c = cardOf(), rs = ((c && c.merge) || []).filter(r => r.at); if(rs.length){ const gone = S.sheets.filter(s => !linesOf(s).length && rs.some(r => String(r.from) === String(s.code))); if(gone.length){ S.sheets = S.sheets.filter(s => gone.indexOf(s) < 0); if(gone.some(s => s.id === S.cur)) S.cur = S.sheets[0] && S.sheets[0].id; save(); setTimeout(() => { try{ drawSites(); }catch(e){} }, 0); } } }catch(e){}
   try{ const H = document.getElementById('shead'); if(H && S.sheets.length > 1 && !H.querySelector('#xMgBtn')){ const sp = [...H.querySelectorAll('button')].find(b => /もう1枚に分ける/.test(b.textContent));
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.id = 'xMgBtn'; b.textContent = 'この現場をほかの現場にまとめる'; b.title = '例：三軒茶屋の請求をセンター街の請求書にまとめる（うしろ・前・貸出日の順）';
       if(sp) sp.insertAdjacentElement('afterend', b); else H.appendChild(b); } }catch(e){}
@@ -11138,6 +11138,28 @@ function ensure(){
 let q = 0; const later = () => { if(q) return; q = setTimeout(() => { q = 0; ensure(); }, 60); };
 function watch(){ const sec = document.getElementById('tab-sites'); if(!sec){ setTimeout(watch, 500); return; } new MutationObserver(later).observe(sec, { childList: true, subtree: true }); later(); }
 watch();
+})();
+
+/* 2026-11-02「勝手に来月も同じになってるの？それもダメ」：09:29〜11:41 の版は「来月からも同じ」がはじめからチェックされていた。
+   そのとき覚えた決まり（日時なし）は消す。自分でチェックして覚えた決まりは、現場の画面に出して「やめる」で消せる */
+(function(){
+const X = window.seikyuExt;
+const cardSv = () => { try{ const c = E().card; if(c && S.meta) localStorage.setItem('seikyuNaviWeb.cust.' + S.meta.custCode, JSON.stringify(c)); }catch(e){} };
+function clean(){ try{ if(!S.built || !X.card) return; const c = X.card(); if(!c.merge || !c.merge.length) return; const keep = c.merge.filter(r => r.at); if(keep.length !== c.merge.length){ const n = c.merge.length - keep.length; c.merge = keep; cardSv(); save(); toast('前の版で勝手に覚えていた「来月からも同じ（現場をまとめる）」を ' + n + ' 件消した。今月まとめた形はそのまま', 7000); } }catch(e){} }
+const _ow = openWork; openWork = function(){ const r = _ow.apply(this, arguments); setTimeout(clean, 800); return r; };
+setTimeout(clean, 2500);
+function chip(){
+  try{ const H = document.getElementById('shead'); if(!H || !S.built || !X.card) return; const c = X.card(), rs = c.merge || [];
+    let el = H.querySelector('#xMgRules'); if(!rs.length){ if(el) el.remove(); return; }
+    const html = '<b>来月からも同じにする決まり：</b>' + rs.map((r, i) => esc(r.fromName || r.from) + ' → ' + esc(r.toName || r.to) + '（' + ({ back: 'うしろ', front: '前', date: '貸出日の順' })[r.mode] + '）<button type="button" class="btn sm" data-xmgdel="' + i + '">やめる</button>').join('　');
+    if(!el){ el = document.createElement('div'); el.id = 'xMgRules'; el.style.cssText = 'margin:6px 0;font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center'; const b = H.querySelector('#xMgBtn'); if(b) b.insertAdjacentElement('afterend', el); else H.appendChild(el); }
+    if(el.__h !== html){ el.innerHTML = html; el.__h = html; } }catch(e){}
+}
+let q = 0; const later = () => { if(q) return; q = setTimeout(() => { q = 0; chip(); }, 80); };
+(function watch(){ const sec = document.getElementById('tab-sites'); if(!sec){ setTimeout(watch, 500); return; } new MutationObserver(later).observe(sec, { childList: true, subtree: true }); later(); })();
+window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xmgdel]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  const c = X.card(), i = +b.dataset.xmgdel, r = (c.merge || [])[i]; if(!r) return; c.merge.splice(i, 1); cardSv(); save(); later();
+  toast('決まりをやめた：' + (r.fromName || r.from) + ' → ' + (r.toName || r.to) + '（来月は別々の請求書。今月の形はそのまま）', 5000); }, true);
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -11645,7 +11667,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 11:47';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 12:06';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
