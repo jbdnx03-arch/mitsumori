@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-02 20:02-->
+<!--BUILD:2026-11-02 20:14-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2050,7 +2050,10 @@ function onLineInput(ev){
     l.kashi = d; if(l.sys) l.edited = true; save(); drawSites(); return;
   }
   else if(f === 'retd'){
-    const v = String(t.value).trim(); const d = v ? dateIn(v) : '';
+    const v = String(t.value).trim();
+    /* 2026-11-02「継続って入れたのに出ない」→ 返却の欄に「継続」と打ったら継続にする（前は日付として読めず、もとにもどしていた） */
+    if(/^(継続|けいぞく|ケイゾク|ｹｲｿﾞｸ|k)$/i.test(v.normalize('NFKC'))){ l.retd = ''; l.cont = '継続'; if(l.sys) l.edited = true; save(); drawSites(); return; }
+    const d = v ? dateIn(v) : '';
     if(v && !d){ toast('日付が読めない（10/1 や 1001 のように）'); t.value = md(l.retd); return; }
     l.retd = d; l.cont = d ? '' : (l.start ? '継続' : ''); if(l.sys) l.edited = true; save(); drawSites(); return;
   }
@@ -2927,7 +2930,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-02 20:02';
+const BUILD = '2026-11-02 20:14';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7914,6 +7917,7 @@ function fieldAt(m, ev){
 function valOf(l, f){
   if(f === 'denW') return denOf(l);
   if(f === 'kanW') return kanOf(l);
+  if(f === 'retd' && !l.retd && l.cont) return String(l.cont);
   if(f === 'kashi' || f === 'start' || f === 'end' || f === 'retd') return md(l[f]) || '';
   if(f === 'lu' || f === 'su' || f === 'bu') return num(l[f]) ? String(num(l[f])) : '';
   if(f === 'qty' || f === 'days' || f === 'sdays') return num(l[f]) ? String(num(l[f])) : '';
@@ -7936,6 +7940,7 @@ function apply(id, f, v){
   if(!el){ drawSites(); el = document.querySelector('#siteBody tr[data-id="' + id + '"] [data-f="' + f + '"]'); }
   if(!el){
     /* 入力欄が出ていない欄（返却のない行など）は、直接入れて計算 */
+    if(f === 'retd' && /^(継続|けいぞく|ケイゾク|ｹｲｿﾞｸ|k)$/i.test(String(v).trim().normalize('NFKC'))){ l.retd = ''; l.cont = '継続'; if(l.sys) l.edited = true; save(); drawSites(); return true; }
     if(f === 'retd'){ const d = String(v).trim() ? dateIn(v) : ''; if(String(v).trim() && !d){ toast('日付が読めない（10/1 や 1001 のように）'); return false; } l.retd = d; l.cont = d ? '' : (l.start ? '継続' : ''); if(l.sys) l.edited = true; save(); drawSites(); return true; }
     toast('この欄はここでは直せない。「↗ 行へ」から直して'); return false;
   }
@@ -7961,7 +7966,7 @@ function openAt(m, f, docked, rect){
   const sh = sheetById(l.sheet);
   const inp = f === 'kb'
     ? '<select class="xpe-i">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>'
-    : '<input class="xpe-i" value="' + esc(v) + '" ' + (f === 'name' || f === 'unit' ? 'inputmode="text"' : 'inputmode="decimal"') + ' placeholder="' + (/^(kashi|start|end)$/.test(f) ? '月/日' : f === 'retd' ? '月/日（空で継続）' : f === 'denW' || f === 'kanW' ? '空にすると紙に出さない' : '') + '">';
+    : '<input class="xpe-i" value="' + esc(v) + '" ' + (f === 'name' || f === 'unit' ? 'inputmode="text"' : 'inputmode="decimal"') + ' placeholder="' + (/^(kashi|start|end)$/.test(f) ? '月/日' : f === 'retd' ? '月/日 か 継続' : f === 'denW' || f === 'kanW' ? '空にすると紙に出さない' : '') + '">';
   pop.innerHTML = '<div class="xpe-h"><b>' + LBL[f] + '</b><span>' + esc(String(l.name).slice(0, 22)) + '</span></div>' + inp +
     '<div class="xpe-f"><button type="button" class="btn sm primary" data-pe="ok">決定 <kbd>Enter</kbd></button><button type="button" class="btn sm ghost" data-pe="no">やめる</button><span class="sp"></span><button type="button" class="btn sm ghost" data-pe="go" title="現場の画面のこの行へ">↗ 行へ</button></div>' +
     '<div class="xpe-r"><span>この行を</span><button type="button" class="btn sm ghost" data-pe="nb" title="行は残して、請求書に出さない（現場の画面の ⊘ と同じ）">⊘ 請求書に出さない</button><button type="button" class="btn sm ghost xpe-del" data-pe="del" title="「消した行」に入る（もどせる）">× 消す</button></div>' +
@@ -11447,9 +11452,17 @@ checks = function(){
       const to = sugg(kb);
       out.push({ lv: 'warn', t: '管理番号・区分が合わない？：' + l.name, s: sh.name + '　行 ' + (i + 1) + '。' + why + '。' + (l.manual ? '手で打った行。' : '') + 'ほかの行の番号を写したままかも。' + (to && to !== kan ? '「' + to + ' にする」か、' : '') + '紙に出さないなら「空にする」', id: l.id, sh: sh.id, xfix: 'kan', kanTo: to && to !== kan ? to : '' });
     }));
+    /* 2026-11-02「手打ちのコンプレッサー 返却に何もないけどアラーム出なかった」：期間があるのに、返却に「継続」も返却日もない行 */
+    S.sheets.forEach(sh => linesOf(sh).forEach((l, i) => {
+      if(l.head || l.nb || !(l.start || l.end) || l.retd || String(l.cont || '').trim()) return;
+      if(/^(配送|燃料|販売|修理|訂正)$/.test(l.kb || '')) return;
+      const end = String(l.end || '').slice(0, 10), last = String((S.meta && S.meta.seikyuDate) || '').slice(0, 10);
+      out.push({ lv: 'warn', t: '返却の欄が空：' + l.name, s: sh.name + '　行 ' + (i + 1) + '。期間（' + md(l.start) + '〜' + md(l.end) + '）があるのに、返却に「継続」も返却日もない。紙の返却の欄が空になる。' + (end && last && end < last ? '終了が締め日より前なので、返したならその返却日を。' : '続いているなら「継続にする」。') + (l.manual ? '（手で打った行）' : ''), id: l.id, sh: sh.id, xfix: 'ret', retTo: end && last && end < last ? end : '' });
+    }));
   }catch(e){ console.warn(e); }
   return out; };
-function kanBtns(){ try{ const c = window.__chk || []; document.querySelectorAll('#chkList li[data-i]').forEach(li => { const x = c[+li.dataset.i]; if(!x || x.xfix !== 'kan' || li.querySelector('[data-xkan]') || chkDone(x)) return; const b = li.querySelector('.chk-b'); if(b) b.insertAdjacentHTML('afterbegin', (x.kanTo ? '<button class="btn sm primary" data-xkan="' + li.dataset.i + '" data-v="' + esc(x.kanTo) + '">' + esc(x.kanTo) + ' にする</button>' : '') + '<button class="btn sm" data-xkan="' + li.dataset.i + '" data-v="">空にする</button>'); }); }catch(e){} }
+function kanBtns(){ try{ const c = window.__chk || []; document.querySelectorAll('#chkList li[data-i]').forEach(li => { const x = c[+li.dataset.i]; if(x && x.xfix === 'ret' && !li.querySelector('[data-xret]') && !chkDone(x)){ const b0 = li.querySelector('.chk-b'); if(b0) b0.insertAdjacentHTML('afterbegin', '<button class="btn sm primary" data-xret="' + li.dataset.i + '" data-v="継続">継続にする</button>' + (x.retTo ? '<button class="btn sm" data-xret="' + li.dataset.i + '" data-v="' + esc(x.retTo) + '">返却 ' + esc(md(x.retTo)) + ' にする</button>' : '')); return; }
+    if(!x || x.xfix !== 'kan' || li.querySelector('[data-xkan]') || chkDone(x)) return; const b = li.querySelector('.chk-b'); if(b) b.insertAdjacentHTML('afterbegin', (x.kanTo ? '<button class="btn sm primary" data-xkan="' + li.dataset.i + '" data-v="' + esc(x.kanTo) + '">' + esc(x.kanTo) + ' にする</button>' : '') + '<button class="btn sm" data-xkan="' + li.dataset.i + '" data-v="">空にする</button>'); }); }catch(e){} }
 const _dc = drawChecks;
 drawChecks = function(){ const r = _dc.apply(this, arguments); kanBtns(); return r; };
 /* チェックの一覧があとから描き直されても、ボタンを付け直す */
@@ -11462,7 +11475,45 @@ window.addEventListener('click', ev => { const b = ev.target && ev.target.closes
   if(l.sys) l.edited = true;
   save(); drawChecks(); try{ drawSites(); }catch(e){} toast('「' + l.name + '」の管理番号を ' + (was || '空') + ' → ' + (v || '空（紙に出さない）') + ' にした（↶でもどせる）', 3500);
 }, true);
+window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xret]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const x = (window.__chk || [])[+b.dataset.xret]; if(!x) return; const l = S.lines.find(y => y.id === x.id); if(!l) return;
+  if(b.dataset.v === '継続'){ l.retd = ''; l.cont = '継続'; } else { l.retd = b.dataset.v; l.cont = ''; }
+  if(l.sys) l.edited = true; save(); drawChecks(); try{ drawSites(); }catch(e){} toast('「' + l.name + '」の返却を ' + (l.cont || md(l.retd)) + ' にした（↶でもどせる）', 3000);
+}, true);
 window.seikyuExt.kanSugg = sugg;
+})();
+
+/* 2026-11-02「手打ちのコンプレッサー、返却に何もないけどアラーム出なかったね」（沼田 所沢市 35psコンプレッサー）
+   期間（開始・終了）のある行で、返却が空（返却日も「継続」もない）→ 要確認。紙の返却の欄がからっぽになる。
+   なおし方：「継続にする」／終了が締め日より前なら「返却 m/d にする」 */
+(function(){
+const md = v => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? (+m[2]) + '/' + (+m[3]) : ''; };
+const _ck = checks;
+checks = function(){
+  const out = _ck.apply(this, arguments);
+  try{
+    const sd = (S.meta && S.meta.seikyuDate) || '';
+    S.sheets.forEach(sh => linesOf(sh).forEach((l, i) => {
+      if(l.head || l.nb || !(l.start || l.end)) return;
+      if(String(l.retd || '').trim() || String(l.cont || '').trim()) return;
+      const end = String(l.end || '').slice(0, 10), early = end && sd && end < sd;
+      out.push({ lv: 'warn', t: '返却がからっぽ：' + l.name, s: sh.name + '　行 ' + (i + 1) + '。' + (l.manual ? '手で打った行。' : '') + '期間（' + (md(l.start) || '?') + '〜' + (md(l.end) || '?') + '）はあるのに、返却の欄に返却日も「継続」もない（紙の返却の欄が空になる）。' + (early ? '終了が締め日より前なので、返したなら「返却 ' + md(end) + ' にする」、続いているなら「継続にする」' : 'まだ借りているなら「継続にする」'),
+        id: l.id, sh: sh.id, xfix: 'ret', retTo: early ? end : '' });
+    }));
+  }catch(e){ console.warn(e); }
+  return out; };
+function retBtns(){ try{ const c = window.__chk || []; document.querySelectorAll('#chkList li[data-i]').forEach(li => { const x = c[+li.dataset.i]; if(!x || x.xfix !== 'ret' || li.querySelector('[data-xret]') || chkDone(x)) return; const b = li.querySelector('.chk-b'); if(b) b.insertAdjacentHTML('afterbegin', (x.retTo ? '<button class="btn sm" data-xret="' + li.dataset.i + '" data-v="' + esc(x.retTo) + '">返却 ' + md(x.retTo) + ' にする</button>' : '') + '<button class="btn sm primary" data-xret="' + li.dataset.i + '" data-v="">継続にする</button>'); }); }catch(e){} }
+const _dc = drawChecks;
+drawChecks = function(){ const r = _dc.apply(this, arguments); retBtns(); return r; };
+{ let q = 0; new MutationObserver(() => { if(q) return; q = setTimeout(() => { q = 0; if(document.getElementById('chkList')) retBtns(); }, 60); }).observe(document.body, { childList: true, subtree: true }); }
+window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xret]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const x = (window.__chk || [])[+b.dataset.xret]; if(!x) return; const l = S.lines.find(y => y.id === x.id); if(!l) return;
+  const v = b.dataset.v; if(v){ l.retd = v; l.cont = ''; } else { l.retd = ''; l.cont = '継続'; }
+  if(l.sys) l.edited = true;
+  save(); drawChecks(); try{ drawSites(); }catch(e){} toast('「' + l.name + '」の返却を ' + (v ? md(v) : '継続') + ' にした（↶でもどせる）', 3500);
+}, true);
 })();
 
 /* ==================================================================
@@ -12203,7 +12254,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 20:02';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 20:14';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
