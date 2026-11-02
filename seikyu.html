@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-02 09:29-->
+<!--BUILD:2026-11-02 11:47-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2915,7 +2915,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-02 09:29';
+const BUILD = '2026-11-02 11:47';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -4663,7 +4663,7 @@ drawWorks = async function(reload){
     if(!d){ d = document.createElement('div'); d.id = 'xCustCard'; d.className = 'card'; $('#worksCard').insertAdjacentElement('afterend', d); }
     const c = card();
     d.innerHTML = '<h2>得意先カード：' + esc(S.meta.custName) + '<span class="n">毎月同じにすること。来月の作業にも写ります</span></h2>' +
-      '<div class="xcc"><label>宛名（ご担当）<input data-cc="toName" value="' + esc(c.toName || '') + '"></label><label>送付先メール<input data-cc="mailTo" value="' + esc(c.mailTo || '') + '"></label><label>送り方<input data-cc="how" value="' + esc(c.how || '') + '" placeholder="メール／郵送／持参"></label><label>送付の期限<input data-cc="due" value="' + esc(c.due || '') + '" placeholder="例：毎月5日"></label><label class="w">特記・メールに添える一言<input data-cc="mailNote" value="' + esc(c.mailNote || '') + '"></label></div>' +
+      '<div class="xcc"><label>宛名（ご担当）<input data-cc="toName" value="' + esc(c.toName || '') + '"></label><label>送付先メール<input data-cc="mailTo" value="' + esc(c.mailTo || '') + '"></label><label>送り方<input data-cc="how" value="' + esc(c.how || '') + '" placeholder="メール／LINE／郵送／持参"></label><label>送付の期限<input data-cc="due" value="' + esc(c.due || '') + '" placeholder="例：毎月5日"></label><label class="w">特記・メールに添える一言<input data-cc="mailNote" value="' + esc(c.mailNote || '') + '"></label></div>' +
       '<div><b>決まりごと</b> ' + (c.rules.length ? c.rules.map((r, i) => '<span class="tag rule">' + esc(r.name) + '：' + (r.type === 'nb' ? '出さない' : r.type === 'qty' ? '数量 ' + r.val : '単価 ' + yen(r.val)) + (r.note ? '（' + esc(r.note) + '）' : '') + ' <a href="#" data-rdel="' + i + '">×</a></span>').join(' ') : '<span class="muted">まだありません（行の ✎ から作れます）</span>') + '</div>' +
       '<div class="row" style="margin-top:8px"><button class="btn sm" id="xZan">請求残高一覧表とくらべる</button><button class="btn sm" id="xXl">Excel版とくらべる</button><button class="btn sm" id="xXlsx">Excelで書き出す</button><input type="file" id="xZanF" accept=".csv" hidden><input type="file" id="xXlF" accept=".xlsm,.xlsx" hidden><span class="muted" id="xZanSt"></span></div>';
     d.oninput = ev => { const k = ev.target.dataset.cc; if(!k) return; card()[k] = ev.target.value; cardSave(); save(); };
@@ -5560,7 +5560,7 @@ function x2Type(){
   const due = X2.dueOf(m.seikyuDate, c.due);
   const html = '<div class="xtype">' +
     '<h4>書類</h4><table class="xfin"><tr><td>指定用紙</td><td>' + esc(form) + '</td></tr><tr><td>現場名</td><td>' + (S.sheets.filter(s => s.csvSite).map(s => esc(s.name) + '：' + esc(s.siteName) + '（CSVは ' + esc(s.csvSite) + '）').join('<br>') || 'CSVのとおり') + '</td></tr><tr><td>見出し・重ね</td><td>' + (lay.map(esc).join('<br>') || 'なし') + '</td></tr><tr><td>PDFの名前</td><td>' + esc(pdfName) + '</td></tr></table>' +
-    '<h4>送り方</h4><div class="xcc"><label>宛名（ご担当）<input data-tc="toName" value="' + esc(c.toName || '') + '"></label><label>送付先メール<input data-tc="mailTo" value="' + esc(c.mailTo || '') + '"></label><label>BCC<input data-tc="bcc" value="' + esc(c.bcc || '') + '"></label><label>送り方<input data-tc="how" value="' + esc(c.how || '') + '" placeholder="メール／郵送／ポータル"></label><label>送付の期限<input data-tc="due" value="' + esc(c.due || '') + '" placeholder="翌月5日・3営業日"></label></div>' +
+    '<h4>送り方</h4><div class="xcc"><label>宛名（ご担当）<input data-tc="toName" value="' + esc(c.toName || '') + '"></label><label>送付先メール<input data-tc="mailTo" value="' + esc(c.mailTo || '') + '"></label><label>BCC<input data-tc="bcc" value="' + esc(c.bcc || '') + '"></label><label>送り方<input data-tc="how" value="' + esc(c.how || '') + '" placeholder="メール／LINE／郵送／ポータル"></label><label>送付の期限<input data-tc="due" value="' + esc(c.due || '') + '" placeholder="翌月5日・3営業日"></label></div>' +
     (due ? '<p class="muted">今月の期限：' + jdate(due.adj) + (due.moved ? '（' + jdate(due.raw) + ' が休みなので前の営業日）' : '') + '</p>' : '') +
     '<h4>決まりごと ' + (c.rules || []).length + '</h4><ul>' + (c.rules || []).map(r => '<li>' + esc(r.name) + '：' + (r.type === 'nb' ? '出さない' : r.type === 'qty' ? '数量 ' + r.val : '単価 ' + yen(r.val)) + (r.note ? '（' + esc(r.note) + '）' : '') + '</li>').join('') + '</ul>' +
     '<h4>単価の改定</h4><ul>' + (c.priceChg || []).map((p, i) => '<li>' + esc(p.name) + '：' + jdate(p.from) + 'から ' + yen(p.lu) + ' <a href="#" data-pcdel="' + i + '">×</a></li>').join('') + '</ul>' +
@@ -5699,7 +5699,7 @@ workAction = async function(ev, rows, redraw){
   const id = st.dataset.wst, r = rows.find(x => x.id === id);
   const c = (S.built && S.workId === id) ? card() : (cardLoad(r && r.w.custCode) || {});
   const v = await askDialog('送付の記録', esc(r ? r.w.custName : '') + '　' + (r ? jdate(r.w.seikyuDate) : '') + '締め' +
-    '<div class="xcc"><label>送り方<select id="xsHow">' + ['メール','郵送','ポータル','持参','FAX'].map(h => '<option' + (String(c.how || '').indexOf(h) >= 0 ? ' selected' : '') + '>' + h + '</option>').join('') + '</select></label><label>送った日<input id="xsDate" value="' + md2(todayIso()) + '"></label><label class="w">宛先<input id="xsTo" value="' + esc(c.mailTo || c.toName || '') + '"></label><label class="w">メモ<input id="xsMemo" placeholder="例：〇〇さまに手渡し"></label></div>',
+    '<div class="xcc"><label>送り方<select id="xsHow">' + ['メール','LINE','郵送','ポータル','持参','FAX'].map(h => '<option' + (String(c.how || '').indexOf(h) >= 0 ? ' selected' : '') + '>' + h + '</option>').join('') + '</select></label><label>送った日<input id="xsDate" value="' + md2(todayIso()) + '"></label><label class="w">宛先<input id="xsTo" value="' + esc(c.mailTo || c.toName || '') + '"></label><label class="w">メモ<input id="xsMemo" placeholder="例：〇〇さまに手渡し"></label></div>',
     [{ t:'送付済にする', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
   if(v !== 'ok') return;
   const rec = { how: X2.dv('xsHow', 'メール'), date: dateIn(X2.dv('xsDate', '')) || todayIso(), to: X2.dv('xsTo', ''), memo: X2.dv('xsMemo', ''), who: X2.who(), at: nowIso() };
@@ -11085,7 +11085,11 @@ async function ask(){
   const body = '<p>現場「<b>' + esc(src.name) + '</b>」の行（' + linesOf(src).length + ' 行・税込 ' + yti(sheetNet(src)) + '）を、ほかの現場の請求書にまとめる。</p>' +
     '<p><label>まとめる先 <select id="xMgTo">' + others.map(s => '<option value="' + s.id + '">' + esc(s.name) + '（' + esc(s.siteName || '') + '）</option>').join('') + '</select></label></p>' +
     '<p style="display:grid;gap:6px"><label><input type="radio" name="xMgMode" value="back" checked> うしろに足す（今の行のあと）</label><label><input type="radio" name="xMgMode" value="front"> 前に足す（今の行の前）</label><label><input type="radio" name="xMgMode" value="date"> 貸出日の順にまぜる</label></p>' +
-    '<p><label><input type="checkbox" id="xMgHead" checked> 見出し「【' + esc(src.name) + '】」を入れる（うしろ・前のとき）</label><br><label><input type="checkbox" id="xMgRule" checked> 来月からも同じにする（この得意先の決まりとして覚える）</label></p>';
+    '<p><label><input type="checkbox" id="xMgHead"> 見出し「【' + esc(src.name) + '】」を入れる（うしろ・前のとき。チェックしたときだけ）</label><br><label><input type="checkbox" id="xMgRule"> 来月からも同じにする（この得意先の決まりとして覚える。チェックしたときだけ）</label></p>';
+  /* 2026-11-02「チェックしてないのに見出しが出た」：見出し・来月からも は、はじめはチェックなし。選んだ値は変えるたびに覚える（Enter で決めても同じ） */
+  X.__mg = { to: others[0].id, mode: 'back', head: false, rule: false };
+  setTimeout(() => { const rd = () => { const t = document.getElementById('xMgTo'); if(!t) return; X.__mg = { to: t.value, mode: (document.querySelector('input[name="xMgMode"]:checked') || {}).value || 'back', head: !!(document.getElementById('xMgHead') || {}).checked, rule: !!(document.getElementById('xMgRule') || {}).checked }; };
+    document.querySelectorAll('#xMgTo, input[name="xMgMode"], #xMgHead, #xMgRule').forEach(e => e.addEventListener('change', rd)); rd(); }, 0);
   const v = await askDialog('現場をほかの現場にまとめる', body, [{ t:'まとめる', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
   if(v !== 'ok') return;
   const dst = sheetById(X.__mg.to), mode = X.__mg.mode, head = X.__mg.head, rule = X.__mg.rule;
@@ -11114,6 +11118,26 @@ drawSites = function(){ const r = _ds.apply(this, arguments);
       if(sp) sp.insertAdjacentElement('afterend', b); else H.appendChild(b); } }catch(e){}
   return r; };
 window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('#xMgBtn'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault(); ask(); }, true);
+})();
+
+/* 2026-11-02「09:29 なのに『まとめる』『前月の引き継ぎ』のボタンがない」：前に作った作業でも必ず出す。
+   現場の上の帯がどの道すじで描かれても、描かれたあとにボタンを足す（見張り） */
+(function(){
+const hasPrev = () => !!(S.prev || S.prevPack || (S.sheets || []).some(s => s.prev || (s.prevManual && s.prevManual.length)));
+function ensure(){
+  try{
+    const H = document.getElementById('shead'); if(!H || !S.built) return;
+    if(hasPrev() && !H.querySelector('#xCarryBtn')){ H.insertAdjacentHTML('afterbegin', '<div style="margin:0 0 8px"><button type="button" class="btn primary" id="xCarryBtn" data-xcarry>前月の引き継ぎ</button> <small class="muted">本物どおりのまま、前月の手直し・手で足した行・ETC888 などをまとめて入れる／出す</small></div>'); }
+    if(S.sheets.length > 1 && !H.querySelector('#xMgBtn')){
+      const sp = [...H.querySelectorAll('button')].find(b => /もう1枚に分ける/.test(b.textContent));
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.id = 'xMgBtn'; b.textContent = 'この現場をほかの現場にまとめる'; b.title = '例：三軒茶屋の請求をセンター街の請求書にまとめる（うしろ・前・貸出日の順）';
+      if(sp) sp.insertAdjacentElement('afterend', b); else { const xb = H.querySelector('.xbar'); if(xb) xb.insertAdjacentElement('afterbegin', b); else H.appendChild(b); }
+    }
+  }catch(e){ console.warn(e); }
+}
+let q = 0; const later = () => { if(q) return; q = setTimeout(() => { q = 0; ensure(); }, 60); };
+function watch(){ const sec = document.getElementById('tab-sites'); if(!sec){ setTimeout(watch, 500); return; } new MutationObserver(later).observe(sec, { childList: true, subtree: true }); later(); }
+watch();
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -11621,7 +11645,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 09:29';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 11:47';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
