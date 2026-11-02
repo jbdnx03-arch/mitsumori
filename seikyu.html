@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-02 12:06-->
+<!--BUILD:2026-11-02 14:50-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1739,7 +1739,7 @@ async function openWorkId(id, cloudMeta){
   openWork(o);
 }
 let cloudCache = null;
-const STATUS = { draft: ['作業中', ''], printed: ['印刷済', 'pr'], sent: ['送付済', 'ok'] };
+const STATUS = { draft: ['作業中', ''], printed: ['印刷済', 'pr'], sent: ['送付済', 'ok'], done: ['完了', 'ok'] };   /* 2026-11-02 完了を足した */
 async function mergedWorks(reload){
   let loc = []; try{ loc = await WK.list(); }catch(e){}
   if(reload || !cloudCache){
@@ -1792,7 +1792,7 @@ function workCard(x){
     '<div class="wc2"><span>' + (w.seikyuDate ? jdate(w.seikyuDate) + '締め' : '') + '</span><span>' + (w.sites || 0) + '現場・' + (w.nLines || 0) + '行</span><span>保存 ' + fmtT(w.savedAt) + '</span>' + (w.printedAt ? '<span>印刷 ' + fmtT(w.printedAt) + '</span>' : '') + '<span class="muted">' + esc(x.where) + '</span></div>' +
     (w.siteNames ? '<div class="wc3">' + esc(w.siteNames) + '</div>' : '') +
     '<div class="wc4">' + (isNow ? '' : '<button class="btn sm primary" data-wopen="' + esc(x.id) + '">開く</button>') +
-    Object.keys(STATUS).filter(k => k !== (w.status || 'draft')).map(k => '<button class="btn sm" data-wst="' + esc(x.id) + '" data-v="' + k + '">' + STATUS[k][0] + 'にする</button>').join('') +
+    '<label class="xwst">状態 <select data-wstsel="' + esc(x.id) + '">' + Object.keys(STATUS).map(k => '<option value="' + k + '"' + (k === (w.status || 'draft') ? ' selected' : '') + '>' + STATUS[k][0] + '</option>').join('') + '</select></label>' +
     (isNow ? '' : '<button class="btn sm ghost" data-wdel="' + esc(x.id) + '">消す</button>') + '</div></div>';
 }
 /* 読み込みタブ：今月の作業（いちばん新しい締め月を全部）＋控えへ */
@@ -2096,7 +2096,7 @@ function onSiteClick(ev){
 }
 function onSiteChange(ev){
   const t = ev.target;
-  if(t.dataset.act === 'move' && t.value){ const tr = t.closest('tr[data-id]'); const l = S.lines.find(x => x.id === tr.dataset.id); const to = sheetById(t.value); l.sheet = to.id; save(); drawSites(); toast('「' + to.name + '」へ移した'); return; }
+  if(t.dataset.act === 'move' && t.value){ const tr = t.closest('tr[data-id]'); const l = S.lines.find(x => x.id === tr.dataset.id); const to = sheetById(t.value); l.sheet = to.id; l.userMoved = to.name; save(); drawSites(); toast('「' + to.name + '」へ移した'); return; }
   const sh = sheetById(S.cur);
   if(t.id === 'shName'){ const v = t.value.trim(); if(v && !S.sheets.some(s => s !== sh && s.name === v)) sh.name = v; else if(v){ toast('同じ呼び名があります'); t.value = sh.name; } save(); drawSites(); return; }
   if(t.id === 'shCust'){ const v = t.value.trim(); if(!v || rnN(v) === rnN(S.meta.custName)){ delete sh.custName; delete sh.custZip; delete sh.custAddr; } else if(v !== sh.custName){ sh.custName = v; sh.custZip = ''; sh.custAddr = ''; } save(); drawSites(); toast(sh.custName ? 'この現場の宛名を「' + sh.custName + '」にした（住所の欄は空）' : '宛名をCSVの「' + S.meta.custName + '」にもどした'); return; }
@@ -2915,7 +2915,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-02 12:06';
+const BUILD = '2026-11-02 14:50';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3831,7 +3831,12 @@ async function updateFromCsv(x){
   const byKey = {}; oldLines.forEach(l => { if(l.key && !l.dup && !l.manual) (byKey[l.key] = byKey[l.key] || []).push(l); });
   /* 今の行と前の行を1対1で合わせる（同じキーが何本かあれば、CSVの中身が同じもの → 同じ並び） */
   const used = new Set(), sysSig = x => x && x.sys ? [num(x.sys.qty), num(x.sys.la) + num(x.sys.sa) + num(x.sys.ba), String(x.sys.name || '')].join('|') : '';
-  const oldOf = l => { const c = (l.key && byKey[l.key] || []).filter(o => !used.has(o)); const o = c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx) || c.find(o => sysSig(o) === sysSig(l)) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name)) || c[0]; if(o) used.add(o); return o; };
+  /* 2026-11-02：運賃・軽油のように伝票も貸出日もないキー（|ZZ824|W| など）は、ほかの現場の同じキーの行とまちがえて組んでいた
+     （三同 三河台の返却運賃(4tﾀﾞﾝﾌﾟ)が恵比寿西へ・関東 本田→等々力・成美 千葉港→東六郷）→ 同じ現場（CSVの現場コード）の行だけと組む */
+  const sameSite = (o, l) => !o.site || !l.site || String(o.site) === String(l.site);
+  const oldOf = l => { const c = (l.key && byKey[l.key] || []).filter(o => !used.has(o) && sameSite(o, l)); /* 2026-11-02 三同 恵比寿西：伝票番号のない運賃・軽油は同じキー（|ZZ824|W|）になる。品名も現場もちがう行（恵比寿の返却運賃）と組んで、三河台の 返却運賃(4tﾀﾞﾝﾌﾟ)・軽油 が恵比寿へ移っていた → 同じ現場・同じ品名のときだけ組む */
+    const sameSite = o => String(o.site || '') === String(l.site || '');
+    const o = c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx && sameSite(o)) || c.find(o => sysSig(o) === sysSig(l) && sameSite(o)) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && sameSite(o)) || c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && o.sys.qty === l.sys.qty) || null; if(o) used.add(o); return o; };
   const pair = new Map(), idMap = {}; S.lines.filter(l => l.key && l.sys && !l.dup && !l.manual).forEach(l => { const o = oldOf(l); if(o) pair.set(l, o); });
   pair.forEach((o, l) => { ['nbDec','luDec','suggDec','memo','pxDec','rule'].forEach(k => { if(o[k] != null && l[k] == null) l[k] = o[k]; }); if(o.nb && !l.nb && o.nbDec){ l.nb = true; } });
   /* 手で直した行：直した欄だけ前のまま、直していない欄（期間・日数など）は新しいCSVの値にして計算し直す */
@@ -3849,7 +3854,10 @@ async function updateFromCsv(x){
   });
   /* 前の作業で移した現場・並べ替えた順番をそのまま */
   const oldName = id => ((w.sheets || []).find(s => s.id === id) || {}).name;
-  pair.forEach((o, l) => { const nm = oldName(o.sheet); const t = S.sheets.find(s => s.name === nm); if(t && t.id !== l.sheet){ S.lines.filter(x => x === l || (x.dup && x.key === l.key && x.sheet === l.sheet)).forEach(x => { x.sheet = t.id; }); } });
+  const genericKey = l => { const kp = String(l.key || '').split('|'); return !kp[0] && !kp[3]; };
+  pair.forEach((o, l) => { const nm = oldName(o.sheet); const t0 = S.sheets.find(s => s.name === nm);
+    /* 運賃・軽油（伝票も貸出日もない行）を、CSVの現場とちがう現場へ動かすのは前の版の組みちがいなので、まねしない（まとめた現場はべつ） */
+    const t = t0 && genericKey(l) && !o.mergedFrom && !o.userMoved && l.site && String(t0.code) !== String(l.site) ? null : t0; if(t && t.id !== l.sheet && (o.userMoved || o.mergedFrom || String(t.code) === String(l.site || ''))){   /* 自分で移した行・まとめた行・同じ現場コードのページだけ（前の版で組みちがえて移った行は、CSVの現場にもどす） */ S.lines.filter(x => x === l || (x.dup && x.key === l.key && x.sheet === l.sheet)).forEach(x => { x.sheet = t.id; }); } });
   const rank = new Map(); const oi = new Map(oldLines.map((l, i) => [l, i]));
   pair.forEach((o, l) => rank.set(l, oi.get(o)));
   const oldMan = oldLines.filter(l => l.manual);
@@ -4301,7 +4309,7 @@ drawSite = function(){
     '<button class="btn sm" data-x="memo">' + (sh.memo ? '現場メモ：' + esc(sh.memo.slice(0, 14)) + (sh.memo.length > 14 ? '…' : '') : '現場メモ') + '</button>' +
     '<button class="btn sm" data-x="kashi" title="この現場で今借りている品の一覧（お客さん用・web見積と同じ紙）">貸出状況照会</button><button class="btn sm" data-x="kashiAll" title="全現場の貸出状況照会を1つにまとめて（現場ごとに改ページ）">全現場の照会</button>' +
     '<button class="btn sm" data-x="log">変更の記録</button>' +
-    (S.status === 'sent' && !E().unlocked ? '<span class="tag pr">送付済のためロック中</span><button class="btn sm" data-x="unlock">ロックを外す</button>' : '');
+    ((S.status === 'sent' || S.status === 'done') && !E().unlocked ? '<span class="tag pr">' + STATUS[S.status][0] + 'のためロック中</span><button class="btn sm" data-x="unlock">ロックを外す</button>' : '');
   head.appendChild(bar);
   /* 凡例（N5） */
   const tb = $('#siteBody table.ln');
@@ -4320,7 +4328,7 @@ drawSite = function(){
     const rn = tr.querySelector('.rowno'); if(rn){ rn.draggable = true; rn.title += '・つまんで上下に動かせる'; }
   });
   /* 送付済のロック（N22） */
-  $('#siteBody').classList.toggle('locked', S.status === 'sent' && !E().unlocked);
+  $('#siteBody').classList.toggle('locked', (S.status === 'sent' || S.status === 'done') && !E().unlocked);
   /* 選んだ行をまとめて別の現場へ（N4） */
   const bk = $('#bulkBar'); if(bk && !$('#xMove')){ const s = document.createElement('label'); s.innerHTML = '選んだ行を <select id="xMove"><option value="">移す先…</option>' + S.sheets.filter(x => x.id !== sh.id).map(x => '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('') + '</select>'; bk.appendChild(s); }
 };
@@ -4499,7 +4507,7 @@ $('#siteBody').addEventListener('change', ev => {
   const to = sheetById(ev.target.value), sh = sheetById(S.cur);
   const sel = S.bulkSel && S.bulkSel.size ? S.bulkSel : null; if(!sel){ toast('先に左の番号を押して行を選んで（Shift で範囲）'); ev.target.value = ''; return; }
   const ls = linesOf(sh).filter((l, i) => sel.has(i + 1));
-  ls.forEach(l => { l.sheet = to.id; }); S.bulkSel = null; S.bulkRows = ''; save(); drawSites(); toast(ls.length + ' 行を「' + to.name + '」へ移した');
+  ls.forEach(l => { l.sheet = to.id; l.userMoved = to.name; }); S.bulkSel = null; S.bulkRows = ''; save(); drawSites(); toast(ls.length + ' 行を「' + to.name + '」へ移した');
 }, true);
 
 /* ------------------------------------------------------------------
@@ -4630,9 +4638,9 @@ drawHikae = async function(reload){
   const st = x => x.w.status || 'draft';
   const due = x => { const c = cardLoad(x.w.custCode) || {}; return c.due || ''; };
   const board = '<div class="hk-g xboard"><div class="hk-gh"><b>締めの進み具合（' + (ym ? (+ym.slice(0, 4)) + '年' + (+ym.slice(5, 7)) + '月' : '') + '）</b><span>' + cur.length + '社</span>' +
-    ['draft','printed','sent'].map(k => '<span>' + STATUS[k][0] + ' ' + cur.filter(x => st(x) === k).length + '</span>').join('') + '<span class="sp"></span><button class="btn sm" id="xDash">売上データを書き出す（CSV）</button></div>' +
+    ['draft','printed','sent','done'].map(k => '<span>' + STATUS[k][0] + ' ' + cur.filter(x => st(x) === k).length + '</span>').join('') + '<span class="sp"></span><button class="btn sm" id="xDash">売上データを書き出す（CSV）</button></div>' +
     '<table class="xlog"><tr><th>得意先</th><th>締め</th><th>状態</th><th>要確認</th><th>見た現場</th><th>送付の期限</th><th>税抜</th><th></th></tr>' +
-    cur.sort((a, b) => ['draft','printed','sent'].indexOf(st(a)) - ['draft','printed','sent'].indexOf(st(b))).map(x => '<tr><td>' + esc(x.w.custName || '') + '</td><td>' + md2(x.w.seikyuDate) + '</td><td><span class="tag ' + STATUS[st(x)][1] + '">' + STATUS[st(x)][0] + '</span></td><td>' + (x.w.nChk != null && x.w.nChk !== '' ? (+x.w.nChk ? '<b class="ng">' + x.w.nChk + '</b>' : '0') : '—') + '</td><td>' + (x.w.nKg ? (x.w.nSeen || 0) + '/' + x.w.nKg : '—') + '</td><td>' + esc(due(x)) + '</td><td class="n">' + yen(x.w.net || 0) + '</td><td><button class="btn sm" data-view="' + esc(x.id) + '" title="社長・経理が見るだけのリンク">見るだけのリンク</button></td></tr>').join('') + '</table></div>';
+    cur.sort((a, b) => ['draft','printed','sent','done'].indexOf(st(a)) - ['draft','printed','sent','done'].indexOf(st(b))).map(x => '<tr><td>' + esc(x.w.custName || '') + '</td><td>' + md2(x.w.seikyuDate) + '</td><td><span class="tag ' + STATUS[st(x)][1] + '">' + STATUS[st(x)][0] + '</span></td><td>' + (x.w.nChk != null && x.w.nChk !== '' ? (+x.w.nChk ? '<b class="ng">' + x.w.nChk + '</b>' : '0') : '—') + '</td><td>' + (x.w.nKg ? (x.w.nSeen || 0) + '/' + x.w.nKg : '—') + '</td><td>' + esc(due(x)) + '</td><td class="n">' + yen(x.w.net || 0) + '</td><td><button class="btn sm" data-view="' + esc(x.id) + '" title="社長・経理が見るだけのリンク">見るだけのリンク</button></td></tr>').join('') + '</table></div>';
   L.insertAdjacentHTML('afterbegin', board);
   $('#xDash').onclick = dashCsv;
 };
@@ -6272,7 +6280,7 @@ drawChecks = function(){
    追加 2f：マウスを使わない（キーで進む・コマンド）・状態のもどしの守り
    ================================================================== */
 (function(){
-  const ORDER = { draft: 0, printed: 1, sent: 2 };
+  const ORDER = { draft: 0, printed: 1, sent: 2, done: 3 };
   const reduce = () => document.body.classList.contains('nomotion');
 
   /* ---------- 1) ダイアログ：入力欄で Enter → いちばん上のボタン。文字のキーは入力の邪魔をしない ---------- */
@@ -6305,7 +6313,7 @@ drawChecks = function(){
         window.__rnote = '';
         const was = STATUS[cur][0], to = STATUS[v][0];
         const ok = await askDialog(was + 'を「' + to + '」にもどす', esc(r ? r.w.custName : (S.meta && S.meta.custName) || '') + '　' + jdate((r && r.w.seikyuDate) || (S.meta && S.meta.seikyuDate) || '') + '締め<br>' +
-          (cur === 'sent' ? '<b>送付済の請求書です。</b>もどすと、また直せるようになります。直して出し直したら「訂正版」になります（前に出したものとの差が残ります）。' : '<b>印刷済の請求書です。</b>もどすと、また直せるようになります。') +
+          ((cur === 'sent' || cur === 'done') ? '<b>' + STATUS[cur][0] + 'の請求書です。</b>もどすと、また直せるようになります。直して出し直したら「訂正版」になります（前に出したものとの差が残ります）。' : '<b>印刷済の請求書です。</b>もどすと、また直せるようになります。') +
           '<p>理由（必ず）<br><input id="rnote" style="width:100%" placeholder="例：先方から数量の訂正依頼"></p>',
           [{ t:'もどす', v:'ok', primary:true }, { t:'やめる', v:null, ghost:true }]);
         if(ok !== 'ok') return;
@@ -7419,7 +7427,7 @@ function moveSel(dir){
 }
 function selMove(toId){
   const to = sheetById(toId), sel = selLines(); if(!to || !sel.length) return;
-  sel.forEach(l => { l.sheet = to.id; });
+  sel.forEach(l => { l.sheet = to.id; l.userMoved = to.name; });
   /* 移した先の最後にまとめて並べる */
   sel.forEach(l => { S.lines.splice(S.lines.indexOf(l), 1); }); const tl = linesOf(to); const at = tl.length ? S.lines.indexOf(tl[tl.length - 1]) + 1 : S.lines.length; S.lines.splice(at, 0, ...sel);
   S.bulkSel = null; S.bulkRows = ''; save(); drawSites(); toast(sel.length + ' 行を「' + to.name + '」へ移した（↶ でもどせる）', 4500);
@@ -9123,7 +9131,7 @@ async function onLineSheet(ev, l){
   if(a === 'move'){
     const others = S.sheets.filter(s => s.id !== l.sheet);
     X.openSheet('ほかの現場へ移す', '<ul class="xsl">' + others.map(s => '<li><button type="button" data-to="' + s.id + '"><span class="xsl-n"><b>' + esc(s.name) + '</b><small>' + esc(s.siteName || '') + '</small></span></button></li>').join('') + '</ul>',
-      ev2 => { const t = ev2.target.closest('[data-to]'); if(!t) return; X.closeSheet(); const to = sheetById(t.dataset.to); l.sheet = to.id; save(); drawSites(); toast('「' + l.name + '」を ' + to.name + ' へ移した（↶でもどせる）', 3000); });
+      ev2 => { const t = ev2.target.closest('[data-to]'); if(!t) return; X.closeSheet(); const to = sheetById(t.dataset.to); l.sheet = to.id; l.userMoved = to.name; save(); drawSites(); toast('「' + l.name + '」を ' + to.name + ' へ移した（↶でもどせる）', 3000); });
     return;
   }
   if(a === 'memo'){ X.closeSheet(); const tr = document.querySelector('#siteBody tr[data-id="' + id + '"]'); const m = tr && tr.querySelector('[data-x="memo"],[data-act="memo"],.xmemo'); if(m) m.click(); else { const t = prompt('この行のメモ（社内だけ・印刷に出ない）', l.memo || ''); if(t != null){ l.memo = t; save(); drawSites(); } } return; }
@@ -9533,7 +9541,7 @@ async function board(){
   const prevC = rows.filter(x => ymOf(x.w.seikyuDate) === prevYm), curCodes = new Set(cur.map(x => String(x.w.custCode)));
   const miss = prevC.filter(x => !curCodes.has(String(x.w.custCode)));
   const st = x => x.w.status || 'draft';
-  const n = { draft: cur.filter(x => st(x) === 'draft').length, printed: cur.filter(x => st(x) === 'printed').length, sent: cur.filter(x => st(x) === 'sent').length };
+  const n = { draft: cur.filter(x => st(x) === 'draft').length, printed: cur.filter(x => st(x) === 'printed').length, sent: cur.filter(x => st(x) === 'sent').length, done: cur.filter(x => st(x) === 'done').length };
   const todo = [];
   cur.forEach(x => { const w = x.w, nm = esc(String(w.custName || '').replace(/\s*株式会社\s*/g, ''));
     const now = S.built && S.workId === x.id; const t = now ? todoCount() : { todo: w.todo, ng: w.ng };
@@ -9547,14 +9555,14 @@ async function board(){
   todo.sort((a, b) => a.p - b.p);
   const done = LS.get('boardDone.' + ym, {});
   const card = (x) => { const w = x.w, now = S.built && S.workId === x.id, t = now ? todoCount() : { todo: w.todo, ng: w.ng };
-    const s = st(x), pct = s === 'sent' ? 100 : s === 'printed' ? 75 : (t.ng === 0 && t.todo === 0 && t.todo != null && t.todo !== '') ? 55 : 30;
+    const s = st(x), pct = (s === 'sent' || s === 'done') ? 100 : s === 'printed' ? 75 : (t.ng === 0 && t.todo === 0 && t.todo != null && t.todo !== '') ? 55 : 30;
     let inT = null; try{ inT = w.inTimes ? JSON.parse(w.inTimes) : null; }catch(e){}
-    return '<button type="button" class="xb-c" data-bopen="' + esc(x.id) + '"><span class="xb-n">' + esc(String(w.custName || '').replace(/\s*株式会社\s*/g, '')) + '</span>' +
-      '<span class="xb-s ' + s + '">' + STATUS[s][0] + '</span><span class="xb-bar"><i style="width:' + pct + '%"></i></span>' +
+    return '<div role="button" tabindex="0" class="xb-c" data-bopen="' + esc(x.id) + '"><span class="xb-n">' + esc(String(w.custName || '').replace(/\s*株式会社\s*/g, '')) + '</span>' +
+      '<select class="xb-s xb-sel ' + s + '" data-wstsel="' + esc(x.id) + '" title="状態を変える">' + Object.keys(STATUS).map(k => '<option value="' + k + '"' + (k === s ? ' selected' : '') + '>' + STATUS[k][0] + '</option>').join('') + '</select><span class="xb-bar"><i style="width:' + pct + '%"></i></span>' +
       '<span class="xb-m">' + yen(w.net || 0) + (t.ng ? '<em class="ng">絶対ダメ ' + t.ng + '</em>' : t.todo ? '<em class="w">要確認 ' + t.todo + '</em>' : (t.todo === 0 ? '<em class="ok">確認 0</em>' : '<em>開くとわかる</em>')) +
-      (inT && inT.csv && inT.csv.at ? '<em>CSV ' + new Date(inT.csv.at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</em>' : '') + (+w.mins ? '<em>' + w.mins + '分</em>' : '') + '</span></button>'; };
+      (inT && inT.csv && inT.csv.at ? '<em>CSV ' + new Date(inT.csv.at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</em>' : '') + (+w.mins ? '<em>' + w.mins + '分</em>' : '') + '</span></div>'; };
   const B = document.createElement('div'); B.id = 'xBoard'; B.className = 'card';
-  B.innerHTML = '<h2>' + ymj(ym) + '締めの進み具合 <span class="n">作業中 ' + n.draft + '・印刷済 ' + n.printed + '・送付済 ' + n.sent + '（' + cur.length + '社）</span></h2>' +
+  B.innerHTML = '<h2>' + ymj(ym) + '締めの進み具合 <span class="n">作業中 ' + n.draft + '・印刷済 ' + n.printed + '・送付済 ' + n.sent + '・完了 ' + n.done + '（' + cur.length + '社）</span></h2>' +
     '<div class="xb-grid">' + cur.map(card).join('') + '</div>' +
     '<h3 class="xb-h">今日やること <small>押すとその作業を開く・✓で済み</small></h3>' +
     (todo.length ? '<ul class="xb-todo">' + todo.map((t, i) => { const k = t.h.replace(/<[^>]+>/g, ''); return '<li class="' + (done[k] ? 'done' : '') + '"><input type="checkbox" data-bk="' + esc(k) + '"' + (done[k] ? ' checked' : '') + '><span data-bopen="' + esc(t.id || '') + '">' + t.h + '</span></li>'; }).join('') + '</ul>' : '<p class="muted">やることはありません ✓</p>') +
@@ -9563,6 +9571,7 @@ async function board(){
   B.onclick = async ev => {
     const cb = ev.target.closest('[data-bk]'); if(cb){ const d = LS.get('boardDone.' + ym, {}); if(cb.checked) d[cb.dataset.bk] = 1; else delete d[cb.dataset.bk]; LS.set('boardDone.' + ym, d); cb.closest('li').classList.toggle('done', cb.checked); return; }
     if(ev.target.closest('[data-bscan]')){ scan(cur); return; }
+    if(ev.target.closest('select,option')) return;   /* 状態のえらぶ欄を押したときは開かない */
     const o = ev.target.closest('[data-bopen]'); if(o && o.dataset.bopen){ const x = rows.find(r => r.id === o.dataset.bopen); if(!x) return; if(S.built && S.workId === x.id){ setTab('sites'); return; } const w = await loadWork(x); if(w){ openWork(w); setTab('sites'); } }
   };
 }
@@ -10664,7 +10673,7 @@ window.addEventListener('click', ev => { const b = ev.target && ev.target.closes
 
 /* 2026-11-01：プレビューの上の帯で「作業中／印刷済／送付済（完了）」を押せる（作業の一覧と同じ記録。送付済は送付の記録も聞く） */
 (function(){
-const LB = { draft: '作業中', printed: '印刷済', sent: '送付済（完了）' };
+const LB = { draft: '作業中', printed: '印刷済', sent: '送付済', done: '完了' };
 function bar(){
   const pdf = document.getElementById('spvPdf'); if(!pdf || !S.built || !S.workId) return;
   let g = document.getElementById('xStBar');
@@ -10708,7 +10717,7 @@ function bar(){
   const d = sheetNet(sh) - sheetSys(sh), dz = d ? '<b style="color:' + (d < 0 ? '#E05252' : '#E0A020') + '">' + yti(d, true) + '</b>' : '<b style="color:#2E8B57">ぴったり ✓</b>';
   g.innerHTML = '<small style="opacity:.8;max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sh.name) + '：</small><span style="font-size:12.5px;white-space:nowrap" title="この現場のシステム（CSV）との差（税込・かっこは税抜）">システム差 ' + dz + '</span>' +
     '<button type="button" class="btn' + (s1 ? ' primary' : '') + '" data-xsh="seen" data-sh="' + sh.id + '" title="この現場は見終わった（金額が変わったら外れる）">' + (s1 ? '✓ ' : '') + '見た</button>' +
-    '<button type="button" class="btn' + (s2 ? ' primary' : '') + '" data-xsh="done" data-sh="' + sh.id + '" title="この現場は完了">' + (s2 ? '✓ ' : '') + '完了</button>';
+    '<button type="button" class="btn' + (s2 ? ' primary' : '') + '" data-xsh="done" data-sh="' + sh.id + '" title="この現場は完了（作業全体の完了は「完了」の状態）">' + (s2 ? '✓ ' : '') + '現場完了</button>';
 }
 window.seikyuExt.siteBar = bar;
 const _sp = sitePreview;
@@ -11160,6 +11169,48 @@ let q = 0; const later = () => { if(q) return; q = setTimeout(() => { q = 0; chi
 window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xmgdel]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
   const c = X.card(), i = +b.dataset.xmgdel, r = (c.merge || [])[i]; if(!r) return; c.merge.splice(i, 1); cardSv(); save(); later();
   toast('決まりをやめた：' + (r.fromName || r.from) + ' → ' + (r.toName || r.to) + '（来月は別々の請求書。今月の形はそのまま）', 5000); }, true);
+})();
+
+/* 2026-11-02「進み具合と今月の作業の画面で、作業中・送付済・完了などを選べるように」 */
+(function(){
+document.addEventListener('change', async ev => { const sel = ev.target && ev.target.closest && ev.target.closest('select[data-wstsel]'); if(!sel) return;
+  ev.stopPropagation(); const id = sel.dataset.wstsel, v = sel.value;
+  try{ const rows = await allWorksMeta(); const t = document.createElement('button'); t.dataset.wst = id; t.dataset.v = v;
+    await workAction({ target: t }, rows, () => { try{ drawWorks(); }catch(e){} });
+    setTimeout(() => { try{ drawWorks(); }catch(e){} }, 300);
+  }catch(e){ console.warn(e); toast('変えられなかった：' + (e.message || e)); }
+}, true);
+document.addEventListener('click', ev => { if(ev.target && ev.target.closest && ev.target.closest('select[data-wstsel], .xwst')) ev.stopPropagation(); }, true);
+const css = document.createElement('style');
+css.textContent = '.xb-sel{appearance:auto;border-radius:8px;padding:2px 6px;font-size:12px;font-weight:700;cursor:pointer;background:var(--surface2,#1d2a35);color:inherit;border:1px solid var(--line,#33424d)}.xwst{font-size:12px;display:inline-flex;gap:4px;align-items:center;margin:0 4px}.xwst select{font-size:12.5px;padding:3px 6px;border-radius:8px}';
+document.head.appendChild(css);
+})();
+
+/* 2026-11-02 三同 恵比寿西「本物とこんなに違う」：前の版の「CSVで更新」で、運賃・軽油（伝票も貸出日もない行）が
+   ほかの現場に入っていた（三同 三河台→恵比寿西 17,500・関東 本田→等々力・成美 千葉港→東六郷）。開いたときに見つけて、本物どおりの現場にもどすか聞く */
+(function(){
+const generic = l => { const kp = String(l.key || '').split('|'); return !!l.key && !kp[0] && !kp[3]; };
+function stray(){ return (S.lines || []).filter(l => !l.manual && !l.head && l.sys && generic(l) && l.site && !l.userMoved && !l.mergedFrom && (() => { const sh = sheetById(l.sheet); return sh && String(sh.code) !== String(l.site) && S.sheets.some(s => String(s.code) === String(l.site)); })()); }
+function fix(ls){
+  ls.forEach(l => { const to = S.sheets.find(s => String(s.code) === String(l.site)); if(!to) return;
+    S.lines.splice(S.lines.indexOf(l), 1);
+    const tl = linesOf(to), rd = String(l.ret0 || '');
+    let ref = null; if(rd) tl.forEach(x => { if(String(x.ret0 || '') === rd || String(x.den || '') === rd) ref = x; });
+    if(!ref) ref = tl[tl.length - 1];
+    l.sheet = to.id; if(l.nb && !l.nbDec){ l.nb = false; }
+    S.lines.splice(ref ? S.lines.indexOf(ref) + 1 : S.lines.length, 0, l); });
+}
+async function check(){
+  try{ if(!S.built || (typeof RO === 'function' && RO())) return; const ls = stray(); if(!ls.length) return;
+    const amt = l => yen(lineAmt(l));
+    const list = '<ul style="margin:6px 0 0 1em;padding:0;font-size:13px">' + ls.map(l => '<li>' + esc(l.name) + '　' + amt(l) + (l.nb ? '（出さない）' : '') + '：いま「' + esc((sheetById(l.sheet) || {}).name || '') + '」→ 本物は「' + esc((S.sheets.find(s => String(s.code) === String(l.site)) || {}).name || '') + '」</li>').join('') + '</ul>';
+    const v = await askDialog('ほかの現場の運賃・軽油が入っていた', '前の版の「CSVで更新」の不具合で、<b>' + ls.length + ' 行</b>がちがう現場に入っていました（CSV・本物の請求書の現場とちがう）。' + list + '<p>本物どおりの現場にもどします（金額は変わらない。現場ごとの合計が本物と合う）。</p>',
+      [{ t:'本物どおりの現場にもどす', v:'ok', primary:true, k:'Y' }, { t:'このまま', v:null, ghost:true, k:'N' }]);
+    if(v !== 'ok') return; fix(ls); save(); try{ drawSites(); }catch(e){} toast(ls.length + ' 行を本物どおりの現場にもどした（↶でもどせる）', 5000);
+  }catch(e){ console.warn(e); }
+}
+window.seikyuExt.strayFix = { stray, fix, check };
+const _ow = openWork; openWork = function(){ const r = _ow.apply(this, arguments); setTimeout(check, 1500); return r; };
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -11667,7 +11718,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 12:06';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 14:50';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
