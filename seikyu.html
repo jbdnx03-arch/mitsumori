@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-03 06:31-->
+<!--BUILD:2026-11-03 06:48-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2930,7 +2930,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-03 06:31';
+const BUILD = '2026-11-03 06:48';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -12217,6 +12217,36 @@ function tab(t){
   dz.addEventListener('drop', ev => { ev.preventDefault(); dz.classList.remove('on'); const f = ev.dataTransfer.files && ev.dataTransfer.files[0]; if(f) go(f); });
   const tg = document.getElementById('xqtTgo'); if(tg) tg.onclick = () => { const v = document.getElementById('xqtT').value; if(v.trim()) go(null, v); };
 }
+/* 日付の欄：web見積と同じ入れ方（数字だけで 1130・11/30・2026/11/30。年はなくてよい。横のカレンダーからも選べる。type=date の「年/月/日」の欄にはしない） */
+const fmtD = v => { v = isoOf(v); return v ? v.slice(0, 4) + '/' + v.slice(5, 7) + '/' + v.slice(8, 10) : ''; };
+function parseD(v, base, after){
+  const t = nfkc(String(v || '')).trim().replace(/[年月.\-]/g, '/').replace(/日/g, '').replace(/\s/g, ''); if(!t) return '';
+  let y = 0, m = 0, d = 0, a;
+  if((a = /^(\d{4})(\d{2})(\d{2})$/.exec(t))){ y = +a[1]; m = +a[2]; d = +a[3]; }
+  else if((a = /^(\d{2,4})\/(\d{1,2})\/(\d{1,2})$/.exec(t))){ y = +a[1]; if(y < 100) y += 2000; m = +a[2]; d = +a[3]; }
+  else if((a = /^(\d{1,2})\/(\d{1,2})$/.exec(t))){ m = +a[1]; d = +a[2]; }
+  else if((a = /^(\d{1,2})(\d{2})$/.exec(t))){ m = +a[1]; d = +a[2]; }
+  else if((a = /^(\d{1,2})$/.exec(t))){ const b = isoOf(base) || iso0(new Date()); y = +b.slice(0, 4); m = +b.slice(5, 7); d = +a[1]; }
+  else return null;
+  const b = isoOf(base) || iso0(new Date());
+  if(!y){ y = +b.slice(0, 4); const p = n => String(n).padStart(2, '0'); let c = y + '-' + p(m) + '-' + p(d);
+    if(after && c < b) y++; else if(!after && Date.parse(c) - Date.parse(b) > 200 * 864e5) y--; }
+  const dt = new Date(y, m - 1, d); if(dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return iso0(dt);
+}
+const DBASE = { qPay: () => dv('qShime'), qRetD: () => dv('qStart') || dv('qKashi'), qEnd: () => dv('qStart'), qStart: () => dv('qKashi') };
+const DAFTER = { qPay: 1, qRetD: 1, qEnd: 1, qStart: 1 };
+function dfld(id, iso){ return '<span class="xqt-dw"><input type="text" class="xqt-d" id="' + id + '" value="' + esc(fmtD(iso)) + '" inputmode="decimal" autocomplete="off" placeholder="1130 か 11/30" data-iso="' + esc(isoOf(iso)) + '"><span class="xqt-cal" title="カレンダーから選ぶ"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><input type="date" tabindex="-1" data-for="' + id + '" value="' + esc(isoOf(iso)) + '" aria-label="カレンダーから選ぶ"></span></span>'; }
+function dv(id){ const e = document.getElementById(id); if(!e) return ''; const f = DBASE[id]; const v = parseD(e.value, f ? f() : '', DAFTER[id]); return v || ''; }
+function sv(id, iso){ const e = document.getElementById(id); if(!e) return; e.value = fmtD(iso); e.dataset.iso = isoOf(iso); const c = document.querySelector('.xqt-cal input[data-for="' + id + '"]'); if(c) c.value = isoOf(iso); }
+/* 打ち終わったら 2026/11/30 の形にそろえる。読めないときは知らせて前の値にもどす */
+document.addEventListener('change', ev => {
+  const t = ev.target; if(!t || !t.matches) return;
+  if(t.matches('.xqt-cal input[type=date]')){ sv(t.dataset.for, t.value); const e = document.getElementById(t.dataset.for); if(e) e.dispatchEvent(new Event('change', { bubbles: true })); return; }
+  if(t.matches('input.xqt-d')){ const f = DBASE[t.id]; const v = parseD(t.value, f ? f() : '', DAFTER[t.id]);
+    if(v === null){ toast('日付が読めない（1130・11/30・2026/11/30 のように）', 3500); t.value = fmtD(t.dataset.iso); return; }
+    sv(t.id, v || ''); }
+}, true);
 /* 2つめの画面：得意先・期間・行を確かめて作る */
 async function form(){
   const M = sheet(), info = D.info, today = iso0(new Date());
@@ -12232,10 +12262,10 @@ async function form(){
     '<label class="s">得意先コード<input id="qCode" value="" placeholder="なければ空"></label>' +
     '<label class="s">〒<input id="qZip" value=""></label><label>住所<input id="qAddr" value=""></label>' +
     '<label>現場名<input id="qGenba" value="' + esc(F.genba) + '" placeholder="請求書の現場名"></label><label class="s">現場コード<input id="qSc" value="" placeholder="空なら 1"></label>' +
-    '<label class="s">締め日（請求日）<input type="date" id="qShime" value="' + F.shime + '"></label><label class="s">お支払日<input type="date" id="qPay" value=""></label>' +
+    '<label class="s">締め日（請求日）' + dfld('qShime', F.shime) + '</label><label class="s">お支払日' + dfld('qPay', '') + '</label>' +
     '</div>' +
-    (hasRent ? '<div class="xqt-g xqt-per"><b class="t">レンタルの期間（この請求の分）</b><label class="s">貸出日<input type="date" id="qKashi" value="' + esc(F.kashi) + '"></label><label class="s">請求の開始<input type="date" id="qStart" value="' + esc(F.start) + '"></label><label class="s">請求の終了<input type="date" id="qEnd" value="' + esc(F.end) + '"></label>' +
-      '<label class="s">返却<span class="xqt-ret"><label><input type="radio" name="qRet" value="継続"' + (F.ret === '継続' ? ' checked' : '') + '> 継続</label><label><input type="radio" name="qRet" value="d"' + (F.ret !== '継続' ? ' checked' : '') + '> 返却日 <input type="date" id="qRetD" value="' + (F.ret !== '継続' ? esc(F.ret) : '') + '"></label></span></label>' +
+    (hasRent ? '<div class="xqt-g xqt-per"><b class="t">レンタルの期間（この請求の分）</b><label class="s">貸出日' + dfld('qKashi', F.kashi) + '</label><label class="s">請求の開始' + dfld('qStart', F.start) + '</label><label class="s">請求の終了' + dfld('qEnd', F.end) + '</label>' +
+      '<label class="s">返却<span class="xqt-ret"><label><input type="radio" name="qRet" value="継続"' + (F.ret === '継続' ? ' checked' : '') + '> 継続</label><label><input type="radio" name="qRet" value="d"' + (F.ret !== '継続' ? ' checked' : '') + '> 返却日 ' + dfld('qRetD', F.ret !== '継続' ? F.ret : '') + '</label></span></label>' +
       '<span class="muted xqt-note">日数・金額は請求ナビと同じ計算（月極は30日まで・サポートは日数分）。基本料は貸し始めの月だけ' + (info.kfrom ? '。見積の期間 ' + md(info.kfrom) + '〜' + md(info.kto) : '') + '</span></div>' : '') +
     (sup ? '<div class="xqt-g"><label class="s">粗利（%）<input type="number" id="qRate" value="' + F.rate + '" min="0" max="90" step="1"></label><span class="muted xqt-note">売値 ＝ 仕入 ÷ (1 − 粗利%)。web見積と同じ値（変えると web見積の「仕入先の見積から」も同じになる）。行の単価を直した行は、そのまま</span>' + (info.total ? '<span class="xqt-note">仕入先の見積の合計 ' + yen(info.total) + '</span>' : '') + '</div>' : '') +
     '<div class="xqt-tw"><table class="xqt-t"><thead><tr><th></th><th>品名</th><th>区分</th><th class="n">数量</th><th>単位</th><th class="n">賃貸単価</th><th class="n">サポート単価</th><th class="n">基本料・販売単価</th>' + (sup ? '<th class="n">仕入</th>' : '') + '<th class="n">日数</th><th class="n">金額</th></tr></thead><tbody id="qRows"></tbody><tfoot><tr><td colspan="' + (sup ? 10 : 9) + '">税抜 合計</td><td class="n" id="qTot"></td></tr></tfoot></table></div>' +
@@ -12245,11 +12275,11 @@ async function form(){
   const $q = id => document.getElementById(id);
   async function fillCust(nm){ const c = await custInfo(nm); if(!c) return; $q('qCust').value = c.name; $q('qCode').value = c.code; if(!$q('qZip').value) $q('qZip').value = c.zip; if(!$q('qAddr').value) $q('qAddr').value = c.addr; F.tel = c.tel; F.br = c.br;
     /* お支払日：同じ得意先の前の作業と同じ「締めから何日後」 */
-    if(c.payDate && c.seikyuDate && !$q('qPay').value){ const dd = Math.round((Date.parse(c.payDate) - Date.parse(c.seikyuDate)) / 864e5); const sh = $q('qShime').value; if(sh && dd > 0 && dd < 120){ const pd = new Date(sh + 'T00:00:00'); pd.setDate(pd.getDate() + dd); /* 前の作業のお支払日の「日」にそろえる */ const pday = +c.payDate.slice(8, 10); const t = new Date(pd.getFullYear(), pd.getMonth(), Math.min(pday, new Date(pd.getFullYear(), pd.getMonth() + 1, 0).getDate())); $q('qPay').value = iso0(t); } }
+    if(c.payDate && c.seikyuDate && !dv('qPay')){ const dd = Math.round((Date.parse(c.payDate) - Date.parse(c.seikyuDate)) / 864e5); const sh = dv('qShime'); if(sh && dd > 0 && dd < 120){ const pd = new Date(sh + 'T00:00:00'); pd.setDate(pd.getDate() + dd); /* 前の作業のお支払日の「日」にそろえる */ const pday = +c.payDate.slice(8, 10); const t = new Date(pd.getFullYear(), pd.getMonth(), Math.min(pday, new Date(pd.getFullYear(), pd.getMonth() + 1, 0).getDate())); sv('qPay', iso0(t)); } }
     toast(c.name + '：前の作業から宛名・お支払日を入れた', 2500); }
   $q('qCust').addEventListener('change', ev => fillCust(ev.target.value));
-  const readF = () => { F.cust = $q('qCust').value.trim(); F.code = $q('qCode').value.trim(); F.zip = $q('qZip').value.trim(); F.addr = $q('qAddr').value.trim(); F.genba = $q('qGenba').value.trim(); F.siteCode = $q('qSc').value.trim(); F.shime = $q('qShime').value || F.shime; F.pay = $q('qPay').value;
-    if(hasRent){ F.kashi = $q('qKashi').value; F.start = $q('qStart').value; F.end = $q('qEnd').value; const rv = (document.querySelector('input[name="qRet"]:checked') || {}).value; F.ret = rv === 'd' ? ($q('qRetD').value || F.end) : '継続'; }
+  const readF = () => { F.cust = $q('qCust').value.trim(); F.code = $q('qCode').value.trim(); F.zip = $q('qZip').value.trim(); F.addr = $q('qAddr').value.trim(); F.genba = $q('qGenba').value.trim(); F.siteCode = $q('qSc').value.trim(); F.shime = dv('qShime') || F.shime; F.pay = dv('qPay');
+    if(hasRent){ F.kashi = dv('qKashi'); F.start = dv('qStart'); F.end = dv('qEnd'); const rv = (document.querySelector('input[name="qRet"]:checked') || {}).value; F.ret = rv === 'd' ? (dv('qRetD') || F.end) : '継続'; }
     if(sup) F.rate = Number($q('qRate').value) || F.rate; };
   const paint = () => { readF(); if(sup) priceSupplier(D.rows, F.rate);
     let tot = 0;
@@ -12330,6 +12360,7 @@ css.textContent = '.xqt{position:fixed;inset:0;z-index:300;background:rgba(8,14,
   '.xqt-foot{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}#qWarn{color:var(--warn,#B7791F);font-size:12px}' +
   '.xqt-in{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:10px 0;padding:12px 14px;border:1px solid var(--line,#dce4e5);border-radius:14px;background:linear-gradient(90deg,rgba(227,178,60,.10),transparent)}.xqt-in b{font-size:14px}.xqt-in .muted{flex:1 1 300px;font-size:12px}.xqt-ib{display:flex;gap:6px;flex-wrap:wrap}' +
   '#xQt input[type=checkbox],#xQt input[type=radio]{appearance:auto!important;-webkit-appearance:auto!important;width:16px!important;height:16px!important;accent-color:#14646E;opacity:1!important;position:static!important}' +
+  '.xqt-dw{position:relative;display:block}.xqt-dw input.xqt-d{width:100%;padding-right:34px;font-variant-numeric:tabular-nums}.xqt-cal{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:7px;display:grid;place-items:center;border:1px solid var(--line,#dce4e5);background:var(--surface,#fff);cursor:pointer}.xqt-cal svg{width:15px;height:15px;stroke:var(--ink2,#4a5d60);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.xqt-cal input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:0;cursor:pointer}.xqt-ret .xqt-dw{display:inline-block;width:150px}' +
   'body.xqt-open{overflow:hidden}@media (max-width:760px){.xqt-q{grid-template-columns:1fr 1fr;}.xqt-q .r,.xqt-q small,.xqt-q .d{display:none}}';
 document.head.appendChild(css);
 X._qLines = pdfToLines; X._qParse = parseLines;
@@ -12840,7 +12871,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-03 06:31';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-03 06:48';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
