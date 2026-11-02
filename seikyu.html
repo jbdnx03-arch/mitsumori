@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-02 20:14-->
+<!--BUILD:2026-11-03 05:03-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1552,7 +1552,7 @@ function build(){
 /* ====================== 保存（この端末） ====================== */
 const LSK = 'seikyuNaviWeb.v1';   /* 前の版（1社だけ）の保存。はじめに作業一覧へ移す */
 /* ====================== 作業の保存：得意先・締めごとに、この端末（IndexedDB）とクラウド（web見積と同じ Firestore） ====================== */
-const workIdOf = m => (m && m.custCode ? String(m.custCode) + '-' + String(m.custBr || '0') + '_' + String(m.seikyuDate || '') : '');
+const workIdOf = m => (m && m.qno ? 'Q-' + String(m.qno).replace(/[\/#?%\s]/g, '') + '_' + String(m.seikyuDate || '') : m && m.custCode ? String(m.custCode) + '-' + String(m.custBr || '0') + '_' + String(m.seikyuDate || '') : '');   /* qno：見積から作った請求書（月の請求の作業とは別に保存） */
 function snapshot(){
   const net = S.sheets.filter(s => s.inKagami).reduce((a, s) => a + sheetNet(s), 0);
   return { id: S.workId, v: 1, meta: S.meta, sheets: S.sheets.map(s => Object.assign({}, s, { prev: s.prev ? { name: s.prev.name, total: s.prev.total, fur: s.prev.fur, kouji: s.prev.kouji } : null })),
@@ -2315,7 +2315,7 @@ function paperKagamiSys(){
   const m = S.meta, ks = S.sheets.filter(s => s.inKagami), T = totals();
   const rows = ks.map(sh => { const n = sheetNet(sh), x = tax(n); return { name: sh.siteName || sh.name, code: sh.code, net: n, tax: x, gross: n + x }; });
   const pages = chunk(rows, 15, 22);
-  const custNo = m.custCode + '-' + (m.custBr || '0');
+  const custNo = m.custCode ? m.custCode + '-' + (m.custBr || '0') : '';
   const sum = { net: T.net, tax: T.tax, gross: T.net + T.tax, bill: T.net + T.tax };
   if(S.opt.zan){ sum.prev = m.prevBill; sum.nyu = m.nyukin; sum.neb = m.nebiki; sum.kuri = m.kurikoshi; sum.bill = num(m.kurikoshi) + T.net + T.tax; }
   return pages.map((pg, pi) => {
@@ -2366,7 +2366,7 @@ function paperSheetSys(sh){
   const rows = withSubs(billOf(sh)).map(l => l.sub ? { total: l.amt, label: l.name } : sysRow(l));
   if(S.opt.sysTotal !== false) rows.push({ total: n });
   const pages = chunk(rows, 15, 22);
-  const custNo = m.custCode + '-' + (m.custBr || '0');
+  const custNo = m.custCode ? m.custCode + '-' + (m.custBr || '0') : '';
   return pages.map((pg, pi) => {
     const pn = (pi + 1) + ' / ' + pages.length;
     if(pi === 0) return XR.sysPage('p1', { zip: zipOf(sh), addr1: addrOf(sh), nameBlock: custOf(sh) + '\n' + nm + '　　御中', custNo, siteNo: sh.code, seikyu: jdate(m.seikyuDate), pay: jdate(m.payDate),
@@ -2930,7 +2930,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-02 20:14';
+const BUILD = '2026-11-03 05:03';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8203,6 +8203,8 @@ async function pdfKind(f){
     if(/Wレンタル売上リスト/.test(t)) return 'w';
     if(/請求書チェックリスト|売上チェックリスト|請求先：/.test(t)) return 'chk';
     if(/御\s*請\s*求\s*書/.test(t) && /御客様番号|現場合計表|御買上/.test(t)) return 'real';
+    /* 2026-11-02 見積書：自分で作った見積（web見積の紙）＝ mq、仕入先の見積（ワークス御中）＝ sq */
+    if(/見\s*積\s*書|御\s*見\s*積/.test(t)){ if(/ワークス\s*御\s*中/.test(t)) return 'sq'; if(/総合建設機械レンタル|F-?\d{4}-\d{3,5}/.test(t)) return 'mq'; return 'sq'; }
     return ''; }catch(e){ return ''; }
 }
 /* 1つの文字のかたまりを、空白で区切って、位置を割りふる（「10/01 10/31 継続」のように1つで来ることがある） */
@@ -8530,6 +8532,7 @@ async function takeAny(files){
       set(f, r.how === 'unknown' ? 'ng' : 'ok', '<span class="xa-k">本物の請求書</span>：' + esc(r.nm) + (r.date ? '　' + jdate(r.date) + '締め' : '') + '　' + r.ns + '現場 → ' + how);
     }
     else if(k === 'chk' || k === 'w'){ chk.push(f); set(f, 'ok', k === 'w' ? '<span class="xa-k">Wレンタル売上リスト</span> → チェックタブの赤入れへ' : '<span class="xa-k">チェックリスト</span> → チェックタブの赤入れへ'); }
+    else if((k === 'mq' || k === 'sq') && window.seikyuExt.quoteOpen){ set(f, 'ok', '<span class="xa-k">' + (k === 'mq' ? '見積書（自分で作った）' : '仕入先の見積書') + '</span> → 「見積から請求書」を開いた'); setTimeout(() => window.seikyuExt.quoteOpen(k, f), 300); }
     else set(f, 'q', 'なにのPDFか分からなかった（入れていない）');
   }
   if(chk.length && window.x3 && window.x3.addFiles){ window.x3.addFiles(chk); }
@@ -11749,6 +11752,568 @@ css.textContent =
 document.head.appendChild(css);
 })();
 
+/* 請求ナビ Web：見積から請求書（ext2x.js） */
+(function(){
+/* ---- ここから web見積「仕入先の見積から」（mods/shiire.js 2026-10-28）の読み取りと同じもの（同じ結果になるように写した） ---- */
+var CDN_TESS = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js';
+var WQ = { loadScript: function(src){ return new Promise(function(ok, ng){ var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); }); } };
+function nfkc(s){ return String(s == null ? '' : s).normalize('NFKC'); }
+function numS(v){ var n = Number(String(v == null ? '' : v).replace(/[,，¥\\\s]/g, '')); return isFinite(n) ? n : 0; }
+async function loadLib(src, test){
+  if(test()) return;
+  try{ await WQ.loadScript(src); }catch(e){}
+  if(!test()) throw new Error('部品（' + src.replace(/^https?:\/\//, '').split('/')[0] + '）を読み込めませんでした。ネットにつながっているか確かめて');
+}
+/* PDF → 行ごとの「セル」（x, w, s）。文字の並び順は PDF の中の順なので、位置で並べ直す */
+async function pdfToLines(file, prog){
+  var L0 = await window.x3.pdfjs();   /* 請求ナビの pdf.js（読み込み済みならそのまま） */
+  var buf = await file.arrayBuffer(), pdf;
+  try{ pdf = await L0.getDocument({ data: new Uint8Array(buf), cMapUrl: window.x3.cmaps(), cMapPacked: true }).promise; }catch(e){ throw new Error('PDFを開けませんでした：' + (e && e.message || e)); }
+  var lines = [], n = Math.min(pdf.numPages, 6), textChars = 0;
+  for(var p = 1; p <= n; p++){
+    prog((p - 1) / n * 0.6);
+    var page = await pdf.getPage(p), tc = await page.getTextContent();
+    var items = tc.items.filter(function(it){ return it.str && it.str.trim() && it.transform; }).map(function(it){
+      return { x: it.transform[4], y: it.transform[5], w: it.width || 0, s: it.str };
+    });
+    textChars += items.reduce(function(a, it){ return a + it.s.trim().length; }, 0);
+    itemsToLines(items).forEach(function(l){ l.page = p; lines.push(l); });
+  }
+  if(textChars < 20){
+    /* 文字の無いPDF（スキャン・FAX）→ 画像にして読む */
+    var out = [];
+    for(var p2 = 1; p2 <= n; p2++){
+      var pg = await pdf.getPage(p2), vp = pg.getViewport({ scale: 2.2 }), cv = document.createElement('canvas');
+      cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+      await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      var ls = await ocrLines(cv, function(k){ prog(0.6 + 0.4 * ((p2 - 1) + k) / n); });
+      ls.forEach(function(l){ l.page = p2; out.push(l); });
+    }
+    return out;
+  }
+  return lines;
+}
+/* となりの文字をひとつのセルにつなぐか。
+   金額（カンマ入り・5桁以上）のすぐ右に文字が来ても別のセル（「216,000」と「（網なしの場合）」）。
+   「1」＋「月」「120」＋「時間」のような 数量＋単位 はつなぐ。1文字ずつ間をあけた見出し（受 渡 場 所）もつなぐ */
+function canJoin(last, it){
+  var gap = it.x - (last.x + last.w), a = nfkc(last.s).trim(), b = nfkc(it.s).trim();
+  if(gap >= 13) return false;
+  var aNum = /^[-−－▲△]?\d[\d,]*(\.\d+)?$/.test(a), bNum = /^[\d,.]/.test(b);
+  if(aNum && (a.indexOf(',') >= 0 || a.replace(/\D/g, '').length >= 4)) return false;   /* 金額のセルは何ともつながない */
+  if(aNum && !bNum){
+    var m = RE_QU.exec(a + b);
+    return !!(gap < 9 && m && (U_PERIOD[m[2]] != null || U_COUNT.test(m[2])));
+  }
+  if(!aNum && bNum) return gap < 4;
+  if(gap < 9) return true;
+  return b.length <= 2 && /^[^\x00-\x7f]+$/.test(a + b);
+}
+/* 位置つきの文字 → 行（y が近いもの）→ セル（x の間が小さいものはつなぐ） */
+function itemsToLines(items){
+  items.sort(function(a, b){ return (b.y - a.y) || (a.x - b.x); });
+  var lines = [], cur = null, lastY = null;
+  items.forEach(function(it){
+    if(cur && Math.abs(it.y - lastY) <= 5){ cur.push(it); }
+    else { cur = [it]; lines.push(cur); }
+    lastY = it.y;
+  });
+  return lines.map(function(arr){
+    arr.sort(function(a, b){ return a.x - b.x; });
+    var cells = [];
+    arr.forEach(function(it){
+      var last = cells[cells.length - 1];
+      if(last && canJoin(last, it)){ last.s += it.s; last.w = (it.x + it.w) - last.x; }
+      else cells.push({ x: it.x, w: it.w, s: it.s });
+    });
+    cells.forEach(function(c){ c.s = nfkc(c.s).replace(/\\/g, '¥').replace(/\s+/g, ' ').trim(); });
+    cells = cells.filter(function(c){ return c.s; });
+    return { y: arr[0].y, cells: cells, pos: true };
+  });
+}
+/* 画像 → OCR → 行（位置あり：行の中の語の x を使う） */
+async function imageToLines(file, prog){
+  var url = URL.createObjectURL(file), im = new Image();
+  await new Promise(function(ok, ng){ im.onload = ok; im.onerror = function(){ ng(new Error('画像を開けませんでした')); }; im.src = url; });
+  var sc = Math.min(1.6, 2200 / Math.max(im.width, im.height)), cv = document.createElement('canvas');
+  cv.width = Math.round(im.width * sc); cv.height = Math.round(im.height * sc);
+  var g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(im, 0, 0, cv.width, cv.height);
+  URL.revokeObjectURL(url);
+  return ocrLines(cv, prog);
+}
+async function ocrLines(cv, prog){
+  await loadLib(CDN_TESS, function(){ return !!window.Tesseract; });
+  var worker = await window.Tesseract.createWorker('jpn+eng', 1, { logger: function(m){ if(m && m.progress != null && m.status === 'recognizing text') prog(m.progress); } });
+  try{
+    var r = await worker.recognize(cv), ls = (r && r.data && r.data.lines) || [];
+    return ls.map(function(l){
+      var items = (l.words || []).filter(function(w){ return w.text && w.text.trim(); }).map(function(w){ return { x: w.bbox.x0, y: -w.bbox.y0, w: w.bbox.x1 - w.bbox.x0, s: w.text }; });
+      var out = itemsToLines(items)[0];
+      if(out){ out.cells.forEach(function(c){ c.s = c.s.replace(/(\d)\s+(?=\d)/g, '$1').replace(/(\d)\s*,\s*(?=\d{3})/g, '$1,'); }); }
+      return out || { y: 0, cells: [], pos: false };
+    }).filter(function(l){ return l.cells.length; });
+  }finally{ try{ await worker.terminate(); }catch(e){} }
+}
+/* 貼った文字 → 行（空白で分ける。数字と短い単位はつなぐ） */
+function textToLines(text){
+  return nfkc(text).split(/\r?\n/).map(function(ln){
+    var toks = ln.trim().split(/[\s\t]+/).filter(Boolean), cells = [];
+    toks.forEach(function(t){
+      var last = cells[cells.length - 1];
+      if(last && /^\d+(\.\d+)?$/.test(last.s) && /^[^\d\s,.]{1,4}$/.test(t)){ last.s += t; return; }
+      cells.push({ x: cells.length * 100, w: 90, s: t });
+    });
+    return { y: 0, cells: cells, pos: false };
+  }).filter(function(l){ return l.cells.length; });
+}
+
+/* ---------- 2. 行の意味を読む ---------- */
+var RE_NUM = /^[¥\\]?\s*[-−－▲△]?\s*[¥\\]?\s*(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/;
+var RE_QU  = /^(\d+(?:\.\d+)?)\s*([^\d\s,.¥\\]{1,4})$/;
+var U_PERIOD = { '月':30, 'ヶ月':30, 'か月':30, 'カ月':30, 'ケ月':30, '月間':30, '日':1, '日間':1, '週':7, '週間':7 };
+var U_COUNT = /^(台|個|本|枚|式|セット|組|基|ケ|箱|缶|袋|丁|脚|巻|束|張|着|足|車|人|名|m|M|ｍ|L|l|Ｌ|kg|t|回|時間|h|H|km|往復|片道|回分|日分)$/;
+function numVal(s){
+  var t = nfkc(s).replace(/[¥\\\s]/g, '');
+  var neg = /^[-−－▲△]/.test(t); t = t.replace(/^[-−－▲△]/, '');
+  var v = Number(t.replace(/,/g, '')); if(!isFinite(v)) return null;
+  return neg ? -v : v;
+}
+function isNum(s){ return RE_NUM.test(nfkc(s).trim()); }
+function kindOfName(name, cells){
+  var t = name + ' ' + cells.map(function(c){ return c.s; }).join(' ');
+  if(/補償|保険|免責|補償料|損害/.test(name)) return 7;
+  if(/整備|清掃|点検|メンテ/.test(name)) return 3;
+  if(/運搬|回送|運賃|輸送|配送|配達|引取|納入費|送料/.test(name)) return 4;
+  if(/修理|作業工賃|工賃/.test(name)) return 8;
+  if(/消耗|部品|販売|燃料|油脂|オイル/.test(name)) return 5;
+  if(/月極|ヶ月|か月|カ月|ケ月/.test(t) || cells.some(function(c){ var m = RE_QU.exec(c.s); return m && /^(月|ヶ月|か月|カ月|ケ月|月間)$/.test(m[2]); })) return 2;
+  if(/日極/.test(t) || cells.some(function(c){ var m = RE_QU.exec(c.s); return m && /^(日|日間)$/.test(m[2]); })) return 1;
+  return 9;
+}
+var RE_SUB = /小計|合計|総額|消費税|税込|税抜|内税|外税|^計$|合計金額|お見積金額|御見積金額/;
+var RE_GENERIC = /^(レンタル(費|料|料金)?|賃貸料|賃料|リース(料|料金)?|機械(代|費|賃)?|基本料(金)?|使用料|レンタル費用)$/;
+function parseLines(lines){
+  var header = null, rows = [], info = { supplier: '', basho: '', ref: '', date: '', valid: '', total: 0 };
+  var lastRow = null, pendingHead = [];
+  lines.forEach(function(L, li){
+    var cells = L.cells, txt = cells.map(function(c){ return c.s; }).join(' ');
+    /* 見出し行（単価・金額…の並び）：列の位置をおぼえる */
+    var hk = 0; ['単価', '金額', '数量', '単位', '備考', '品名', '機種', '名称', '内容', '規格', '型式', '摘要'].forEach(function(w){ if(cells.some(function(c){ return c.s === w || c.s.replace(/\s/g, '') === w; })) hk++; });
+    if(hk >= 2 && !cells.some(isNum)){
+      header = {}; cells.forEach(function(c){ var k = c.s.replace(/\s/g, ''); header[k] = c.x; });
+      return;
+    }
+    /* 頭の情報 */
+    var m, txt0 = txt.replace(/\s+/g, '');
+    if((m = /^(受渡場所|受渡し場所|納入場所|納品場所|納入先|現場名?|現場名称|お届け先|工事名)\s*[:：]?\s*(.+)$/.exec(txt0)) && !info.basho){ info.basho = m[2].trim(); return; }
+    if((m = /^(御照会番号|お問合せ番号|お問い合わせ番号|見積番号|御見積番号|見積No\.?|No\.?)\s*[:：]?\s*(.+)$/.exec(txt0)) && !info.ref){ info.ref = m[2].trim(); return; }
+    if((m = /^(見積書?有効期限|有効期限|有効期間)\s*[:：]?\s*(.+)$/.exec(txt0)) && !info.valid){ info.valid = m[2].trim(); return; }
+    if((m = /(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/.exec(txt)) && !info.date && txt.length < 24){ info.date = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2); return; }
+    if(!info.supplier && /(株式会社|有限会社|合同会社|\(株\)|\(有\)|㈱|㈲)/.test(txt) && !/ワークス|御中|様$/.test(txt) && txt.length < 40){ info.supplier = txt.replace(/\s/g, ''); return; }
+    /* 数字のセル（右から：金額・単価） */
+    var nums = [], qus = [], texts = [];
+    cells.forEach(function(c, i){
+      if(isNum(c.s)) nums.push({ i: i, v: numVal(c.s), x: c.x });
+      else { var mq = RE_QU.exec(c.s); if(mq && (U_PERIOD[mq[2]] != null || U_COUNT.test(mq[2]))) qus.push({ i: i, n: Number(mq[1]), u: mq[2], x: c.x }); else texts.push({ i: i, s: c.s, x: c.x }); }
+    });
+    var noteLike = /^\d{1,2}[)）.．]$/.test(cells[0].s) || (texts.length === 1 && cells.length === 1 && texts[0].s.length > 28);
+    if(noteLike){ pendingHead = []; return; }
+    if(!nums.length){
+      /* 金額が無い行：機種の見出し・章の見出し */
+      if(!texts.length) return;
+      var t0 = texts.map(function(t){ return t.s; }).join(' ');
+      if(RE_SUB.test(t0)) return;
+      if(/^\d+[)）.．]\s*\S/.test(t0) && t0.length <= 16){ rows.push({ type: 'sect', on: false, name: t0.replace(/^\d+[)）.．]\s*/, ''), cells: cells }); lastRow = null; return; }
+      if(t0.length <= 40){ pendingHead.push({ cells: cells, texts: texts, qus: qus }); }
+      return;
+    }
+    var amtC = nums[nums.length - 1], priceC = nums.length >= 2 ? nums[nums.length - 2] : null;
+    var nameParts = texts.filter(function(t){ return t.i < (priceC || amtC).i && (!qus.length || t.i < qus[0].i || true); });
+    var leftIdx = Math.min.apply(null, [(priceC || amtC).i].concat(qus.map(function(q){ return q.i; })));
+    var name = texts.filter(function(t){ return t.i < leftIdx; }).map(function(t){ return t.s; }).join(' ').trim();
+    var memo = texts.filter(function(t){ return t.i > amtC.i; }).map(function(t){ return t.s; }).join(' ').trim();
+    var mid = texts.filter(function(t){ return t.i > leftIdx && t.i < amtC.i; }).map(function(t){ return t.s; }).join(' ').trim();
+    if(mid) memo = (mid + ' ' + memo).trim();
+    if(!name && !qus.length){ pendingHead = []; return; }           /* 数字だけの行（合計の行など） */
+    if(RE_SUB.test(name)){ if(/合計|総額|お見積|御見積/.test(name) && amtC.v > 0) info.total = amtC.v; pendingHead = []; return; }
+    var amount = amtC.v, price = priceC ? priceC.v : null;
+    /* 金額の列が1つしか無いとき：数量があれば割る */
+    var qeff = null;
+    if(price != null && price !== 0 && amount != null){ var r = amount / price; if(r > 0 && Math.abs(r - Math.round(r)) < 0.02) qeff = Math.round(r); }
+    var cnt = null, per = null;
+    qus.forEach(function(q){ if(U_PERIOD[q.u] != null){ if(!per) per = q; } else if(!cnt) cnt = q; else if(!per) per = q; });
+    if(qeff == null){
+      qeff = qus.length ? qus.reduce(function(a, q){ return a * q.n; }, 1) : 1;
+      if(price == null){ price = (amount != null && qeff) ? Math.round(amount / qeff) : amount; }
+    }
+    var k = kindOfName(name, cells);
+    var row = { type: 'item', on: true, name: name.replace(/\s*(月極|日極)\s*/g, ' ').replace(/\s+/g, ' ').trim(), rawName: name, memo: memo, cells: cells,
+                k: k, qty: 1, unit: '', days: 0, cost: 0, costAmt: amount, price: 0, desc: '' };
+    var count = cnt ? cnt.n : 1;
+    if(k === 2){ row.qty = count; row.days = Math.max(1, Math.round(qeff / count * 30)); row.unit = cnt ? cnt.u : '台'; row.cost = price; }
+    else if(k === 1){ row.qty = count; row.days = Math.max(1, Math.round(qeff / count)); row.unit = cnt ? cnt.u : '台'; row.cost = price; }
+    else {
+      row.qty = qeff; row.cost = price;
+      /* 単位：数量と同じ数のついた単位（120時間 → 時間、2回 → 回）。同じ数が2つなら 台・個 のほうを優先 */
+      var same = qus.filter(function(q){ return q.n === qeff; });
+      var pick = same.filter(function(q){ return /^(台|個|本|枚|式|セット|組|基)$/.test(q.u); })[0] || same[0] || qus.filter(function(q){ return !/^(台|式)$/.test(q.u); })[0] || qus[0];
+      row.unit = pick ? pick.u : '';
+    }
+    if(amount < 0 || /値引|割引|ディスカウント/.test(name)){ row.type = 'disc'; row.on = false; row.how = ''; row.costAmt = -Math.abs(amount); row.cost = Math.abs(price || amount); }
+    else if(amount === 0){ row.type = 'zero'; row.on = false; row.how = ''; }
+    /* 直前の機種の見出し → レンタル費 のような一般名なら、機種名を品名にする */
+    if(pendingHead.length && row.type === 'item'){
+      var hn = [], hd = [];
+      pendingHead.forEach(function(h, hi){
+        h.texts.forEach(function(t){
+          var s = t.s;
+          var isMemo = (header && header['備考'] != null && t.x >= header['備考'] - 12) || /^[・※（(＊*]/.test(s);
+          (isMemo ? hd : hn).push({ s: s.replace(/^[・※]/, ''), x: t.x, i: hi });
+        });
+        h.qus.forEach(function(q){ hn.push({ s: q.n + q.u, x: q.x, i: hi }); });
+      });
+      /* 列（x）の順 → 行の順。「自走式分別機」「BM545S」「BM545M」のように上下に並んだ型式が品名の後ろにつく */
+      hn.sort(function(a, b){ return (Math.abs(a.x - b.x) > 20 ? a.x - b.x : 0) || (a.i - b.i); });
+      var headName = hn.map(function(o){ return o.s; }).join(' ').replace(/\s+/g, ' ').trim();
+      hd = hd.map(function(o){ return o.s; });
+      if(headName){
+        headName = headName.replace(/([A-Za-z0-9-]{3,}) ([A-Za-z0-9-]{3,})(?= |$)/g, '$1／$2');
+        if(RE_GENERIC.test(row.name)){ row.desc = row.name; row.name = headName; }
+        else row.desc = headName;
+        if(hd.length) row.desc = (row.desc ? row.desc + '　' : '') + hd.join('・');
+      }
+      pendingHead = [];
+    }
+    rows.push(row); lastRow = row;
+  });
+  return { rows: rows, info: info, header: header };
+}
+
+/* ---- 写したのはここまで ---- */
+
+/* ==================================================================
+   見積から請求書を作る（2026-11-02「請求書ナビで見積書を請求書にかえる機能。私が作った見積書パターン・仕入れ見積書パターン」）
+   ・自分で作った見積：web見積の控え（この端末＋クラウド）から選ぶ／見積書のPDFを置く（見積番号で控えをさがす。なければPDFの文字から読む）
+   ・仕入先の見積：PDF・写真・貼った文字を web見積と同じ読み方で読み、売値 ＝ 仕入 ÷ 0.7（粗利%は変えられる・web見積と同じ値を共有）
+   ・紙は本物と同じ御請求書。作業として保存（月の請求の作業とは別：見積番号ごと）
+   ・レンタルの期間は取り込むときに聞く（貸出日・請求の開始〜終了・返却 or 継続）。金額は請求ナビと同じ計算
+   ・見積の金額を「システム」として持つので、あとで直したら「見積とのちがい」がわかる
+   ================================================================== */
+const X = window.seikyuExt = window.seikyuExt || {};
+const KB_OF = { 1: '日極', 2: '月極', 3: '整備', 4: '配送', 5: '販売', 6: '一式', 7: '一式', 8: '修理', 9: '販売', 10: '出庫' };
+const KBS = ['日極', '月極', '販売', '配送', '整備', '修理', '一式', '出庫', '燃料', '訂正'];
+const RENT = kb => kb === '日極' || kb === '月極';
+const iso0 = d => { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const monthEnd = s => { const d = s ? new Date(s + 'T00:00:00') : new Date(); return iso0(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
+const monthStart = s => String(s).slice(0, 8) + '01';
+const isoOf = v => { v = String(v || '').trim(); if(!v) return ''; if(/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10); const m = /(\d{4})\D(\d{1,2})\D(\d{1,2})/.exec(nfkc(v)); return m ? m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') : ''; };
+const nmKey = s => nfkc(s).replace(/株式会社|有限会社|合同会社|\(株\)|\(有\)|[\s　・]/g, '').toLowerCase();
+function rateNow(){ try{ const r = Number(JSON.parse(localStorage.getItem('wq.shiire.rate') || '30')); return r > 0 && r < 95 ? r : 30; }catch(e){ return 30; } }
+function rateSet(r){ try{ localStorage.setItem('wq.shiire.rate', JSON.stringify(r)); }catch(e){} }
+const uriOf = (cost, pct) => Math.round(Number(cost || 0) / (1 - Number(pct) / 100));
+
+/* ---------- web見積の控え（この端末＋クラウド） ---------- */
+function cloudUnwrap(d){ const o = {}, f = (d && d.fields) || {}; Object.keys(f).forEach(k => { const v = f[k]; o[k] = 'integerValue' in v ? Number(v.integerValue) : 'doubleValue' in v ? Number(v.doubleValue) : 'booleanValue' in v ? v.booleanValue : 'nullValue' in v ? null : v.stringValue; }); return o; }
+let quoteCache = null;
+async function quotesAll(force){
+  if(quoteCache && !force) return quoteCache;
+  const m = new Map();
+  try{ const a = JSON.parse(localStorage.getItem('wq.quotes') || '{}'); Object.keys(a).forEach(id => { if(a[id]) m.set(id, Object.assign({ id, src: 'この端末' }, a[id])); }); }catch(e){}
+  try{
+    const t = await 雲トークン(); let page = '';
+    for(let i = 0; i < 20 && t; i++){
+      const r = await fetch(雲URL('works_mitsumori_quotes') + '?pageSize=300' + (page ? '&pageToken=' + page : ''), { headers: { Authorization: 'Bearer ' + t } });
+      if(!r.ok) break; const j = await r.json();
+      (j.documents || []).forEach(d => { const id = decodeURIComponent(d.name.split('/').pop()), o = cloudUnwrap(d); const old = m.get(id); if(!old || String(o.savedAt || '') > String(old.savedAt || '')) m.set(id, Object.assign({ id, src: 'クラウド' }, o)); });
+      if(!j.nextPageToken) break; page = j.nextPageToken;
+    }
+  }catch(e){ console.warn(e); }
+  quoteCache = [...m.values()].filter(q => q && q.body && q.kind !== 'tanka' && !q.deleted).sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')));
+  return quoteCache;
+}
+/* 控えの見積 → 請求の行 */
+function rowsOfQuote(q){
+  let st = null; try{ st = JSON.parse(q.body); }catch(e){}
+  if(!st) return null;
+  const rows = [];
+  (st.items || []).forEach(it => {
+    if(!it || it.opt || it.text || it.blank || !String(it.name || '').trim()) return;
+    const k = Number(it.k) || 5, kb = KB_OF[k] || '販売', price = Number(it.price) || 0;
+    const r = { on: true, name: String(it.name).trim(), kb, qty: Number(it.qty) || 1, unit: it.unit || (RENT(kb) ? '台' : '式'), lu: 0, su: 0, bu: 0, cost: null, src: 'q',
+      kashi: isoOf(it.kfrom || st.kfrom), kto: isoOf(it.kto || st.kto), memo: it.memo || '' };
+    if(RENT(kb)){ r.lu = price; r.su = Number(it.sup) || 0; r.bu = Number(it.base) || 0; }
+    else if(st.mode === 'repair'){ r.bu = price; if(Number(it.lab)){ rows.push(r); rows.push({ on: true, name: '作業工賃（' + r.name + '）', kb: '修理', qty: 1, unit: '式', lu: 0, su: 0, bu: Number(it.lab), src: 'q' }); return; } }
+    else r.bu = price;
+    if(kb === '修理') r.unit = '式';
+    rows.push(r);
+  });
+  /* 値引き・諸経費（見積と同じ計算：小計に対する率＋金額） */
+  const sub = rows.reduce((a, r) => a + estAmt(r, st.kfrom, st.kto), 0);
+  const dp = Number(st.dpct) > 0 ? Math.round(sub * Number(st.dpct) / 100) : 0, ds = Math.max(0, Math.round(Number(st.disc) || 0));
+  if(dp + ds > 0) rows.push({ on: true, name: '出精値引き', kb: '一式', qty: 1, unit: '式', lu: 0, su: 0, bu: -(dp + ds), src: 'q', adj: true });
+  if(Number(st.fee) > 0) rows.push({ on: true, name: '諸経費', kb: '一式', qty: 1, unit: '式', lu: 0, su: 0, bu: Math.round((sub - dp - ds) * Number(st.fee) / 100), src: 'q' });
+  return { rows, info: { type: 'mq', no: q.no || st.no || '', cust: st.cust || q.cust || '', genba: st.genba || q.genba || '', date: isoOf(st.date || q.date), kfrom: isoOf(st.kfrom), kto: isoOf(st.kto), title: q.rep || '', name: '見積 ' + (q.no || '') } };
+}
+function estAmt(r){ const l = lineOf(r, P0()); calcLine(l); return lineAmt(l); }
+/* 自分の見積書PDF：見積番号で控えをさがす。なければPDFの文字から読む */
+const RE_QNO = /\b([A-Z]{1,3}-?\d{4}-\d{3,5}(?:-r\d+)?)\b/;
+async function readOwnPdf(f){
+  const lines = await pdfToLines(f, () => {});
+  const txt = lines.map(l => l.cells.map(c => c.s).join(' ')).join('\n');
+  const m = RE_QNO.exec(nfkc(txt).replace(/\s*-\s*/g, '-'));
+  if(m){ const qs = await quotesAll(); const q = qs.find(x => String(x.no || '') === m[1]); if(q){ const r = rowsOfQuote(q); if(r){ r.info.from = 'pdf-hikae'; r.info.file = f.name; return r; } } }
+  /* 控えにない：紙の文字から読む。web見積の紙は1行に「01 騒音振動計 特価 1台 × 163日 × @48,000 @40,000/月 217,333」、下に「基本料等 1台 × @15,000 15,000」。
+     PDFの中ではカンマが別の字になっていて「48 000」のように分かれるので、つなぎ直してから読む */
+  const rows = []; let cur = null; const info = { type: 'mq', no: m ? m[1] : '', cust: '', genba: '', date: '', kfrom: '', kto: '', from: 'pdf-text', file: f.name };
+  const fix = t => { let u = nfkc(t).replace(/\s+/g, ' ').trim(), v; do{ v = u; u = u.replace(/(\d)\s+(\d{3})(?!\d)/g, '$1,$2'); }while(u !== v); return u; };
+  const L = lines.map(l => fix(l.cells.map(c => c.s).join(' ')));
+  const NUM = s2 => Number(String(s2).replace(/,/g, '')) || 0;
+  L.forEach((s, i) => {
+    let mm; const z = s.replace(/\s/g, '');
+    /* 得意先・現場名は「セル」で見る（同じ高さの右側に見積番号・担当営業が並ぶので） */
+    const cs = (lines[i] && lines[i].cells) || [];
+    if(!info.cust){ const c = cs.find(c0 => { const t = nfkc(c0.s).replace(/\s/g, ''); return /(株式会社|有限会社|合同会社)/.test(t) && !/ワークス/.test(t) && t.length <= 30; }); if(c) info.cust = nfkc(c.s).replace(/\s/g, '').replace(/御中$/, ''); }
+    if(!info.genba){ const c = cs.find(c0 => nfkc(c0.s).replace(/\s/g, '') === '現場名'); const nx = c && lines[i + 1] && lines[i + 1].cells; if(nx){ const t = nx.slice().sort((a, b) => Math.abs(a.x - c.x) - Math.abs(b.x - c.x))[0]; if(t) info.genba = nfkc(t.s).trim(); } }
+    if((mm = /(\d{4})年(\d{1,2})月(\d{1,2})日[〜~～-](\d{4})年(\d{1,2})月(\d{1,2})日/.exec(z))){ info.kfrom = mm[1] + '-' + mm[2].padStart(2, '0') + '-' + mm[3].padStart(2, '0'); info.kto = mm[4] + '-' + mm[5].padStart(2, '0') + '-' + mm[6].padStart(2, '0'); }
+    if(!info.date && (mm = /見積日付.*?(\d{4})年(\d{1,2})月(\d{1,2})日/.exec(z))) info.date = mm[1] + '-' + mm[2].padStart(2, '0') + '-' + mm[3].padStart(2, '0');
+    if((mm = /^(\d{2})\s+(?:(日極|月極|販売|運賃|整備|修理|一式|出庫|補償|その他)\s+)?(.+?)\s+(?:特価\s+)?(\d+(?:\.\d+)?)\s*([^\d\s×@]{1,3})\s*×(?:\s*(\d+)\s*日\s*×)?\s*@\s*([\d,]+)(?:\s*@\s*([\d,]+))?(?:\s*\/\s*(月|日))?/.exec(s))){
+      let kb = mm[2] === '運賃' ? '配送' : (mm[2] === '補償' || mm[2] === 'その他') ? '一式' : mm[2] || (mm[9] === '月' ? '月極' : mm[9] === '日' || mm[6] ? '日極' : '販売');
+      if(/運賃|運搬|回送|配送/.test(mm[3]) && !mm[2]) kb = '配送';
+      const pr = NUM(mm[8] || mm[7]);
+      cur = { on: true, name: mm[3].replace(/\s*特価$/, '').replace(/\s+/g, ''), kb, qty: Number(mm[4]) || 1, unit: mm[5].trim(), lu: 0, su: 0, bu: 0, src: 'q' };
+      if(RENT(kb)) cur.lu = pr; else cur.bu = pr; if(kb === '修理') cur.unit = '式';
+      rows.push(cur); return; }
+    if(!cur) return;
+    if((mm = /^基本料(?:等|金)?\s+\d+(?:\.\d+)?\s*\S{0,3}\s*×\s*@\s*([\d,]+)/.exec(s))){ cur.bu = NUM(mm[1]); return; }
+    if((mm = /^(?:サポート料?|補償料?|免責補償料?)\s+.*?@\s*([\d,]+)/.exec(s))){ cur.su = NUM(mm[1]); return; }
+  });
+  if(!rows.length) throw new Error('見積の行が読めなかった。web見積で控えに保存してから「web見積の控えから」で選んで');
+  rows.forEach(r => { if(!r.kashi) r.kashi = info.kfrom; r.kto = info.kto; });
+  return { rows, info };
+}
+/* 仕入先の見積：web見積と同じ読み方 → 売値 ＝ 仕入 ÷ (1 − 粗利%) */
+async function readSupplier(f, text){
+  let lines;
+  if(text != null) lines = textToLines(text);
+  else if(/^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name)) lines = await imageToLines(f, () => {});
+  else lines = await pdfToLines(f, () => {});
+  const P = parseLines(lines), rows = [];
+  P.rows.forEach(r => {
+    if(r.type === 'sect') return;
+    const kb = KB_OF[r.k] || '販売', cost = Math.abs(Number(r.cost) || 0);
+    const o = { on: r.type === 'item', name: r.name + (r.desc && !/^(・|※)/.test(r.desc) && r.desc.length <= 20 ? '' : ''), desc: r.desc || '', memo: r.memo || '', kb, qty: Number(r.qty) || 1, unit: r.unit || (RENT(kb) ? '台' : '式'),
+      lu: 0, su: 0, bu: 0, cost, costAmt: Number(r.costAmt) || 0, days0: Number(r.days) || 0, src: 's', type: r.type };
+    if(r.type === 'disc'){ o.name = r.name || '値引き'; o.kb = '一式'; o.unit = '式'; o.neg = true; }
+    if(kb === '修理') o.unit = '式';
+    rows.push(o);
+  });
+  const info = { type: 'sq', no: P.info.ref || '', cust: '', genba: P.info.basho || '', date: P.info.date || '', supplier: P.info.supplier || '', total: P.info.total || 0, file: f ? f.name : '貼った文字', name: '仕入先の見積 ' + (P.info.supplier || (f ? f.name : '')) };
+  return { rows, info };
+}
+function priceSupplier(rows, pct){
+  rows.forEach(r => { if(r.src !== 's' || r.edited) return; const p = r.cost ? uriOf(r.cost, pct) : 0;
+    if(RENT(r.kb)){ r.lu = p; r.bu = 0; } else { r.bu = r.neg ? -p : p; r.lu = 0; } });
+}
+
+/* ---------- 期間と行 → 請求ナビの行 ---------- */
+let F = null;   /* 画面の入力（得意先・期間など） */
+const P0 = () => F || { shime: monthEnd(), kashi: '', start: '', end: '', ret: '継続' };
+function lineOf(r, p){
+  const l = { id: uid(), name: r.name, qty: r.qty, unit: r.unit, kb: r.kb, lu: r.lu, su: r.su, bu: r.bu, den: '', kanri: '', la: 0, sa: 0, ba: 0, days: 0, sdays: 0 };
+  if(RENT(r.kb)){
+    const kashi = r.kashi || p.kashi || p.start, s0 = monthStart(p.shime);
+    l.kashi = kashi; l.start = p.start || (kashi && kashi > s0 ? kashi : s0); l.end = p.end || p.shime;
+    const kto = r.kto && r.kto <= p.shime ? r.kto : '';
+    if(p.ret === '継続' && !kto){ l.cont = '継続'; l.retd = ''; } else { l.retd = kto || isoOf(p.ret) || l.end; l.cont = ''; if(l.retd < l.end) l.end = l.retd; }
+    if(num(l.su)) l.sdays = 1;   /* daysFromPeriod がサポート日数も入れるように */
+    daysFromPeriod(l);
+    /* 基本料は貸し始めの月だけ（前の月から続いている品には入れない） */
+    if(kashi && kashi < s0 && num(l.bu)){ l.bu = 0; l.noBase = 1; }
+  } else { l.kashi = (r.kb === '配送' || r.kb === '販売' || r.kb === '整備') && !r.adj ? (r.kashi || p.kashi || '') : ''; }
+  return l;
+}
+
+/* ---------- 画面 ---------- */
+let D = null;   /* { rows, info } */
+let custRows = null;
+async function custList(){
+  if(custRows) return custRows;
+  const m = new Map();
+  try{ (await allWorksMeta()).forEach(x => { const w = x.w || {}; if(!w.custName || !w.custCode) return; const k = nmKey(w.custName); const o = m.get(k); if(!o || String(w.seikyuDate || '') > String(o.seikyuDate || '')) m.set(k, { name: w.custName, code: String(w.custCode), br: w.custBr || '0', id: x.id, seikyuDate: w.seikyuDate || '', row: x }); }); }catch(e){ console.warn(e); }
+  custRows = [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  return custRows;
+}
+async function custInfo(name){
+  const c = (await custList()).find(x => nmKey(x.name) === nmKey(name)); if(!c) return null;
+  let w = null; try{ w = await loadWork(c.row); }catch(e){}
+  const m = (w && w.meta) || {};
+  return { code: c.code, br: c.br, name: m.custName || c.name, zip: m.zip || '', addr: m.addr || '', tel: m.tel || '', payDate: m.payDate || '', seikyuDate: m.seikyuDate || '' };
+}
+/* 会社（ワークス）の情報：いちばん新しい作業の鑑から写す（住所・電話・振込先・コメント） */
+async function companyMeta(){
+  if(S.built && S.meta && S.meta.company && !S.meta.qno) return pick(S.meta);
+  try{ const rows = (await allWorksMeta()).sort((a, b) => String((b.w || {}).savedAt || '').localeCompare(String((a.w || {}).savedAt || ''))); for(const x of rows.slice(0, 6)){ const w = await loadWork(x); if(w && w.meta && w.meta.company) return pick(w.meta); } }catch(e){ console.warn(e); }
+  return null;
+  function pick(m){ return { company: m.company, brZip: m.brZip, brAddr: m.brAddr, brTel: m.brTel, brFax: m.brFax, banks: (m.banks || []).slice(), cmt: (m.cmt || []).slice() }; }
+}
+function sheet(){
+  let M = document.getElementById('xQt');
+  if(!M){ M = document.createElement('div'); M.id = 'xQt'; M.className = 'xqt'; M.hidden = true; document.body.appendChild(M);
+    M.addEventListener('click', ev => { if(ev.target === M) close(); }); }
+  return M;
+}
+function close(){ const M = document.getElementById('xQt'); if(M) M.hidden = true; document.body.classList.remove('xqt-open'); }
+X.quoteClose = close;
+/* はじめの画面：どこから作るか */
+async function openStart(){
+  const M = sheet(); M.hidden = false; document.body.classList.add('xqt-open');
+  M.innerHTML = '<div class="xqt-c"><div class="xqt-h"><b>見積から請求書を作る</b><span class="sp"></span><button type="button" class="btn" data-q="x">閉じる</button></div>' +
+    '<div class="xqt-tabs"><button type="button" class="on" data-qt="list">web見積の控えから</button><button type="button" data-qt="mq">見積書のPDF（自分で作った）</button><button type="button" data-qt="sq">仕入先の見積書</button></div>' +
+    '<div class="xqt-b" id="xqtB"></div></div>';
+  M.querySelectorAll('[data-qt]').forEach(b => b.onclick = () => { M.querySelectorAll('[data-qt]').forEach(x => x.classList.toggle('on', x === b)); tab(b.dataset.qt); });
+  M.querySelector('[data-q="x"]').onclick = close;
+  tab('list');
+}
+function tab(t){
+  const B = document.getElementById('xqtB');
+  if(t === 'list'){
+    B.innerHTML = '<div class="xqt-row"><input type="search" id="xqtQ" placeholder="得意先・現場・見積番号・品名でさがす" autocomplete="off"><button type="button" class="btn sm" id="xqtR">クラウドから読み直す</button></div><div id="xqtL" class="xqt-list"><p class="muted">web見積の控えを読んでいます…</p></div>';
+    const paint = async (force) => { const qs = await quotesAll(force); const q = nfkc(document.getElementById('xqtQ').value).toLowerCase().trim();
+      const hit = qs.filter(x => !q || nfkc([x.no, x.cust, x.genba, x.rep, x.title].join(' ')).toLowerCase().includes(q) || (q.length >= 2 && nfkc(x.body || '').toLowerCase().includes(q))).slice(0, 80);
+      document.getElementById('xqtL').innerHTML = hit.length ? hit.map(x => '<button type="button" class="xqt-q" data-qid="' + esc(x.id) + '"><span class="no">' + esc(x.no || '') + '</span><span class="d">' + esc(String(x.date || '').slice(0, 10)) + '</span><b>' + esc(x.cust || '（得意先なし）') + '</b><span class="g">' + esc(x.genba || '') + '</span><span class="r">' + esc(x.rep || '') + '</span><span class="m">' + (x.gross ? '税込 ' + yen(x.gross) : '') + '</span><small>' + esc(x.src) + '</small></button>').join('') : '<p class="muted">web見積の控えが見つからない。web見積で「控えに保存」した見積がここに出る（同じ端末か、クラウドに送ったもの）</p>';
+    };
+    document.getElementById('xqtQ').oninput = () => paint(false);
+    document.getElementById('xqtR').onclick = () => { document.getElementById('xqtL').innerHTML = '<p class="muted">読んでいます…</p>'; paint(true); };
+    document.getElementById('xqtL').onclick = async ev => { const b = ev.target.closest('[data-qid]'); if(!b) return; const q = (await quotesAll()).find(x => x.id === b.dataset.qid); const r = q && rowsOfQuote(q); if(!r){ toast('この控えは読めなかった'); return; } D = r; form(); };
+    paint(false); return;
+  }
+  const own = t === 'mq';
+  B.innerHTML = '<label class="xqt-drop" id="xqtDrop"><b>' + (own ? '自分で作った見積書のPDFを置く' : '仕入先の見積書（PDF・写真）を置く') + '</b><span class="muted">' + (own ? 'web見積から出した見積書。見積番号で控えをさがして、そのまま行にする（控えにないときは紙の文字から読む）' : 'web見積の「仕入先の見積から」と同じ読み方。売値は 仕入 ÷ (1 − 粗利%)。値引き・0円の行は、入れるか1行ずつ決める') + '</span><input type="file" id="xqtF" accept=".pdf,application/pdf' + (own ? '' : ',image/*') + '" hidden></label>' +
+    (own ? '' : '<details class="xqt-paste"><summary>文字を貼って読む</summary><textarea id="xqtT" rows="6" placeholder="仕入先の見積の文字を貼る（メールの本文など）"></textarea><button type="button" class="btn sm primary" id="xqtTgo">読む</button></details>') + '<div id="xqtMsg" class="muted"></div>';
+  const go = async (f, text) => { const msg = document.getElementById('xqtMsg'); msg.textContent = '読んでいます…';
+    try{ D = own ? await readOwnPdf(f) : await readSupplier(f, text); if(!own) priceSupplier(D.rows, rateNow()); form(); }catch(e){ console.warn(e); msg.textContent = '読めなかった：' + (e.message || e); } };
+  document.getElementById('xqtF').onchange = ev => { const f = ev.target.files && ev.target.files[0]; ev.target.value = ''; if(f) go(f); };
+  const dz = document.getElementById('xqtDrop'); dz.addEventListener('dragover', ev => { ev.preventDefault(); dz.classList.add('on'); }); dz.addEventListener('dragleave', () => dz.classList.remove('on'));
+  dz.addEventListener('drop', ev => { ev.preventDefault(); dz.classList.remove('on'); const f = ev.dataTransfer.files && ev.dataTransfer.files[0]; if(f) go(f); });
+  const tg = document.getElementById('xqtTgo'); if(tg) tg.onclick = () => { const v = document.getElementById('xqtT').value; if(v.trim()) go(null, v); };
+}
+/* 2つめの画面：得意先・期間・行を確かめて作る */
+async function form(){
+  const M = sheet(), info = D.info, today = iso0(new Date());
+  const kf = info.kfrom || (D.rows.find(r => r.kashi) || {}).kashi || '';
+  const recent = kf && Date.parse(monthEnd(kf)) >= Date.now() - 35 * 864e5;   /* 見積の貸出が先月なら、先月の締め（11月はじめに10月分を作るとき） */
+  const shime = monthEnd(kf && (kf > today || recent) ? kf : today);
+  F = { cust: info.cust || '', code: '', br: '0', zip: '', addr: '', tel: '', genba: info.genba || '', siteCode: '', shime, pay: '', kashi: kf || info.date || today, start: '', end: '', ret: info.kto && info.kto <= shime ? info.kto : '継続', rate: rateNow() };
+  F.start = F.kashi && F.kashi > monthStart(shime) ? F.kashi : monthStart(shime); F.end = F.ret !== '継続' ? F.ret : shime;
+  const hasRent = D.rows.some(r => RENT(r.kb)), sup = info.type === 'sq';
+  M.innerHTML = '<div class="xqt-c"><div class="xqt-h"><b>' + (sup ? '仕入先の見積 → 請求書' : '見積 → 請求書') + '</b><span class="xqt-src">' + esc(info.name || info.file || '') + (info.from === 'pdf-hikae' ? '（PDFの見積番号で控えから）' : info.from === 'pdf-text' ? '（控えになかったので紙の文字から読んだ。確かめて）' : '') + '</span><span class="sp"></span><button type="button" class="btn" data-q="back">← もどる</button><button type="button" class="btn" data-q="x">閉じる</button></div>' +
+    '<div class="xqt-b"><div class="xqt-g">' +
+    '<label>得意先<input id="qCust" list="qCustL" value="' + esc(F.cust) + '" placeholder="株式会社○○（今までの作業の得意先から選べる）"><datalist id="qCustL"></datalist></label>' +
+    '<label class="s">得意先コード<input id="qCode" value="" placeholder="なければ空"></label>' +
+    '<label class="s">〒<input id="qZip" value=""></label><label>住所<input id="qAddr" value=""></label>' +
+    '<label>現場名<input id="qGenba" value="' + esc(F.genba) + '" placeholder="請求書の現場名"></label><label class="s">現場コード<input id="qSc" value="" placeholder="空なら 1"></label>' +
+    '<label class="s">締め日（請求日）<input type="date" id="qShime" value="' + F.shime + '"></label><label class="s">お支払日<input type="date" id="qPay" value=""></label>' +
+    '</div>' +
+    (hasRent ? '<div class="xqt-g xqt-per"><b class="t">レンタルの期間（この請求の分）</b><label class="s">貸出日<input type="date" id="qKashi" value="' + esc(F.kashi) + '"></label><label class="s">請求の開始<input type="date" id="qStart" value="' + esc(F.start) + '"></label><label class="s">請求の終了<input type="date" id="qEnd" value="' + esc(F.end) + '"></label>' +
+      '<label class="s">返却<span class="xqt-ret"><label><input type="radio" name="qRet" value="継続"' + (F.ret === '継続' ? ' checked' : '') + '> 継続</label><label><input type="radio" name="qRet" value="d"' + (F.ret !== '継続' ? ' checked' : '') + '> 返却日 <input type="date" id="qRetD" value="' + (F.ret !== '継続' ? esc(F.ret) : '') + '"></label></span></label>' +
+      '<span class="muted xqt-note">日数・金額は請求ナビと同じ計算（月極は30日まで・サポートは日数分）。基本料は貸し始めの月だけ' + (info.kfrom ? '。見積の期間 ' + md(info.kfrom) + '〜' + md(info.kto) : '') + '</span></div>' : '') +
+    (sup ? '<div class="xqt-g"><label class="s">粗利（%）<input type="number" id="qRate" value="' + F.rate + '" min="0" max="90" step="1"></label><span class="muted xqt-note">売値 ＝ 仕入 ÷ (1 − 粗利%)。web見積と同じ値（変えると web見積の「仕入先の見積から」も同じになる）。行の単価を直した行は、そのまま</span>' + (info.total ? '<span class="xqt-note">仕入先の見積の合計 ' + yen(info.total) + '</span>' : '') + '</div>' : '') +
+    '<div class="xqt-tw"><table class="xqt-t"><thead><tr><th></th><th>品名</th><th>区分</th><th class="n">数量</th><th>単位</th><th class="n">賃貸単価</th><th class="n">サポート単価</th><th class="n">基本料・販売単価</th>' + (sup ? '<th class="n">仕入</th>' : '') + '<th class="n">日数</th><th class="n">金額</th></tr></thead><tbody id="qRows"></tbody><tfoot><tr><td colspan="' + (sup ? 10 : 9) + '">税抜 合計</td><td class="n" id="qTot"></td></tr></tfoot></table></div>' +
+    '<div class="xqt-foot"><button type="button" class="btn" id="qAdd">＋ 行を足す</button><span class="sp"></span><span class="muted" id="qWarn"></span><button type="button" class="btn primary" id="qGo">この内容で請求書を作る</button></div></div></div>';
+  M.querySelector('[data-q="x"]').onclick = close; M.querySelector('[data-q="back"]').onclick = openStart;
+  const dl = document.getElementById('qCustL'); custList().then(cs => { dl.innerHTML = cs.map(c => '<option value="' + esc(c.name) + '">' + esc(c.code) + '</option>').join(''); if(F.cust) fillCust(F.cust); });
+  const $q = id => document.getElementById(id);
+  async function fillCust(nm){ const c = await custInfo(nm); if(!c) return; $q('qCust').value = c.name; $q('qCode').value = c.code; if(!$q('qZip').value) $q('qZip').value = c.zip; if(!$q('qAddr').value) $q('qAddr').value = c.addr; F.tel = c.tel; F.br = c.br;
+    /* お支払日：同じ得意先の前の作業と同じ「締めから何日後」 */
+    if(c.payDate && c.seikyuDate && !$q('qPay').value){ const dd = Math.round((Date.parse(c.payDate) - Date.parse(c.seikyuDate)) / 864e5); const sh = $q('qShime').value; if(sh && dd > 0 && dd < 120){ const pd = new Date(sh + 'T00:00:00'); pd.setDate(pd.getDate() + dd); /* 前の作業のお支払日の「日」にそろえる */ const pday = +c.payDate.slice(8, 10); const t = new Date(pd.getFullYear(), pd.getMonth(), Math.min(pday, new Date(pd.getFullYear(), pd.getMonth() + 1, 0).getDate())); $q('qPay').value = iso0(t); } }
+    toast(c.name + '：前の作業から宛名・お支払日を入れた', 2500); }
+  $q('qCust').addEventListener('change', ev => fillCust(ev.target.value));
+  const readF = () => { F.cust = $q('qCust').value.trim(); F.code = $q('qCode').value.trim(); F.zip = $q('qZip').value.trim(); F.addr = $q('qAddr').value.trim(); F.genba = $q('qGenba').value.trim(); F.siteCode = $q('qSc').value.trim(); F.shime = $q('qShime').value || F.shime; F.pay = $q('qPay').value;
+    if(hasRent){ F.kashi = $q('qKashi').value; F.start = $q('qStart').value; F.end = $q('qEnd').value; const rv = (document.querySelector('input[name="qRet"]:checked') || {}).value; F.ret = rv === 'd' ? ($q('qRetD').value || F.end) : '継続'; }
+    if(sup) F.rate = Number($q('qRate').value) || F.rate; };
+  const paint = () => { readF(); if(sup) priceSupplier(D.rows, F.rate);
+    let tot = 0;
+    $q('qRows').innerHTML = D.rows.map((r, i) => { const l = lineOf(r, F); calcLine(l); const a = lineAmt(l); if(r.on) tot += a;
+      const kbs = KBS.concat(KBS.includes(r.kb) ? [] : [r.kb]);
+      const why = r.type === 'disc' ? '<em class="w">値引きの行（仕入先）。お客さまにも引くならチェック</em>' : r.type === 'zero' ? '<em class="w">0円の行（お客様にて など）。入れるならチェックして単価を</em>' : '';
+      return '<tr class="' + (r.on ? '' : 'off') + '" data-i="' + i + '"><td><input type="checkbox" data-k="on"' + (r.on ? ' checked' : '') + ' title="チェック＝請求書に出す"></td><td><input data-k="name" value="' + esc(r.name) + '">' + (r.desc ? '<small>' + esc(r.desc) + '</small>' : '') + why + '</td>' +
+        '<td><select data-k="kb">' + kbs.map(k => '<option' + (k === r.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select></td>' +
+        '<td class="n"><input data-k="qty" value="' + esc(r.qty) + '" inputmode="decimal"></td><td><input data-k="unit" value="' + esc(r.unit || '') + '" class="u"></td>' +
+        '<td class="n"><input data-k="lu" value="' + (num(r.lu) || '') + '" inputmode="decimal"' + (RENT(r.kb) ? '' : ' disabled') + '></td><td class="n"><input data-k="su" value="' + (num(r.su) || '') + '" inputmode="decimal"' + (RENT(r.kb) ? '' : ' disabled') + '></td><td class="n"><input data-k="bu" value="' + (num(r.bu) || '') + '" inputmode="decimal"></td>' +
+        (sup ? '<td class="n c">' + (r.cost ? yen(r.cost) : '') + '</td>' : '') +
+        '<td class="n d">' + (RENT(r.kb) ? (l.days || '') + (l.sdays ? '／' + l.sdays : '') : '') + '</td><td class="n a">' + yen(a) + (l.noBase ? '<small>基本料は前の月</small>' : '') + '</td></tr>'; }).join('');
+    $q('qTot').textContent = yen(tot) + '（税込 ' + yen(tot + tax(tot)) + '）';
+    const w = []; if(!F.cust) w.push('得意先が空'); if(!F.genba) w.push('現場名が空'); if(!F.pay) w.push('お支払日が空'); if(!D.rows.some(r => r.on)) w.push('出す行がない');
+    $q('qWarn').textContent = w.join('・'); };
+  M.querySelector('.xqt-c').addEventListener('change', ev => { const t = ev.target, tr = t.closest && t.closest('tr[data-i]');
+    if(tr){ const r = D.rows[+tr.dataset.i], k = t.dataset.k; if(k === 'on') r.on = t.checked; else if(k === 'name' || k === 'unit') r[k] = t.value; else if(k === 'kb'){ const was = RENT(r.kb); r.kb = t.value; if(was !== RENT(r.kb)){ if(RENT(r.kb)){ r.lu = r.lu || r.bu; r.bu = 0; } else { r.bu = r.bu || r.lu; r.lu = 0; r.su = 0; } } if(r.kb === '修理') r.unit = '式'; }
+      else { r[k] = num(t.value); if(/^(lu|bu|su)$/.test(k)) r.edited = true; } }
+    paint(); });
+  $q('qAdd').onclick = () => { D.rows.push({ on: true, name: '', kb: '販売', qty: 1, unit: '式', lu: 0, su: 0, bu: 0, src: 'add', edited: true }); paint(); };
+  $q('qGo').onclick = () => { readF(); make(); };
+  paint();
+}
+/* 作る */
+async function make(){
+  const rows = D.rows.filter(r => r.on && String(r.name || '').trim());
+  if(!rows.length){ toast('出す行がない'); return; }
+  if(!F.cust){ toast('得意先を入れて'); document.getElementById('qCust').focus(); return; }
+  const co = await companyMeta();
+  if(!co) toast('会社の住所・振込先は、ほかの作業がないので空。ほかの得意先の作業を一度開いてから作り直すと入る', 7000);
+  const info = D.info, qno = (info.type === 'sq' ? 'S' : 'M') + '-' + (info.no ? String(info.no).replace(/[^\w-]/g, '') : Date.now().toString(36));
+  const meta = Object.assign({ company: '株式会社ワークス', brZip: '', brAddr: '', brTel: '', brFax: '', banks: [], cmt: [] }, co || {}, {
+    custCode: F.code, custBr: F.br || '0', custName: F.cust, zip: F.zip, addr: F.addr, tel: F.tel || '', seikyuDate: F.shime, payDate: F.pay,
+    prevBill: 0, nyukin: 0, nebiki: 0, kurikoshi: 0, sysTax: '', sysTotal: '', file: '', qno,
+    qsrc: { type: info.type, no: info.no || '', name: info.name || '', file: info.file || '', supplier: info.supplier || '', rate: info.type === 'sq' ? F.rate : null, at: new Date().toISOString() } });
+  const sh = { id: uid(), name: shortName(F.genba || '現場') || '現場', code: F.siteCode || '1', siteName: F.genba || '', kouji: '', inKagami: true, memo: '' };
+  const lines = rows.map((r, i) => { const l = lineOf(r, F); l.sheet = sh.id; l.shohin = ''; l.key = 'Q|' + qno + '|' + i; l.csvIx = i;
+    if(r.kb === '修理') l.unit = '式';
+    if(r.kb === '配送' && /^(車|台|回)$/.test(String(l.unit || ''))) l.unit = '';   /* 本物の運賃の行は単位なし */
+    calcLine(l);
+    /* 見積の金額を「システム」として持つ（あとで直したら、見積とのちがいがわかる） */
+    l.sys = { name: l.name, qty: l.qty, lu: l.lu, su: l.su, bu: l.bu, la: l.la, sa: l.sa, ba: l.ba, kb: l.kb, days: l.days, sdays: l.sdays, kashi: l.kashi, start: l.start, end: l.end, retd: l.retd, unit: l.unit };
+    if(r.src === 's') l.carried = '仕入先の見積から（仕入 ' + yen(r.cost) + ' ÷ ' + ((100 - F.rate) / 100).toFixed(2) + '）';
+    else if(r.src === 'add') { l.manual = true; delete l.sys; }
+    return l; });
+  meta.sysNet = lines.reduce((a, l) => a + (l.sys ? sysAmt(l) : 0), 0);
+  const w = { id: workIdOf(meta), v: 1, meta, sheets: [sh], lines, trash: [], prevPack: null, relinkVer: typeof RELINK_VER !== 'undefined' ? RELINK_VER : 0, tidyVer: 2, yfVer: 1, ovVer: 1, seq: 1000, opt: {}, cur: sh.id, status: 'draft' };
+  let old = null; try{ old = (await allWorksMeta()).find(x => x.id === w.id); }catch(e){}
+  if(old){ const v = await askDialog('同じ見積の請求書があります', esc(F.cust) + '　' + jdate(F.shime) + '締め の、この見積から作った請求書がもうあります。', [{ t: '作り直す（前のを上書き）', v: 'y', k: 'Y' }, { t: 'やめる', v: null, ghost: true, k: 'N' }]); if(!v) return; }
+  if(S.built && S.workId && S.workId !== w.id){ try{ await saveNow(); }catch(e){} }
+  close();
+  openWork(w); S.workId = w.id; save();
+  try{ await saveNow(); }catch(e){}
+  setTab('sites'); drawSites();
+  toast((info.type === 'sq' ? '仕入先の見積' : '見積') + 'から請求書を作った：' + F.cust + '　' + lines.length + ' 行（見積の金額を「システム」として持つので、直すと差が出る）', 6000);
+}
+X.quoteOpen = async (kind, f) => { await openStart(); if(kind && kind !== 'list'){ const b = document.querySelector('#xQt [data-qt="' + kind + '"]'); if(b) b.click(); if(f){ const inp = document.getElementById('xqtF'); try{ const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; inp.dispatchEvent(new Event('change')); }catch(e){ console.warn(e); } } } };
+
+/* 入口：読み込みの「なんでも置く」の下・コマンド */
+function mount(){
+  const a = document.getElementById('xAny'); if(!a || document.getElementById('xQtBtn')) return;
+  a.insertAdjacentHTML('afterend', '<div class="xqt-in" id="xQtBtn"><b>見積から請求書を作る</b><span class="muted">自分で作った見積（web見積の控え・見積書PDF）や、仕入先の見積書から、本物と同じ御請求書を作る</span><span class="xqt-ib"><button type="button" class="btn sm primary" data-qo="list">web見積の控えから</button><button type="button" class="btn sm" data-qo="mq">見積書PDF</button><button type="button" class="btn sm" data-qo="sq">仕入先の見積書</button></span></div>');
+}
+document.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-qo]'); if(!b) return; ev.preventDefault(); X.quoteOpen(b.dataset.qo); });
+(function watch(){ mount(); new MutationObserver(() => mount()).observe(document.body, { childList: true, subtree: true }); })();
+/* 見積から作った作業：上の帯に「見積から」と出す */
+const css = document.createElement('style');
+css.textContent = '.xqt{position:fixed;inset:0;z-index:300;background:rgba(8,14,18,.6);display:flex;align-items:flex-start;justify-content:center;padding:3vh 12px;overflow:auto}.xqt[hidden]{display:none}' +
+  '.xqt-c{width:min(1180px,100%);background:var(--surface,#fff);color:var(--ink,#16272B);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.45);display:flex;flex-direction:column;max-height:94vh}' +
+  '.xqt-h{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line,#dce4e5);flex-wrap:wrap}.xqt-h b{font-size:16px}.xqt-h .sp,.xqt-foot .sp{flex:1}.xqt-src{font-size:12px;color:var(--ink3,#7a8b8e)}' +
+  '.xqt-tabs{display:flex;gap:6px;padding:10px 16px 0;flex-wrap:wrap}.xqt-tabs button{border:1px solid var(--line,#dce4e5);background:transparent;color:inherit;border-radius:999px;padding:6px 14px;font-weight:700;cursor:pointer}.xqt-tabs button.on{background:var(--brand,#14646E);color:#fff;border-color:var(--brand,#14646E)}' +
+  '.xqt-b{padding:12px 16px;overflow:auto}.xqt-row{display:flex;gap:8px;margin-bottom:8px}.xqt-row input{flex:1;padding:8px 10px;border-radius:10px;border:1px solid var(--line,#dce4e5);background:var(--bg,#fff);color:inherit}' +
+  '.xqt-list{display:grid;gap:6px}.xqt-q{display:grid;grid-template-columns:110px 86px 1fr 1fr 1.4fr 120px 60px;gap:8px;align-items:center;text-align:left;border:1px solid var(--line,#dce4e5);background:var(--bg,#fff);color:inherit;border-radius:10px;padding:8px 10px;cursor:pointer;font-size:12.5px}.xqt-q:hover{border-color:var(--brand,#14646E)}.xqt-q .no{font-weight:700;font-variant-numeric:tabular-nums}.xqt-q .m{text-align:right;font-variant-numeric:tabular-nums}.xqt-q small{color:var(--ink3,#7a8b8e)}.xqt-q .r,.xqt-q .g{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+  '.xqt-drop{display:block;border:2px dashed var(--line,#cdd8da);border-radius:14px;padding:22px;text-align:center;cursor:pointer}.xqt-drop.on{border-color:var(--brand,#14646E);background:rgba(20,100,110,.06)}.xqt-drop b{display:block;font-size:15px;margin-bottom:4px}.xqt-paste{margin-top:10px}.xqt-paste textarea{width:100%;margin:6px 0;border-radius:10px;padding:8px;background:var(--bg,#fff);color:inherit;border:1px solid var(--line,#dce4e5)}' +
+  '.xqt-g{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;margin-bottom:10px}.xqt-g label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--ink2,#4a5d60);flex:1 1 220px}.xqt-g label.s{flex:0 1 150px}.xqt-g input{padding:7px 9px;border-radius:9px;border:1px solid var(--line,#dce4e5);background:var(--bg,#fff);color:var(--ink,#16272B);font-size:13px}.xqt-g .t{flex-basis:100%;font-size:13px}.xqt-per{padding:10px;border-radius:12px;background:rgba(20,100,110,.07)}.xqt-note{font-size:11.5px;flex-basis:100%}' +
+  '.xqt-ret{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--ink,#16272B)}.xqt-ret label{flex-direction:row;align-items:center;gap:4px;flex:none}' +
+  '.xqt-tw{overflow:auto;border:1px solid var(--line,#dce4e5);border-radius:12px}.xqt-t{width:100%;border-collapse:collapse;font-size:12.5px}.xqt-t th{background:var(--soft,#e9f2f3);padding:6px;text-align:left;white-space:nowrap;position:sticky;top:0}.xqt-t td{padding:4px 6px;border-top:1px solid var(--line,#dce4e5);vertical-align:top}.xqt-t .n{text-align:right;white-space:nowrap}.xqt-t input:not([type=checkbox]),.xqt-t select{width:100%;min-width:56px;padding:4px 6px;border-radius:7px;border:1px solid var(--line,#dce4e5);background:var(--bg,#fff);color:inherit;font-size:12.5px}.xqt-t td:nth-child(2) input{min-width:200px}.xqt-t td.n input{text-align:right;width:92px}.xqt-t input.u{width:52px;min-width:0}.xqt-t small{display:block;color:var(--ink3,#7a8b8e);font-size:10.5px}.xqt-t em.w{display:block;font-style:normal;color:var(--warn,#B7791F);font-size:11px}.xqt-t tr.off td{opacity:.5}.xqt-t td.a{font-weight:700}.xqt-t td.c{color:var(--ink3,#7a8b8e)}.xqt-t tfoot td{font-weight:800;background:var(--soft,#e9f2f3)}.xqt-t input:disabled{opacity:.35}' +
+  '.xqt-foot{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}#qWarn{color:var(--warn,#B7791F);font-size:12px}' +
+  '.xqt-in{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:10px 0;padding:12px 14px;border:1px solid var(--line,#dce4e5);border-radius:14px;background:linear-gradient(90deg,rgba(227,178,60,.10),transparent)}.xqt-in b{font-size:14px}.xqt-in .muted{flex:1 1 300px;font-size:12px}.xqt-ib{display:flex;gap:6px;flex-wrap:wrap}' +
+  '#xQt input[type=checkbox],#xQt input[type=radio]{appearance:auto!important;-webkit-appearance:auto!important;width:16px!important;height:16px!important;accent-color:#14646E;opacity:1!important;position:static!important}' +
+  'body.xqt-open{overflow:hidden}@media (max-width:760px){.xqt-q{grid-template-columns:1fr 1fr;}.xqt-q .r,.xqt-q small,.xqt-q .d{display:none}}';
+document.head.appendChild(css);
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -12254,7 +12819,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 20:14';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-03 05:03';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
