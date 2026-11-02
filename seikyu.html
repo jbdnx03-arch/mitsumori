@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-03 05:03-->
+<!--BUILD:2026-11-03 06:31-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2930,7 +2930,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-03 05:03';
+const BUILD = '2026-11-03 06:31';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8205,6 +8205,7 @@ async function pdfKind(f){
     if(/御\s*請\s*求\s*書/.test(t) && /御客様番号|現場合計表|御買上/.test(t)) return 'real';
     /* 2026-11-02 見積書：自分で作った見積（web見積の紙）＝ mq、仕入先の見積（ワークス御中）＝ sq */
     if(/見\s*積\s*書|御\s*見\s*積/.test(t)){ if(/ワークス\s*御\s*中/.test(t)) return 'sq'; if(/総合建設機械レンタル|F-?\d{4}-\d{3,5}/.test(t)) return 'mq'; return 'sq'; }
+    if(t.replace(/\s/g, '').length < 20) return 'scan';   /* 文字のないPDF（スキャン・FAX） */
     return ''; }catch(e){ return ''; }
 }
 /* 1つの文字のかたまりを、空白で区切って、位置を割りふる（「10/01 10/31 継続」のように1つで来ることがある） */
@@ -8533,7 +8534,16 @@ async function takeAny(files){
     }
     else if(k === 'chk' || k === 'w'){ chk.push(f); set(f, 'ok', k === 'w' ? '<span class="xa-k">Wレンタル売上リスト</span> → チェックタブの赤入れへ' : '<span class="xa-k">チェックリスト</span> → チェックタブの赤入れへ'); }
     else if((k === 'mq' || k === 'sq') && window.seikyuExt.quoteOpen){ set(f, 'ok', '<span class="xa-k">' + (k === 'mq' ? '見積書（自分で作った）' : '仕入先の見積書') + '</span> → 「見積から請求書」を開いた'); setTimeout(() => window.seikyuExt.quoteOpen(k, f), 300); }
-    else set(f, 'q', 'なにのPDFか分からなかった（入れていない）');
+    else {
+      /* 2026-11-03「仕入れ見積をドラッグして入れたら反応なかった。わからないなら質問して聞いて」：
+         文字のない（スキャンした）PDFなどで見分けられなかったら、なにのPDFかを聞く */
+      const v = await askDialog('なにのPDF？', '<b>' + esc(f.name) + '</b><br>' + (k === 'scan' ? '文字の入っていない（スキャン・FAXの）PDFなので、' : '') + '中身を見分けられなかった。なにを入れた？<br><small>スキャンのPDFは、写真と同じように文字を読み取る（少し時間がかかる・読めた結果は確かめて）</small>',
+        [{ t: '仕入先の見積書', v: 'sq', k: '1' }, { t: '自分で作った見積書', v: 'mq', k: '2' }, { t: '本物の請求書', v: 'real', k: '3' }, { t: 'チェックリスト・売上リスト', v: 'chk', k: '4' }, { t: '入れない', v: null, ghost: true, k: 'N' }]);
+      if(v === 'sq' || v === 'mq'){ set(f, 'ok', '<span class="xa-k">' + (v === 'mq' ? '見積書（自分で作った）' : '仕入先の見積書') + '</span> → 「見積から請求書」を開いた'); setTimeout(() => window.seikyuExt.quoteOpen(v, f), 300); }
+      else if(v === 'real'){ const r = await takeReal(f); if(r){ reals.push(r); set(f, 'ok', '<span class="xa-k">本物の請求書</span>：' + esc(r.nm)); } else set(f, 'ng', '本物の請求書の明細が読めなかった（スキャンのPDFは読めない。システムから出したPDFを入れて）'); }
+      else if(v === 'chk'){ chk.push(f); set(f, 'ok', '<span class="xa-k">チェックリスト</span> → チェックタブの赤入れへ'); }
+      else set(f, 'q', 'なにのPDFか分からなかった（入れていない）');
+    }
   }
   if(chk.length && window.x3 && window.x3.addFiles){ window.x3.addFiles(chk); }
   other.forEach(f => set(f, 'q', '読めない形（入れていない）'));
@@ -8566,7 +8576,7 @@ window.seikyuExt.takeAny = takeAny;
 function mount(){
   const card = [...document.querySelectorAll('.card')].find(c => /今月のデータを入れる/.test(c.textContent)); if(!card || document.getElementById('xAny')) return;
   const h = card.querySelector('h2');
-  h.insertAdjacentHTML('afterend', '<label class="drop xany" id="xAny"><b>なんでも置く</b><span class="muted">CSV・本物の請求書PDF・前月の請求ナビ（.xlsm）・引き継ぎ（.json）・チェックリストPDF を、まとめて置くか押して選ぶ。中身を見て振り分けて、覚えておく</span><input type="file" id="fAny" multiple accept=".csv,.pdf,.xlsm,.xlsx,.json,text/csv,application/pdf" hidden><div class="st" id="xAnyMsg"></div></label>');
+  h.insertAdjacentHTML('afterend', '<label class="drop xany" id="xAny"><b>なんでも置く</b><span class="muted">CSV・本物の請求書PDF・前月の請求ナビ（.xlsm）・引き継ぎ（.json）・チェックリストPDF・見積書（自分の・仕入先の）を、まとめて置くか押して選ぶ。中身を見て振り分けて、覚えておく</span><input type="file" id="fAny" multiple accept=".csv,.pdf,.xlsm,.xlsx,.json,text/csv,application/pdf" hidden><div class="st" id="xAnyMsg"></div></label>');
   const z = document.getElementById('xAny'), fi = document.getElementById('fAny');
   document.getElementById('xAnyMsg').addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); });
   fi.addEventListener('change', () => { const fs = Array.from(fi.files); fi.value = ''; takeAny(fs); });
@@ -11783,9 +11793,11 @@ async function pdfToLines(file, prog){
     /* 文字の無いPDF（スキャン・FAX）→ 画像にして読む */
     var out = [];
     for(var p2 = 1; p2 <= n; p2++){
-      var pg = await pdf.getPage(p2), vp = pg.getViewport({ scale: 2.2 }), cv = document.createElement('canvas');
+      var pg = await pdf.getPage(p2), vp = pg.getViewport({ scale: 3.2 }), cv = document.createElement('canvas');
       cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
       await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      /* 2026-11-03 スキャン（FAX・複合機）の見積：大きくして白黒にすると、表の数字がよく読める（タイセーの見積で 4行 → 12行） */
+      try{ var g2 = cv.getContext('2d'), im2 = g2.getImageData(0, 0, cv.width, cv.height), a2 = im2.data; for(var q2 = 0; q2 < a2.length; q2 += 4){ var y2 = 0.299 * a2[q2] + 0.587 * a2[q2 + 1] + 0.114 * a2[q2 + 2]; a2[q2] = a2[q2 + 1] = a2[q2 + 2] = y2 < 170 ? 0 : 255; } g2.putImageData(im2, 0, 0); }catch(e){}
       var ls = await ocrLines(cv, function(k){ prog(0.6 + 0.4 * ((p2 - 1) + k) / n); });
       ls.forEach(function(l){ l.page = p2; out.push(l); });
     }
@@ -11798,6 +11810,8 @@ async function pdfToLines(file, prog){
    「1」＋「月」「120」＋「時間」のような 数量＋単位 はつなぐ。1文字ずつ間をあけた見出し（受 渡 場 所）もつなぐ */
 function canJoin(last, it){
   var gap = it.x - (last.x + last.w), a = nfkc(last.s).trim(), b = nfkc(it.s).trim();
+  /* 2026-11-03 スキャンの読み取りで「12,」「600」のようにカンマのあとで切れた数字はつなぐ */
+  if(/\d,$/.test(a) && /^\d{3}(\D|$)/.test(b) && gap < 40) return true;
   if(gap >= 13) return false;
   var aNum = /^[-−－▲△]?\d[\d,]*(\.\d+)?$/.test(a), bNum = /^[\d,.]/.test(b);
   if(aNum && (a.indexOf(',') >= 0 || a.replace(/\D/g, '').length >= 4)) return false;   /* 金額のセルは何ともつながない */
@@ -11844,10 +11858,11 @@ async function imageToLines(file, prog){
 async function ocrLines(cv, prog){
   await loadLib(CDN_TESS, function(){ return !!window.Tesseract; });
   var worker = await window.Tesseract.createWorker('jpn+eng', 1, { logger: function(m){ if(m && m.progress != null && m.status === 'recognizing text') prog(m.progress); } });
+  try{ await worker.setParameters({ tessedit_pageseg_mode: '4', preserve_interword_spaces: '1' }); }catch(e){}   /* 表の列をくずさずに読む */
   try{
     var r = await worker.recognize(cv), ls = (r && r.data && r.data.lines) || [];
     return ls.map(function(l){
-      var items = (l.words || []).filter(function(w){ return w.text && w.text.trim(); }).map(function(w){ return { x: w.bbox.x0, y: -w.bbox.y0, w: w.bbox.x1 - w.bbox.x0, s: w.text }; });
+      var items = (l.words || []).filter(function(w){ return w.text && w.text.trim() && !/^[|｜_＿\-—=]+$/.test(w.text.trim()); }).map(function(w){ return { x: w.bbox.x0, y: -((l.bbox && l.bbox.y0) || w.bbox.y0), w: w.bbox.x1 - w.bbox.x0, s: w.text }; });   /* 1行の語は同じ高さにそろえる（大きく読むと語ごとに高さがずれて、行の後ろが落ちていた） */
       var out = itemsToLines(items)[0];
       if(out){ out.cells.forEach(function(c){ c.s = c.s.replace(/(\d)\s+(?=\d)/g, '$1').replace(/(\d)\s*,\s*(?=\d{3})/g, '$1,'); }); }
       return out || { y: 0, cells: [], pos: false };
@@ -12092,11 +12107,12 @@ async function readOwnPdf(f){
   return { rows, info };
 }
 /* 仕入先の見積：web見積と同じ読み方 → 売値 ＝ 仕入 ÷ (1 − 粗利%) */
-async function readSupplier(f, text){
+async function readSupplier(f, text, prog){
+  prog = prog || (() => {});
   let lines;
   if(text != null) lines = textToLines(text);
-  else if(/^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name)) lines = await imageToLines(f, () => {});
-  else lines = await pdfToLines(f, () => {});
+  else if(/^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name)) lines = await imageToLines(f, prog);
+  else lines = await pdfToLines(f, prog);
   const P = parseLines(lines), rows = [];
   P.rows.forEach(r => {
     if(r.type === 'sect') return;
@@ -12104,6 +12120,7 @@ async function readSupplier(f, text){
     const o = { on: r.type === 'item', name: r.name + (r.desc && !/^(・|※)/.test(r.desc) && r.desc.length <= 20 ? '' : ''), desc: r.desc || '', memo: r.memo || '', kb, qty: Number(r.qty) || 1, unit: r.unit || (RENT(kb) ? '台' : '式'),
       lu: 0, su: 0, bu: 0, cost, costAmt: Number(r.costAmt) || 0, days0: Number(r.days) || 0, src: 's', type: r.type };
     if(r.type === 'disc'){ o.name = r.name || '値引き'; o.kb = '一式'; o.unit = '式'; o.neg = true; }
+    else if(r.type === 'item' && Math.abs(o.costAmt) < 10 && o.cost < 10){ o.type = 'zero'; o.on = false; o.cost = 0; o.qty = 1; }   /* 金額のない行（「鶴見 水中ポンプ 修理 1台」のような見出し）：数量の 1 を金額と読まない */
     if(kb === '修理') o.unit = '式';
     rows.push(o);
   });
@@ -12178,7 +12195,7 @@ function tab(t){
   const B = document.getElementById('xqtB');
   if(t === 'list'){
     B.innerHTML = '<div class="xqt-row"><input type="search" id="xqtQ" placeholder="得意先・現場・見積番号・品名でさがす" autocomplete="off"><button type="button" class="btn sm" id="xqtR">クラウドから読み直す</button></div><div id="xqtL" class="xqt-list"><p class="muted">web見積の控えを読んでいます…</p></div>';
-    const paint = async (force) => { const qs = await quotesAll(force); const q = nfkc(document.getElementById('xqtQ').value).toLowerCase().trim();
+    const paint = async (force) => { const qs = await quotesAll(force); const qi = document.getElementById('xqtQ'), L0 = document.getElementById('xqtL'); if(!qi || !L0) return; const q = nfkc(qi.value).toLowerCase().trim();
       const hit = qs.filter(x => !q || nfkc([x.no, x.cust, x.genba, x.rep, x.title].join(' ')).toLowerCase().includes(q) || (q.length >= 2 && nfkc(x.body || '').toLowerCase().includes(q))).slice(0, 80);
       document.getElementById('xqtL').innerHTML = hit.length ? hit.map(x => '<button type="button" class="xqt-q" data-qid="' + esc(x.id) + '"><span class="no">' + esc(x.no || '') + '</span><span class="d">' + esc(String(x.date || '').slice(0, 10)) + '</span><b>' + esc(x.cust || '（得意先なし）') + '</b><span class="g">' + esc(x.genba || '') + '</span><span class="r">' + esc(x.rep || '') + '</span><span class="m">' + (x.gross ? '税込 ' + yen(x.gross) : '') + '</span><small>' + esc(x.src) + '</small></button>').join('') : '<p class="muted">web見積の控えが見つからない。web見積で「控えに保存」した見積がここに出る（同じ端末か、クラウドに送ったもの）</p>';
     };
@@ -12191,7 +12208,10 @@ function tab(t){
   B.innerHTML = '<label class="xqt-drop" id="xqtDrop"><b>' + (own ? '自分で作った見積書のPDFを置く' : '仕入先の見積書（PDF・写真）を置く') + '</b><span class="muted">' + (own ? 'web見積から出した見積書。見積番号で控えをさがして、そのまま行にする（控えにないときは紙の文字から読む）' : 'web見積の「仕入先の見積から」と同じ読み方。売値は 仕入 ÷ (1 − 粗利%)。値引き・0円の行は、入れるか1行ずつ決める') + '</span><input type="file" id="xqtF" accept=".pdf,application/pdf' + (own ? '' : ',image/*') + '" hidden></label>' +
     (own ? '' : '<details class="xqt-paste"><summary>文字を貼って読む</summary><textarea id="xqtT" rows="6" placeholder="仕入先の見積の文字を貼る（メールの本文など）"></textarea><button type="button" class="btn sm primary" id="xqtTgo">読む</button></details>') + '<div id="xqtMsg" class="muted"></div>';
   const go = async (f, text) => { const msg = document.getElementById('xqtMsg'); msg.textContent = '読んでいます…';
-    try{ D = own ? await readOwnPdf(f) : await readSupplier(f, text); if(!own) priceSupplier(D.rows, rateNow()); form(); }catch(e){ console.warn(e); msg.textContent = '読めなかった：' + (e.message || e); } };
+    const pg = k => { msg.textContent = '読んでいます… ' + Math.round(Math.max(0, Math.min(1, k)) * 100) + '%' + (k > 0.6 ? '（スキャンの文字を読み取り中。1枚30秒くらいかかる）' : ''); };
+    try{ D = own ? await readOwnPdf(f) : await readSupplier(f, text, pg); if(!own) priceSupplier(D.rows, rateNow());
+      if(!D.rows.length){ msg.textContent = '品の行が読めなかった。文字を貼って読むか、行を手で足して'; D.rows.push({ on: true, name: '', kb: '販売', qty: 1, unit: '式', lu: 0, su: 0, bu: 0, src: 'add', edited: true }); }
+      form(); }catch(e){ console.warn(e); msg.textContent = '読めなかった：' + (e.message || e); } };
   document.getElementById('xqtF').onchange = ev => { const f = ev.target.files && ev.target.files[0]; ev.target.value = ''; if(f) go(f); };
   const dz = document.getElementById('xqtDrop'); dz.addEventListener('dragover', ev => { ev.preventDefault(); dz.classList.add('on'); }); dz.addEventListener('dragleave', () => dz.classList.remove('on'));
   dz.addEventListener('drop', ev => { ev.preventDefault(); dz.classList.remove('on'); const f = ev.dataTransfer.files && ev.dataTransfer.files[0]; if(f) go(f); });
@@ -12312,6 +12332,7 @@ css.textContent = '.xqt{position:fixed;inset:0;z-index:300;background:rgba(8,14,
   '#xQt input[type=checkbox],#xQt input[type=radio]{appearance:auto!important;-webkit-appearance:auto!important;width:16px!important;height:16px!important;accent-color:#14646E;opacity:1!important;position:static!important}' +
   'body.xqt-open{overflow:hidden}@media (max-width:760px){.xqt-q{grid-template-columns:1fr 1fr;}.xqt-q .r,.xqt-q small,.xqt-q .d{display:none}}';
 document.head.appendChild(css);
+X._qLines = pdfToLines; X._qParse = parseLines;
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -12819,7 +12840,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-03 05:03';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-03 06:31';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
