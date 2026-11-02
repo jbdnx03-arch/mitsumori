@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-02 19:47-->
+<!--BUILD:2026-11-02 20:02-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2927,7 +2927,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-02 19:47';
+const BUILD = '2026-11-02 20:02';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -10810,7 +10810,7 @@ window.addEventListener('click', ev => { const b = ev.target && ev.target.closes
 /* 現場の一覧にも「完了」 */
 const _ds = drawSites;
 drawSites = function(){ const r = _ds.apply(this, arguments);
-  try{ document.querySelectorAll('#siteList .site[data-id]').forEach(btn => { const sh = sheetById(btn.dataset.id); if(!sh || !doneOk(sh)) return; const b = btn.querySelector('.b'); if(b && !b.querySelector('.xdone')) b.insertAdjacentHTML('afterbegin', '<span class="tag ok xdone">完了</span>'); }); }catch(e){}
+  try{ document.querySelectorAll('#siteList .site[data-id]').forEach(btn => { const sh = sheetById(btn.dataset.id); if(!sh || !doneOk(sh)) return; const b = btn.querySelector('.b'); if(b && !b.querySelector('.xsdone')) b.insertAdjacentHTML('afterbegin', '<span class="tag ok xsdone">完了</span>'); }); }catch(e){}
   return r; };
 })();
 
@@ -12203,7 +12203,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 19:47';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-02 20:02';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
