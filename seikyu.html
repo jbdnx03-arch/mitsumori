@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 00:23-->
+<!--BUILD:2026-11-04 00:50-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1788,8 +1788,10 @@ async function workAction(ev, rows, redraw){
   }
   if(d){
     const id = d.dataset.wdel; const r = rows.find(x => x.id === id); if(!r) return;
-    const v = await askDialog('作業を消す', esc(r.w.custName || '') + '　' + jdate(r.w.seikyuDate || '') + '締め の作業を消しますか？<br>手直しも含めて消えます。', [{ t:'この端末とクラウドから消す', v:'all', k:'Y' }, { t:'この端末だけ消す', v:'loc', k:'L' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+    const isOpen = S.built && S.workId === id;
+    const v = await askDialog('作業を消す', esc(r.w.custName || '') + '　' + jdate(r.w.seikyuDate || '') + '締め の作業を消しますか？<br>手直しも含めて消えます。' + (isOpen ? '<br><b>いま開いている作業です。消すと画面も閉じます。</b>' : ''), [{ t:'この端末とクラウドから消す', v:'all', k:'Y' }, { t:'この端末だけ消す', v:'loc', k:'L' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
     if(!v) return;
+    if(isOpen){ clearTimeout(saveT); S.built = false; S.workId = null; S.meta = null; S.sheets = []; S.lines = []; S.status = 'draft'; S.printedAt = ''; try{ undoReset(); }catch(e){} try{ $('#who').textContent = ''; }catch(e){} try{ setTab('load'); }catch(e){} showSaveSt(''); }   /* 開いている作業：先に閉じる（自動保存で戻らないように） */
     await WK.del(id); pendSet(pendList().filter(x => x !== id));
     if(v === 'all'){ try{ await cloudDel(id); cloudCache = (cloudCache || []).filter(c => c.id !== id); }catch(e){ toast('クラウドから消せなかった：' + (e.message || e), 5000); } }
     toast('消した'); redraw();
@@ -1812,7 +1814,7 @@ function workCard(x){
     (w.siteNames ? '<div class="wc3">' + esc(w.siteNames) + '</div>' : '') +
     '<div class="wc4">' + (isNow ? '' : '<button class="btn sm primary" data-wopen="' + esc(x.id) + '">開く</button>') +
     '<label class="xwst">状態 <select data-wstsel="' + esc(x.id) + '">' + Object.keys(STATUS).map(k => '<option value="' + k + '"' + (k === (w.status || 'draft') ? ' selected' : '') + '>' + STATUS[k][0] + '</option>').join('') + '</select></label>' +
-    (isNow ? '' : '<button class="btn sm ghost" data-wdel="' + esc(x.id) + '">消す</button>') + '</div></div>';
+    '<button class="btn sm ghost" data-wdel="' + esc(x.id) + '">消す</button>' + '</div></div>';
 }
 /* 読み込みタブ：今月の作業（いちばん新しい締め月を全部）＋控えへ */
 async function drawWorks(reload){
@@ -2944,7 +2946,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 00:23';
+const BUILD = '2026-11-04 00:50';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -9666,7 +9668,7 @@ async function board(){
     return '<div role="button" tabindex="0" class="xb-c" data-bopen="' + esc(x.id) + '"><span class="xb-n">' + esc(String(w.custName || '').replace(/\s*株式会社\s*/g, '')) + '</span>' +
       '<select class="xb-s xb-sel ' + s + '" data-wstsel="' + esc(x.id) + '" title="状態を変える">' + Object.keys(STATUS).map(k => '<option value="' + k + '"' + (k === s ? ' selected' : '') + '>' + STATUS[k][0] + '</option>').join('') + '</select><span class="xb-bar"><i style="width:' + pct + '%"></i></span>' +
       '<span class="xb-m">' + yen(w.net || 0) + (t.ng ? '<em class="ng">絶対ダメ ' + t.ng + '</em>' : t.todo ? '<em class="w">要確認 ' + t.todo + '</em>' : (t.todo === 0 ? '<em class="ok">確認 0</em>' : '<em>開くとわかる</em>')) +
-      (inT && inT.csv && inT.csv.at ? '<em>CSV ' + new Date(inT.csv.at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</em>' : '') + (+w.mins ? '<em>' + w.mins + '分</em>' : '') + '</span></div>'; };
+      (inT && inT.csv && inT.csv.at ? '<em>CSV ' + new Date(inT.csv.at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '</em>' : '') + (+w.mins ? '<em>' + w.mins + '分</em>' : '') + '</span>' + (isQ(x) ? '<button type="button" class="xb-del" data-bdel="' + esc(x.id) + '" title="この作業を消す">消す</button>' : '') + '</div>'; };
   const B = document.createElement('div'); B.id = 'xBoard'; B.className = 'card';
   B.innerHTML = '<h2>' + ymj(ym) + '締めの進み具合 <span class="n">作業中 ' + n.draft + '・印刷済 ' + n.printed + '・送付済 ' + n.sent + '・完了 ' + n.done + '（' + cur.length + '社）</span></h2>' +
     /* 2026-11-02「完了にしたら分けて」：まだの会社（作業中→印刷済→送付済の順）と、完了の会社を分ける */
@@ -9681,7 +9683,8 @@ async function board(){
   B.onclick = async ev => {
     const cb = ev.target.closest('[data-bk]'); if(cb){ const d = LS.get('boardDone.' + ym, {}); if(cb.checked) d[cb.dataset.bk] = 1; else delete d[cb.dataset.bk]; LS.set('boardDone.' + ym, d); cb.closest('li').classList.toggle('done', cb.checked); return; }
     if(ev.target.closest('[data-bscan]')){ scan(cur); return; }
-    if(ev.target.closest('select,option')) return;   /* 状態のえらぶ欄を押したときは開かない */
+    if(ev.target.closest('select,option')) return;
+    const dl = ev.target.closest('[data-bdel]'); if(dl){ ev.stopPropagation(); const t = document.createElement('button'); t.dataset.wdel = dl.dataset.bdel; await workAction({ target: t }, rows.concat(qRows), () => { try{ drawWorks(); }catch(e){} }); return; }   /* 状態のえらぶ欄を押したときは開かない */
     const o = ev.target.closest('[data-bopen]'); if(o && o.dataset.bopen){ const x = rows.concat(qRows).find(r => r.id === o.dataset.bopen); if(!x) return; if(S.built && S.workId === x.id){ setTab('sites'); return; } const w = await loadWork(x); if(w){ openWork(w); setTab('sites'); } }
   };
 }
@@ -9929,6 +9932,7 @@ const st = document.createElement('style');
 st.textContent = `
 #xBoard h2 .n{font-weight:400}
 .xb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:6px 0 4px}
+.xb-del{grid-column:1/-1;justify-self:end;font-size:11px;padding:2px 10px;border:1px solid var(--line);background:transparent;color:var(--muted,#888);border-radius:999px;cursor:pointer}.xb-del:hover{color:#c0392b;border-color:#c0392b}
 .xb-c{display:grid;grid-template-columns:1fr auto;gap:4px 8px;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:10px 12px;cursor:pointer}
 .xb-c:hover{border-color:var(--brand)}
 .xb-qh{color:#E3B23C;border-top:1px dashed var(--line);padding-top:10px}.xb-q .xb-c{border-style:dashed}.xb-fh{color:#2E8B57;border-top:1px dashed var(--line);padding-top:10px}.xb-fin .xb-c{opacity:.6;background:rgba(46,160,90,.07);border-color:rgba(46,160,90,.35)}.xb-fin .xb-c:hover{opacity:1}.xb-fin .xb-n::before{content:'✓ ';color:#2E8B57}.xb-all{color:#2E8B57;font-weight:700;margin:6px 0}.xb-s.done{background:rgba(46,160,90,.16);color:#2E8B57}
@@ -12308,7 +12312,7 @@ async function form(K){
     '<div class="xqt-b"><div class="xqt-g">' +
     '<label>得意先<input id="qCust" list="qCustL" value="' + esc(F.cust) + '" placeholder="株式会社○○（今までの作業の得意先から選べる）"><datalist id="qCustL"></datalist></label>' +
     '<label class="s">得意先コード<input id="qCode" value="" placeholder="なければ空"></label>' +
-    '<label class="s">〒<input id="qZip" value=""></label><label>住所<input id="qAddr" value=""></label>' +
+    '<label class="s">〒<input id="qZip" value="" inputmode="numeric" autocomplete="off" placeholder="数字だけで住所が出る" data-zip-for="qAddr"></label><label>住所<input id="qAddr" value=""></label>' +
     '<label>現場名<input id="qGenba" value="' + esc(F.genba) + '" placeholder="請求書の現場名"></label><label class="s">現場コード<input id="qSc" value="" placeholder="空なら 1"></label>' +
     '<label class="s">締め日（請求日）' + dfld('qShime', F.shime) + '</label><label class="s">お支払日' + dfld('qPay', '') + '</label>' +
     '</div>' +
@@ -12428,6 +12432,30 @@ X.quoteRename = renameFromText;
     (H.querySelector('.row') || H).appendChild(b); }catch(e){} };
   new MutationObserver(add).observe(document.body, { childList: true, subtree: true }); add(); })();
 document.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('#xQRn'); if(!b) return; ev.preventDefault(); renameFromText(); });
+
+/* 2026-11-03「郵便番号入れたらすぐ住所出るようにしない？（別のとこで前言ったよね）」：web見積の新規ユーザー登録申請書と同じしくみ。
+   data-zip-for="住所の欄のid" の欄に7けたの数字（ハイフン・〒・全角でもよい）を打つと、住所を入れて番号を 123-4567 にそろえる（zipcloud → だめなら yubinbango）。
+   住所の欄に手で打ってあれば上書きしない。ネットにつながらないときは何もしない（手で打てる） */
+const ZC = {};
+const zip7 = v => { const t = nfkc(String(v == null ? '' : v)).replace(/^[〒\s]+/, '').replace(/[\s\-ー‐−–—]/g, ''); return /^\d{7}$/.test(t) ? t : ''; };
+const PREF = ['', '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県', '埼玉県', '千葉県', '東京都', '神奈川県', '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県', '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県', '鳥取県', '島根県', '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県'];
+async function zipToAddr(z){
+  if(ZC[z]) return ZC[z];
+  const get = async (u, ms) => { const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms); try{ const r = await fetch(u, { signal: ac.signal }); if(!r.ok) throw new Error('http'); return await r.text(); }finally{ clearTimeout(t); } };
+  let a = '';
+  for(const host of ['zipcloud.ibsnet.co.jp', 'zipcloud.ibsnet.jp']){ if(a) break; try{ const j = JSON.parse(await get('https://' + host + '/api/search?zipcode=' + z, 5000)), r = j && j.results && j.results[0]; if(r) a = (r.address1 || '') + (r.address2 || '') + (r.address3 || ''); }catch(e){} }
+  if(!a){ try{ const t = await get('https://yubinbango.github.io/yubinbango-data/data/' + z.slice(0, 3) + '.js', 7000), m = t.match(/\$yubin\((\{[\s\S]*\})\)/); if(m){ const r = JSON.parse(m[1])[z]; if(r) a = (PREF[r[0]] || '') + (r[1] || '') + (r[2] || '') + (r[3] || ''); } }catch(e){} }
+  if(a) ZC[z] = a; return a;
+}
+let zipT = 0;
+document.addEventListener('input', ev => { const t = ev.target; if(!t || !t.matches || !t.matches('input[data-zip-for]')) return;
+  clearTimeout(zipT); zipT = setTimeout(async () => { const z = zip7(t.value); if(!z) return; t.value = z.slice(0, 3) + '-' + z.slice(3);
+    const ad = document.getElementById(t.dataset.zipFor); if(!ad) return;
+    const a = await zipToAddr(z); if(!a){ toast('この郵便番号の住所が見つからなかった（手で打って）', 3000); return; }
+    if(!ad.value.trim() || ad.dataset.auto === '1'){ ad.value = a; ad.dataset.auto = '1'; ad.dispatchEvent(new Event('change', { bubbles: true })); ad.focus(); try{ ad.setSelectionRange(a.length, a.length); }catch(e){} toast('〒' + t.value + '：' + a + '（番地を続けて打って）', 3000); }
+    else if(ad.value.indexOf(a) !== 0) toast('〒' + t.value + ' は ' + a + '（住所の欄は手で打ってあるのでそのまま）', 4000);
+  }, 250); }, true);
+document.addEventListener('input', ev => { const t = ev.target; if(t && t.dataset && t.dataset.auto === '1' && ev.isTrusted) t.dataset.auto = '';   /* 住所の欄を手で打ったら、もう上書きしない */ }, true);
 
 /* 入口：読み込みの「なんでも置く」の下・コマンド */
 function mount(){
@@ -12964,7 +12992,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 00:23';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 00:50';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
