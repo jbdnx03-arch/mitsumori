@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-03 06:48-->
+<!--BUILD:2026-11-04 00:23-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -158,6 +158,15 @@ details.help{font-size:12px;color:var(--ink2);margin-top:8px}
   #print{display:block !important}
   #print .pp{box-shadow:none;margin:0;page-break-after:always;break-after:page}
   #print .pp:last-child{page-break-after:auto;break-after:auto}
+  /* 2026-11-03「印刷したら必ず最後に白紙の1ページが出る」：最後の紙のあとに、本文の下の余白（下の帯のぶん）や飾りが続いて1枚ふえていた。
+     印刷のときは余白・飾りを全部消し、最後の紙は改ページしない。紙の高さもほんの少し（0.4mm）短くして、端数で次のページにはみ出さないように */
+  html, body{height:auto!important;min-height:0!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important}
+  html::before, html::after, body::before, body::after{content:none!important;display:none!important}
+  #print{margin:0!important;padding:0!important}
+  #print .xp.land, #print .xp:not(.port){height:209.6mm!important}
+  #print .xp.port{height:296.6mm!important}
+  #print .pp{min-height:296.5mm!important}
+  #print > :last-child, #print .xlastp{page-break-after:auto!important;break-after:auto!important}
 }
 #print{display:none}
 tr.nbrow td{opacity:.55}
@@ -1813,12 +1822,16 @@ async function drawWorks(reload){
     $('#worksCloud').textContent = cloudErr2 ? 'クラウドを見られなかった（' + cloudErr2 + '）。この端末の分だけ出しています' : 'クラウド：' + (cloudCache || []).length + ' 件';
     if(!rows.length){ L.innerHTML = '<div class="muted">まだありません。CSVを入れて「現場ごとに分ける」を押すと、ここに残ります。</div>'; return; }
     /* いちばん新しい締め月の作業は全部出す（それより前の月は「控え」） */
-    const ym = rows.map(x => (x.w.seikyuDate || '').slice(0, 7)).filter(Boolean).sort().pop() || '';
-    const show = ym ? rows.filter(x => (x.w.seikyuDate || '').slice(0, 7) === ym) : rows.slice(0, 5);
+    /* 見積から作った請求書（Q-…）は月の締めの外：締め月の決め方に入れず、下に別にまとめる（2026-11-03「10月の締めどこいった？」） */
+    const isQ = x => /^Q-/.test(String(x.id || '')), mon = rows.filter(x => !isQ(x)), qs = rows.filter(isQ);
+    const ym = (mon.length ? mon : qs).map(x => (x.w.seikyuDate || '').slice(0, 7)).filter(Boolean).sort().pop() || '';
+    const qShow = qs.filter(x => (x.w.status || 'draft') !== 'done' || (x.w.seikyuDate || '').slice(0, 7) === ym);
+    const show = ym ? mon.filter(x => (x.w.seikyuDate || '').slice(0, 7) === ym) : mon.slice(0, 5);
     const rest = rows.length - show.length, net = show.reduce((a, x) => a + num(x.w.net), 0), done = show.filter(x => (x.w.status || 'draft') !== 'draft').length;
     L.innerHTML = (ym ? '<div class="wmh"><b>' + (+ym.slice(0, 4)) + '年' + (+ym.slice(5, 7)) + '月締め</b><span>' + show.length + '件</span><span>税込 ' + yti(net) + '</span><span>' + done + '件 印刷・送付済</span></div>' : '') +
       (() => { const fin = show.filter(x => x.w.status === 'done'), act = show.filter(x => x.w.status !== 'done');   /* 2026-11-02 完了は下に分ける */
-        return act.map(workCard).join('') + (fin.length ? '<div class="wmh wfin"><b>✓ 完了</b><span>' + fin.length + '件</span></div><div class="wfinL">' + fin.map(workCard).join('') + '</div>' : ''); })() + (rest > 0 ? '<div class="muted" style="margin-top:6px">前の月の ' + rest + ' 件は「控え」で見られます</div>' : '');
+        return act.map(workCard).join('') + (fin.length ? '<div class="wmh wfin"><b>✓ 完了</b><span>' + fin.length + '件</span></div><div class="wfinL">' + fin.map(workCard).join('') + '</div>' : '') +
+          (qShow.length ? '<div class="wmh wq"><b>見積から作った請求書</b><span>' + qShow.length + '件（月の締めとは別）</span></div>' + qShow.map(workCard).join('') : ''); })() + (rest - qShow.length > 0 ? '<div class="muted" style="margin-top:6px">前の月の ' + (rest - qShow.length) + ' 件は「控え」で見られます</div>' : '');
     L.onclick = ev => workAction(ev, rows, () => draw(false));
   };
   await draw(!!reload);
@@ -2450,6 +2463,7 @@ function pdfSiteName(site){ const s = String(site || '').replace(/[\\/:*?"<>|\s]
 function doPrint(html, opt){
   if(S.built && (!S.status || S.status === 'draft')){ S.status = 'printed'; S.printedAt = new Date().toISOString(); save(); }
   $('#print').innerHTML = typeof html === 'string' ? html : paperHtml(); $('#print').style.display = 'block'; XR.fitShrink($('#print')); XR.sysFit($('#print')); $('#print').style.display = '';
+  { const ps = $('#print').querySelectorAll('.xp, .pp'); ps.forEach(x => x.classList.remove('xlastp')); if(ps.length) ps[ps.length - 1].classList.add('xlastp'); }   /* 最後の紙は改ページしない（白紙が出ない） */
   const t = document.title; document.title = opt && opt.site ? pdfSiteName(opt.site) : pdfBase();
   if(opt && opt.pdf){ const nm = document.title; document.title = t; if(!opt.site && window.seikyuExt && window.seikyuExt.yoursPdf) return window.seikyuExt.yoursPdf($('#print'), nm); makePdf($('#print'), nm); return; }
   (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(() => { window.print(); setTimeout(() => { document.title = t; }, 500); }, 100));
@@ -2930,7 +2944,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-03 06:48';
+const BUILD = '2026-11-04 00:23';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8204,7 +8218,7 @@ async function pdfKind(f){
     if(/請求書チェックリスト|売上チェックリスト|請求先：/.test(t)) return 'chk';
     if(/御\s*請\s*求\s*書/.test(t) && /御客様番号|現場合計表|御買上/.test(t)) return 'real';
     /* 2026-11-02 見積書：自分で作った見積（web見積の紙）＝ mq、仕入先の見積（ワークス御中）＝ sq */
-    if(/見\s*積\s*書|御\s*見\s*積/.test(t)){ if(/ワークス\s*御\s*中/.test(t)) return 'sq'; if(/総合建設機械レンタル|F-?\d{4}-\d{3,5}/.test(t)) return 'mq'; return 'sq'; }
+    if(/見\s*積\s*書|御\s*見\s*積/.test(t)){ if(/ワークス\s*御\s*中/.test(t)) return 'sq'; if(/総合建設機械レンタル|F-?\d{4}-\d{3,5}|株式会社\s*ワ\s*ー\s*ク\s*ス/.test(t)) return 'mq'; return 'sq'; }   /* 発行元がワークス＝自分の見積（前のExcelの見積書も） */
     if(t.replace(/\s/g, '').length < 20) return 'scan';   /* 文字のないPDF（スキャン・FAX） */
     return ''; }catch(e){ return ''; }
 }
@@ -9623,7 +9637,12 @@ async function board(){
   let rows = []; try{ rows = await mergedWorks(false); }catch(e){ return; }
   document.querySelectorAll('#xBoard').forEach(x => x.remove());
   if(!rows.length) return;
-  const ym = rows.map(x => ymOf(x.w.seikyuDate || x.w.savedAt)).filter(x => /^\d{4}-\d{2}$/.test(x)).sort().pop(); if(!ym) return;
+  /* 2026-11-03「10月の締めどこいった？」：見積から作った請求書（Q-…）は月の締めの外。締め月の決め方・請求漏れの数えに入れず、下に別にまとめる */
+  const isQ = x => /^Q-/.test(String(x.id || ''));
+  const qRows = rows.filter(isQ); rows = rows.filter(x => !isQ(x));
+  if(!rows.length && !qRows.length) return;
+  const ym = (rows.length ? rows : qRows).map(x => ymOf(x.w.seikyuDate || x.w.savedAt)).filter(x => /^\d{4}-\d{2}$/.test(x)).sort().pop(); if(!ym) return;
+  const qShow = qRows.filter(x => (x.w.status || 'draft') !== 'done' || ymOf(x.w.seikyuDate || x.w.savedAt) === ym).sort((a, b) => String(b.w.savedAt || '').localeCompare(String(a.w.savedAt || '')));
   const cur = rows.filter(x => ymOf(x.w.seikyuDate || x.w.savedAt) === ym), prevYm = (() => { const y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1; const d = new Date(y, m - 1, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
   const prevC = rows.filter(x => ymOf(x.w.seikyuDate) === prevYm), curCodes = new Set(cur.map(x => String(x.w.custCode)));
   const miss = prevC.filter(x => !curCodes.has(String(x.w.custCode)));
@@ -9653,7 +9672,8 @@ async function board(){
     /* 2026-11-02「完了にしたら分けて」：まだの会社（作業中→印刷済→送付済の順）と、完了の会社を分ける */
     (() => { const OR = { draft: 0, printed: 1, sent: 2 }, act = cur.filter(x => st(x) !== 'done').sort((a, b) => OR[st(a)] - OR[st(b)]), fin = cur.filter(x => st(x) === 'done');
       return (act.length ? '<div class="xb-grid">' + act.map(card).join('') + '</div>' : '<p class="xb-all">ぜんぶ完了 ✓</p>') +
-        (fin.length ? '<h3 class="xb-h xb-fh">✓ 完了 <small>' + fin.length + '社</small></h3><div class="xb-grid xb-fin">' + fin.map(card).join('') + '</div>' : ''); })() +
+        (fin.length ? '<h3 class="xb-h xb-fh">✓ 完了 <small>' + fin.length + '社</small></h3><div class="xb-grid xb-fin">' + fin.map(card).join('') + '</div>' : '') +
+        (qShow.length ? '<h3 class="xb-h xb-qh">見積から作った請求書 <small>' + qShow.length + '件（月の締めとは別）</small></h3><div class="xb-grid xb-q">' + qShow.map(card).join('') + '</div>' : ''); })() +
     '<h3 class="xb-h">今日やること <small>押すとその作業を開く・✓で済み</small></h3>' +
     (todo.length ? '<ul class="xb-todo">' + todo.map((t, i) => { const k = t.h.replace(/<[^>]+>/g, ''); return '<li class="' + (done[k] ? 'done' : '') + '"><input type="checkbox" data-bk="' + esc(k) + '"' + (done[k] ? ' checked' : '') + '><span data-bopen="' + esc(t.id || '') + '">' + t.h + '</span></li>'; }).join('') + '</ul>' : '<p class="muted">やることはありません ✓</p>') +
     '<div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-bscan>抜け漏れをしらべる（全部の作業を開いて数え直す）</button><span class="muted" id="xbScan"></span></div>';
@@ -9662,7 +9682,7 @@ async function board(){
     const cb = ev.target.closest('[data-bk]'); if(cb){ const d = LS.get('boardDone.' + ym, {}); if(cb.checked) d[cb.dataset.bk] = 1; else delete d[cb.dataset.bk]; LS.set('boardDone.' + ym, d); cb.closest('li').classList.toggle('done', cb.checked); return; }
     if(ev.target.closest('[data-bscan]')){ scan(cur); return; }
     if(ev.target.closest('select,option')) return;   /* 状態のえらぶ欄を押したときは開かない */
-    const o = ev.target.closest('[data-bopen]'); if(o && o.dataset.bopen){ const x = rows.find(r => r.id === o.dataset.bopen); if(!x) return; if(S.built && S.workId === x.id){ setTab('sites'); return; } const w = await loadWork(x); if(w){ openWork(w); setTab('sites'); } }
+    const o = ev.target.closest('[data-bopen]'); if(o && o.dataset.bopen){ const x = rows.concat(qRows).find(r => r.id === o.dataset.bopen); if(!x) return; if(S.built && S.workId === x.id){ setTab('sites'); return; } const w = await loadWork(x); if(w){ openWork(w); setTab('sites'); } }
   };
 }
 async function scan(cur){
@@ -9911,7 +9931,7 @@ st.textContent = `
 .xb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:6px 0 4px}
 .xb-c{display:grid;grid-template-columns:1fr auto;gap:4px 8px;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:10px 12px;cursor:pointer}
 .xb-c:hover{border-color:var(--brand)}
-.xb-fh{color:#2E8B57;border-top:1px dashed var(--line);padding-top:10px}.xb-fin .xb-c{opacity:.6;background:rgba(46,160,90,.07);border-color:rgba(46,160,90,.35)}.xb-fin .xb-c:hover{opacity:1}.xb-fin .xb-n::before{content:'✓ ';color:#2E8B57}.xb-all{color:#2E8B57;font-weight:700;margin:6px 0}.xb-s.done{background:rgba(46,160,90,.16);color:#2E8B57}
+.xb-qh{color:#E3B23C;border-top:1px dashed var(--line);padding-top:10px}.xb-q .xb-c{border-style:dashed}.xb-fh{color:#2E8B57;border-top:1px dashed var(--line);padding-top:10px}.xb-fin .xb-c{opacity:.6;background:rgba(46,160,90,.07);border-color:rgba(46,160,90,.35)}.xb-fin .xb-c:hover{opacity:1}.xb-fin .xb-n::before{content:'✓ ';color:#2E8B57}.xb-all{color:#2E8B57;font-weight:700;margin:6px 0}.xb-s.done{background:rgba(46,160,90,.16);color:#2E8B57}
 .xb-n{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.xb-s{font-size:11px;font-weight:800;padding:1px 8px;border-radius:999px;background:var(--soft);color:var(--ink2)}
 .xb-s.printed{background:rgba(79,163,172,.18);color:var(--brand)}.xb-s.sent{background:rgba(46,160,90,.16);color:#2E8B57}
 .xb-bar{grid-column:1/-1;height:5px;border-radius:3px;background:var(--line);overflow:hidden}.xb-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),#7FD3A6);border-radius:3px}
@@ -11799,7 +11819,7 @@ async function pdfToLines(file, prog){
       /* 2026-11-03 スキャン（FAX・複合機）の見積：大きくして白黒にすると、表の数字がよく読める（タイセーの見積で 4行 → 12行） */
       try{ var g2 = cv.getContext('2d'), im2 = g2.getImageData(0, 0, cv.width, cv.height), a2 = im2.data; for(var q2 = 0; q2 < a2.length; q2 += 4){ var y2 = 0.299 * a2[q2] + 0.587 * a2[q2 + 1] + 0.114 * a2[q2 + 2]; a2[q2] = a2[q2 + 1] = a2[q2 + 2] = y2 < 170 ? 0 : 255; } g2.putImageData(im2, 0, 0); }catch(e){}
       var ls = await ocrLines(cv, function(k){ prog(0.6 + 0.4 * ((p2 - 1) + k) / n); });
-      ls.forEach(function(l){ l.page = p2; out.push(l); });
+      ls.forEach(function(l){ l.page = p2; l.cv = cv; out.push(l); });   /* 読んだ紙の絵（確かめる画面で行の絵を出す） */
     }
     return out;
   }
@@ -11863,7 +11883,7 @@ async function ocrLines(cv, prog){
     var r = await worker.recognize(cv), ls = (r && r.data && r.data.lines) || [];
     return ls.map(function(l){
       var items = (l.words || []).filter(function(w){ return w.text && w.text.trim() && !/^[|｜_＿\-—=]+$/.test(w.text.trim()); }).map(function(w){ return { x: w.bbox.x0, y: -((l.bbox && l.bbox.y0) || w.bbox.y0), w: w.bbox.x1 - w.bbox.x0, s: w.text }; });   /* 1行の語は同じ高さにそろえる（大きく読むと語ごとに高さがずれて、行の後ろが落ちていた） */
-      var out = itemsToLines(items)[0];
+      var out = itemsToLines(items)[0]; if(out && l.bbox) out.bb = { x0: l.bbox.x0, y0: l.bbox.y0, x1: l.bbox.x1, y1: l.bbox.y1 };
       if(out){ out.cells.forEach(function(c){ c.s = c.s.replace(/(\d)\s+(?=\d)/g, '$1').replace(/(\d)\s*,\s*(?=\d{3})/g, '$1,'); }); }
       return out || { y: 0, cells: [], pos: false };
     }).filter(function(l){ return l.cells.length; });
@@ -11875,7 +11895,7 @@ function textToLines(text){
     var toks = ln.trim().split(/[\s\t]+/).filter(Boolean), cells = [];
     toks.forEach(function(t){
       var last = cells[cells.length - 1];
-      if(last && /^\d+(\.\d+)?$/.test(last.s) && /^[^\d\s,.]{1,4}$/.test(t)){ last.s += t; return; }
+      if(last && cells.length > 1 && /^\d+(\.\d+)?$/.test(last.s) && /^[^\d\s,.]{1,4}$/.test(t)){ last.s += t; return; }   /* 行の頭の番号（13 特別値引）はつながない */
       cells.push({ x: cells.length * 100, w: 90, s: t });
     });
     return { y: 0, cells: cells, pos: false };
@@ -12102,7 +12122,17 @@ async function readOwnPdf(f){
     if((mm = /^基本料(?:等|金)?\s+\d+(?:\.\d+)?\s*\S{0,3}\s*×\s*@\s*([\d,]+)/.exec(s))){ cur.bu = NUM(mm[1]); return; }
     if((mm = /^(?:サポート料?|補償料?|免責補償料?)\s+.*?@\s*([\d,]+)/.exec(s))){ cur.su = NUM(mm[1]); return; }
   });
-  if(!rows.length) throw new Error('見積の行が読めなかった。web見積で控えに保存してから「web見積の控えから」で選んで');
+  if(!rows.length){
+    /* 2026-11-03 前のExcelの見積書など、web見積の形でない自分の見積：表として読み、金額は見積のまま（上乗せしない）。値引きの行もそのまま入れる */
+    const R = await readSupplier(f, null, () => {});
+    R.rows.forEach(r => { r.src = 'q'; r.edited = true; const p0 = Math.abs(Number(r.cost) || 0);
+      if(r.type === 'disc'){ r.on = true; r.bu = -p0; r.lu = 0; } else if(RENT(r.kb)){ r.lu = p0; } else { r.bu = p0; } });
+    const z = lines.map(l => l.cells.map(c => c.s).join(' ')).map(t => nfkc(t).replace(/\s+/g, ' ').trim());
+    let mc; z.forEach(t => { if(!info.cust && (mc = /^(.*?(株式会社|有限会社|合同会社).*?)\s*御中/.exec(t)) && !/ワークス/.test(mc[1])) info.cust = mc[1].replace(/\s/g, ''); if(!info.genba && (mc = /(物件名|現場名|工事名)\s*[:：]?\s*(\S+)/.exec(t))) info.genba = mc[2]; if(!info.no && (mc = /見積書?番号\s*[:：]?\s*(\S+)/.exec(t))) info.no = mc[1]; });
+    info.from = 'pdf-table'; info.total = R.info.total || 0;
+    if(!R.rows.length) throw new Error('見積の行が読めなかった。web見積で控えに保存してから「web見積の控えから」で選んで');
+    return { rows: R.rows, info };
+  }
   rows.forEach(r => { if(!r.kashi) r.kashi = info.kfrom; r.kto = info.kto; });
   return { rows, info };
 }
@@ -12114,17 +12144,28 @@ async function readSupplier(f, text, prog){
   else if(/^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name)) lines = await imageToLines(f, prog);
   else lines = await pdfToLines(f, prog);
   const P = parseLines(lines), rows = [];
+  /* スキャン（文字を絵から読んだ）とき：行ごとに紙の絵を切り出して、確かめる画面で品名の下に出す（半角カナなどは読みまちがえるので見て直せるように） */
+  const strip = r => { try{ const i = lines.findIndex(l => l.cells === r.cells); const L0 = lines[i]; if(!L0 || !L0.cv || !L0.bb) return '';
+      const h = L0.bb.y1 - L0.bb.y0, prev = lines[i - 1] && lines[i - 1].cv === L0.cv && lines[i - 1].bb ? lines[i - 1].bb : null;
+      const y0 = Math.max(0, Math.round(prev && L0.bb.y0 - prev.y1 < h * 2.5 ? prev.y0 - h * 0.3 : L0.bb.y0 - h * 1.4)), y1 = Math.min(L0.cv.height, Math.round(L0.bb.y1 + h * 0.4));
+      /* 品名の欄だけ（左から数量の手前まで）を切り出して大きめに */
+      const W = L0.cv.width, nums = r.cells.filter(c0 => /^[¥\\]?[-−▲]?[\d,]+$/.test(String(c0.s).replace(/\s/g, ''))), xr = nums.length ? Math.min(W, nums[0].x - 8) : W * 0.6, xl = Math.max(0, Math.min(L0.bb.x0, W * 0.04) - 6), cw = Math.max(40, xr - xl);
+      const c = document.createElement('canvas'), sc = Math.min(1, 640 / cw); c.width = Math.round(cw * sc); c.height = Math.round((y1 - y0) * sc);
+      c.getContext('2d').drawImage(L0.cv, xl, y0, cw, y1 - y0, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.75); }catch(e){ return ''; } };
   P.rows.forEach(r => {
     if(r.type === 'sect') return;
     const kb = KB_OF[r.k] || '販売', cost = Math.abs(Number(r.cost) || 0);
     const o = { on: r.type === 'item', name: r.name + (r.desc && !/^(・|※)/.test(r.desc) && r.desc.length <= 20 ? '' : ''), desc: r.desc || '', memo: r.memo || '', kb, qty: Number(r.qty) || 1, unit: r.unit || (RENT(kb) ? '台' : '式'),
-      lu: 0, su: 0, bu: 0, cost, costAmt: Number(r.costAmt) || 0, days0: Number(r.days) || 0, src: 's', type: r.type };
-    if(r.type === 'disc'){ o.name = r.name || '値引き'; o.kb = '一式'; o.unit = '式'; o.neg = true; }
-    else if(r.type === 'item' && Math.abs(o.costAmt) < 10 && o.cost < 10){ o.type = 'zero'; o.on = false; o.cost = 0; o.qty = 1; }   /* 金額のない行（「鶴見 水中ポンプ 修理 1台」のような見出し）：数量の 1 を金額と読まない */
+      lu: 0, su: 0, bu: 0, cost, costAmt: Number(r.costAmt) || 0, days0: Number(r.days) || 0, src: 's', type: r.type, img: strip(r) };
+    /* 品名の後ろについた区分の言葉（「ベアリング交換 一式」「往復運賃 運賃」）は区分にして、品名から外す */
+    { const mk = /\s+(一式|運賃|日極|月極|販売|整備|修理|出庫|配送)$/.exec(o.name); if(mk){ o.name = o.name.slice(0, mk.index).trim(); o.kb = mk[1] === '運賃' ? '配送' : mk[1]; o.unit = RENT(o.kb) ? (o.unit || '台') : '式'; } }
+    if(r.type === 'disc'){ o.name = o.name || r.name || '値引き'; o.kb = o.kb === '配送' ? '一式' : (o.kb || '一式'); o.unit = '式'; o.neg = true; }
+    else if(r.type === 'item' && Math.abs(o.costAmt) < 10 && o.cost < 10){ o.type = 'zero'; o.on = false; o.cost = 0; o.costAmt = 0; o.qty = 1; }   /* 金額のない行（「鶴見 水中ポンプ 修理 1台」のような見出し）：数量の 1 を金額と読まない */
     if(kb === '修理') o.unit = '式';
     rows.push(o);
   });
-  const info = { type: 'sq', no: P.info.ref || '', cust: '', genba: P.info.basho || '', date: P.info.date || '', supplier: P.info.supplier || '', total: P.info.total || 0, file: f ? f.name : '貼った文字', name: '仕入先の見積 ' + (P.info.supplier || (f ? f.name : '')) };
+  const basho = String(P.info.basho || '').split(/\s*(TEL|FAX|〒|電話)/)[0].trim();
+  const info = { type: 'sq', no: P.info.ref || '', cust: '', genba: /貴社|指定|上記|別途|御社|現場にて/.test(basho) ? '' : basho, date: P.info.date || '', supplier: P.info.supplier || '', total: P.info.total || 0, file: f ? f.name : '貼った文字', name: '仕入先の見積 ' + (P.info.supplier || (f ? f.name : '')) };
   return { rows, info };
 }
 function priceSupplier(rows, pct){
@@ -12146,7 +12187,7 @@ function lineOf(r, p){
     daysFromPeriod(l);
     /* 基本料は貸し始めの月だけ（前の月から続いている品には入れない） */
     if(kashi && kashi < s0 && num(l.bu)){ l.bu = 0; l.noBase = 1; }
-  } else { l.kashi = (r.kb === '配送' || r.kb === '販売' || r.kb === '整備') && !r.adj ? (r.kashi || p.kashi || '') : ''; }
+  } else { l.kashi = r.adj ? '' : (r.kashi || (p.hasRent !== false ? ((r.kb === '配送' || r.kb === '販売' || r.kb === '整備') ? p.kashi || '' : '') : (p.day || ''))); }
   return l;
 }
 
@@ -12176,17 +12217,22 @@ async function companyMeta(){
 function sheet(){
   let M = document.getElementById('xQt');
   if(!M){ M = document.createElement('div'); M.id = 'xQt'; M.className = 'xqt'; M.hidden = true; document.body.appendChild(M);
-    M.addEventListener('click', ev => { if(ev.target === M) close(); }); }
+    /* 外を押しても閉じない（途中まで入れたのが消えるので。2026-11-03「誤って端押しちゃうとメイン画面に戻って全部消える」） */ }
   return M;
 }
 function close(){ const M = document.getElementById('xQt'); if(M) M.hidden = true; document.body.classList.remove('xqt-open'); }
+/* 閉じても、読んだ見積と入れた内容は覚えておく（このページを開いているあいだ）。もう一度開くと「さっきの続き」から */
+let keep = null;
+function closeKeep(){ try{ if(D && document.getElementById('qRows')){ const g = id => (document.getElementById(id) || {}).value; keep = { D, F: Object.assign({}, F), v: { qCust: g('qCust'), qCode: g('qCode'), qZip: g('qZip'), qAddr: g('qAddr'), qGenba: g('qGenba'), qSc: g('qSc'), qShime: g('qShime'), qPay: g('qPay'), qKashi: g('qKashi'), qStart: g('qStart'), qEnd: g('qEnd'), qRate: g('qRate'), qDay: g('qDay') } }; } }catch(e){} close(); }
 X.quoteClose = close;
 /* はじめの画面：どこから作るか */
 async function openStart(){
   const M = sheet(); M.hidden = false; document.body.classList.add('xqt-open');
   M.innerHTML = '<div class="xqt-c"><div class="xqt-h"><b>見積から請求書を作る</b><span class="sp"></span><button type="button" class="btn" data-q="x">閉じる</button></div>' +
     '<div class="xqt-tabs"><button type="button" class="on" data-qt="list">web見積の控えから</button><button type="button" data-qt="mq">見積書のPDF（自分で作った）</button><button type="button" data-qt="sq">仕入先の見積書</button></div>' +
+    (keep ? '<div class="xqt-resume"><b>さっきの続き</b><span>' + esc((keep.v.qCust || keep.D.info.cust || '') + '　' + (keep.D.info.name || keep.D.info.file || '')) + '（' + keep.D.rows.length + '行）</span><button type="button" class="btn sm primary" data-q="resume">続きを開く</button><button type="button" class="btn sm" data-q="drop">捨てる</button></div>' : '') +
     '<div class="xqt-b" id="xqtB"></div></div>';
+  { const r = M.querySelector('[data-q="resume"]'); if(r) r.onclick = () => { D = keep.D; const k = keep; form(k); }; const d = M.querySelector('[data-q="drop"]'); if(d) d.onclick = () => { keep = null; openStart(); }; }
   M.querySelectorAll('[data-qt]').forEach(b => b.onclick = () => { M.querySelectorAll('[data-qt]').forEach(x => x.classList.toggle('on', x === b)); tab(b.dataset.qt); });
   M.querySelector('[data-q="x"]').onclick = close;
   tab('list');
@@ -12248,15 +12294,17 @@ document.addEventListener('change', ev => {
     sv(t.id, v || ''); }
 }, true);
 /* 2つめの画面：得意先・期間・行を確かめて作る */
-async function form(){
+async function form(K){
   const M = sheet(), info = D.info, today = iso0(new Date());
   const kf = info.kfrom || (D.rows.find(r => r.kashi) || {}).kashi || '';
-  const recent = kf && Date.parse(monthEnd(kf)) >= Date.now() - 35 * 864e5;   /* 見積の貸出が先月なら、先月の締め（11月はじめに10月分を作るとき） */
-  const shime = monthEnd(kf && (kf > today || recent) ? kf : today);
+  /* 締め日のはじめの値：いま作業している月の締め（月の請求の作業でいちばん新しい締め日。11月はじめに10月の締めをしているなら 10/31）。見積の貸出がそれより後ならその月 */
+  let lastShime = ''; try{ lastShime = (await allWorksMeta()).filter(x => !/^Q-/.test(String(x.id || ''))).map(x => String((x.w || {}).seikyuDate || '')).filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v)).sort().pop() || ''; }catch(e){}
+  const recent = kf && Date.parse(monthEnd(kf)) >= Date.now() - 35 * 864e5;
+  const shime = kf && lastShime && kf > lastShime ? monthEnd(kf) : lastShime ? lastShime : monthEnd(kf && (kf > today || recent) ? kf : today);
   F = { cust: info.cust || '', code: '', br: '0', zip: '', addr: '', tel: '', genba: info.genba || '', siteCode: '', shime, pay: '', kashi: kf || info.date || today, start: '', end: '', ret: info.kto && info.kto <= shime ? info.kto : '継続', rate: rateNow() };
   F.start = F.kashi && F.kashi > monthStart(shime) ? F.kashi : monthStart(shime); F.end = F.ret !== '継続' ? F.ret : shime;
   const hasRent = D.rows.some(r => RENT(r.kb)), sup = info.type === 'sq';
-  M.innerHTML = '<div class="xqt-c"><div class="xqt-h"><b>' + (sup ? '仕入先の見積 → 請求書' : '見積 → 請求書') + '</b><span class="xqt-src">' + esc(info.name || info.file || '') + (info.from === 'pdf-hikae' ? '（PDFの見積番号で控えから）' : info.from === 'pdf-text' ? '（控えになかったので紙の文字から読んだ。確かめて）' : '') + '</span><span class="sp"></span><button type="button" class="btn" data-q="back">← もどる</button><button type="button" class="btn" data-q="x">閉じる</button></div>' +
+  M.innerHTML = '<div class="xqt-c"><div class="xqt-h"><b>' + (sup ? '仕入先の見積 → 請求書' : '見積 → 請求書') + '</b><span class="xqt-src">' + esc(info.name || info.file || '') + (info.from === 'pdf-hikae' ? '（PDFの見積番号で控えから）' : info.from === 'pdf-text' ? '（控えになかったので紙の文字から読んだ。確かめて）' : info.from === 'pdf-table' ? '（見積書の表から読んだ。金額は見積のまま）' : '') + '</span><span class="sp"></span><button type="button" class="btn" data-q="back">← もどる</button><button type="button" class="btn" data-q="x">閉じる</button></div>' +
     '<div class="xqt-b"><div class="xqt-g">' +
     '<label>得意先<input id="qCust" list="qCustL" value="' + esc(F.cust) + '" placeholder="株式会社○○（今までの作業の得意先から選べる）"><datalist id="qCustL"></datalist></label>' +
     '<label class="s">得意先コード<input id="qCode" value="" placeholder="なければ空"></label>' +
@@ -12267,10 +12315,11 @@ async function form(){
     (hasRent ? '<div class="xqt-g xqt-per"><b class="t">レンタルの期間（この請求の分）</b><label class="s">貸出日' + dfld('qKashi', F.kashi) + '</label><label class="s">請求の開始' + dfld('qStart', F.start) + '</label><label class="s">請求の終了' + dfld('qEnd', F.end) + '</label>' +
       '<label class="s">返却<span class="xqt-ret"><label><input type="radio" name="qRet" value="継続"' + (F.ret === '継続' ? ' checked' : '') + '> 継続</label><label><input type="radio" name="qRet" value="d"' + (F.ret !== '継続' ? ' checked' : '') + '> 返却日 ' + dfld('qRetD', F.ret !== '継続' ? F.ret : '') + '</label></span></label>' +
       '<span class="muted xqt-note">日数・金額は請求ナビと同じ計算（月極は30日まで・サポートは日数分）。基本料は貸し始めの月だけ' + (info.kfrom ? '。見積の期間 ' + md(info.kfrom) + '〜' + md(info.kto) : '') + '</span></div>' : '') +
-    (sup ? '<div class="xqt-g"><label class="s">粗利（%）<input type="number" id="qRate" value="' + F.rate + '" min="0" max="90" step="1"></label><span class="muted xqt-note">売値 ＝ 仕入 ÷ (1 − 粗利%)。web見積と同じ値（変えると web見積の「仕入先の見積から」も同じになる）。行の単価を直した行は、そのまま</span>' + (info.total ? '<span class="xqt-note">仕入先の見積の合計 ' + yen(info.total) + '</span>' : '') + '</div>' : '') +
+    (!hasRent ? '<div class="xqt-g"><label class="s">日付（販売・修理の行）' + dfld('qDay', '') + '</label><span class="muted xqt-note">紙の「貸出」の欄に出る日付（納品日・作業日）。空なら出さない</span></div>' : '') +
+    (sup ? '<div class="xqt-g"><label class="s">粗利（%）<input type="number" id="qRate" value="' + F.rate + '" min="0" max="90" step="1"></label><button type="button" class="btn sm" id="qSame" title="仕入先の見積の金額をそのまま請求する（上乗せしない）">見積と同じ金額にする（粗利0）</button><button type="button" class="btn sm" id="qR30" title="仕入 ÷ 0.7 にもどす">粗利30%にもどす</button><span class="muted xqt-note">売値 ＝ 仕入 ÷ (1 − 粗利%)。web見積と同じ値（変えると web見積の「仕入先の見積から」も同じになる）。行の単価を直した行は、そのまま</span>' + '<span class="xqt-note" id="qChk"></span>' + (D.rows.some(r => r.img) ? '<span class="xqt-note xqt-warn">スキャンのPDFは絵から文字を読んでいる。<b>金額はほぼ正しく読めるが、品名（とくに半角カナ）はくずれやすい</b>。品名の下の紙の絵を見て直して（押すと大きく）</span>' : '') + '</div>' : '') +
     '<div class="xqt-tw"><table class="xqt-t"><thead><tr><th></th><th>品名</th><th>区分</th><th class="n">数量</th><th>単位</th><th class="n">賃貸単価</th><th class="n">サポート単価</th><th class="n">基本料・販売単価</th>' + (sup ? '<th class="n">仕入</th>' : '') + '<th class="n">日数</th><th class="n">金額</th></tr></thead><tbody id="qRows"></tbody><tfoot><tr><td colspan="' + (sup ? 10 : 9) + '">税抜 合計</td><td class="n" id="qTot"></td></tr></tfoot></table></div>' +
     '<div class="xqt-foot"><button type="button" class="btn" id="qAdd">＋ 行を足す</button><span class="sp"></span><span class="muted" id="qWarn"></span><button type="button" class="btn primary" id="qGo">この内容で請求書を作る</button></div></div></div>';
-  M.querySelector('[data-q="x"]').onclick = close; M.querySelector('[data-q="back"]').onclick = openStart;
+  M.querySelector('[data-q="x"]').onclick = () => { closeKeep(); toast('閉じた（入れた内容は覚えている。もう一度「見積から請求書」を開くと続きから）', 4000); }; M.querySelector('[data-q="back"]').onclick = () => { closeKeep(); openStart(); };
   const dl = document.getElementById('qCustL'); custList().then(cs => { dl.innerHTML = cs.map(c => '<option value="' + esc(c.name) + '">' + esc(c.code) + '</option>').join(''); if(F.cust) fillCust(F.cust); });
   const $q = id => document.getElementById(id);
   async function fillCust(nm){ const c = await custInfo(nm); if(!c) return; $q('qCust').value = c.name; $q('qCode').value = c.code; if(!$q('qZip').value) $q('qZip').value = c.zip; if(!$q('qAddr').value) $q('qAddr').value = c.addr; F.tel = c.tel; F.br = c.br;
@@ -12280,27 +12329,34 @@ async function form(){
   $q('qCust').addEventListener('change', ev => fillCust(ev.target.value));
   const readF = () => { F.cust = $q('qCust').value.trim(); F.code = $q('qCode').value.trim(); F.zip = $q('qZip').value.trim(); F.addr = $q('qAddr').value.trim(); F.genba = $q('qGenba').value.trim(); F.siteCode = $q('qSc').value.trim(); F.shime = dv('qShime') || F.shime; F.pay = dv('qPay');
     if(hasRent){ F.kashi = dv('qKashi'); F.start = dv('qStart'); F.end = dv('qEnd'); const rv = (document.querySelector('input[name="qRet"]:checked') || {}).value; F.ret = rv === 'd' ? (dv('qRetD') || F.end) : '継続'; }
-    if(sup) F.rate = Number($q('qRate').value) || F.rate; };
+    F.hasRent = hasRent; F.day = hasRent ? '' : dv('qDay');
+    if(sup){ const rv = $q('qRate').value; F.rate = rv === '' ? F.rate : Math.max(0, Math.min(90, Number(rv) || 0)); } };
   const paint = () => { readF(); if(sup) priceSupplier(D.rows, F.rate);
     let tot = 0;
     $q('qRows').innerHTML = D.rows.map((r, i) => { const l = lineOf(r, F); calcLine(l); const a = lineAmt(l); if(r.on) tot += a;
       const kbs = KBS.concat(KBS.includes(r.kb) ? [] : [r.kb]);
       const why = r.type === 'disc' ? '<em class="w">値引きの行（仕入先）。お客さまにも引くならチェック</em>' : r.type === 'zero' ? '<em class="w">0円の行（お客様にて など）。入れるならチェックして単価を</em>' : '';
-      return '<tr class="' + (r.on ? '' : 'off') + '" data-i="' + i + '"><td><input type="checkbox" data-k="on"' + (r.on ? ' checked' : '') + ' title="チェック＝請求書に出す"></td><td><input data-k="name" value="' + esc(r.name) + '">' + (r.desc ? '<small>' + esc(r.desc) + '</small>' : '') + why + '</td>' +
+      return '<tr class="' + (r.on ? '' : 'off') + '" data-i="' + i + '"><td><input type="checkbox" data-k="on"' + (r.on ? ' checked' : '') + ' title="チェック＝請求書に出す"></td><td><input data-k="name" value="' + esc(r.name) + '">' + (r.desc ? '<small>' + esc(r.desc) + '</small>' : '') + (r.img ? '<img class="xqt-img" src="' + r.img + '" alt="" title="読んだ紙の絵（押すと大きく）。品名は絵を見て直して">' : '') + why + '</td>' +
         '<td><select data-k="kb">' + kbs.map(k => '<option' + (k === r.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select></td>' +
         '<td class="n"><input data-k="qty" value="' + esc(r.qty) + '" inputmode="decimal"></td><td><input data-k="unit" value="' + esc(r.unit || '') + '" class="u"></td>' +
         '<td class="n"><input data-k="lu" value="' + (num(r.lu) || '') + '" inputmode="decimal"' + (RENT(r.kb) ? '' : ' disabled') + '></td><td class="n"><input data-k="su" value="' + (num(r.su) || '') + '" inputmode="decimal"' + (RENT(r.kb) ? '' : ' disabled') + '></td><td class="n"><input data-k="bu" value="' + (num(r.bu) || '') + '" inputmode="decimal"></td>' +
         (sup ? '<td class="n c">' + (r.cost ? yen(r.cost) : '') + '</td>' : '') +
         '<td class="n d">' + (RENT(r.kb) ? (l.days || '') + (l.sdays ? '／' + l.sdays : '') : '') + '</td><td class="n a">' + yen(a) + (l.noBase ? '<small>基本料は前の月</small>' : '') + '</td></tr>'; }).join('');
     $q('qTot').textContent = yen(tot) + '（税込 ' + yen(tot + tax(tot)) + '）';
+    if(sup && $q('qChk')){ const items = D.rows.filter(r => r.src === 's' && r.type !== 'disc').reduce((a, r) => a + (Number(r.costAmt) || 0), 0), disc = D.rows.filter(r => r.src === 's' && r.type === 'disc').reduce((a, r) => a + (Number(r.costAmt) || 0), 0), sum = items + disc;
+      $q('qChk').innerHTML = info.total ? (sum === info.total ? '<b class="ok">✓ 読んだ行の仕入 ' + yen(items) + (disc ? '（値引 ' + yen(disc) + '）' : '') + ' ＝ 仕入先の見積の合計 ' + yen(info.total) + '。金額は全部読めている</b>' : '<b class="ng">！ 読んだ行の仕入 ' + yen(sum) + ' が、仕入先の見積の合計 ' + yen(info.total) + ' と ' + yen(sum - info.total) + ' ちがう。読みまちがいの行があるかも（紙の絵とくらべて）</b>') : '仕入先の見積の合計が読めなかった（読んだ行の仕入 ' + yen(sum) + '）'; }
     const w = []; if(!F.cust) w.push('得意先が空'); if(!F.genba) w.push('現場名が空'); if(!F.pay) w.push('お支払日が空'); if(!D.rows.some(r => r.on)) w.push('出す行がない');
     $q('qWarn').textContent = w.join('・'); };
   M.querySelector('.xqt-c').addEventListener('change', ev => { const t = ev.target, tr = t.closest && t.closest('tr[data-i]');
     if(tr){ const r = D.rows[+tr.dataset.i], k = t.dataset.k; if(k === 'on') r.on = t.checked; else if(k === 'name' || k === 'unit') r[k] = t.value; else if(k === 'kb'){ const was = RENT(r.kb); r.kb = t.value; if(was !== RENT(r.kb)){ if(RENT(r.kb)){ r.lu = r.lu || r.bu; r.bu = 0; } else { r.bu = r.bu || r.lu; r.lu = 0; r.su = 0; } } if(r.kb === '修理') r.unit = '式'; }
       else { r[k] = num(t.value); if(/^(lu|bu|su)$/.test(k)) r.edited = true; } }
     paint(); });
+  M.querySelector('.xqt-c').addEventListener('click', ev => { const im = ev.target.closest && ev.target.closest('.xqt-img'); if(im) im.classList.toggle('big'); });
+  { const sb = $q('qSame'), rb = $q('qR30'); const setR = v => { $q('qRate').value = v; D.rows.forEach(r => { if(r.src === 's') r.edited = false; }); if(v === 0) D.rows.forEach(r => { if(r.type === 'disc') r.on = true; }); paint(); };
+    if(sb) sb.onclick = () => setR(0); if(rb) rb.onclick = () => setR(30); }
   $q('qAdd').onclick = () => { D.rows.push({ on: true, name: '', kb: '販売', qty: 1, unit: '式', lu: 0, su: 0, bu: 0, src: 'add', edited: true }); paint(); };
   $q('qGo').onclick = () => { readF(); make(); };
+  if(K && K.v){ Object.keys(K.v).forEach(id => { const e = document.getElementById(id); if(e && K.v[id] != null) e.value = K.v[id]; }); keep = null; }
   paint();
 }
 /* 作る */
@@ -12338,6 +12394,41 @@ async function make(){
 }
 X.quoteOpen = async (kind, f) => { await openStart(); if(kind && kind !== 'list'){ const b = document.querySelector('#xQt [data-qt="' + kind + '"]'); if(b) b.click(); if(f){ const inp = document.getElementById('xqtF'); try{ const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; inp.dispatchEvent(new Event('change')); }catch(e){ console.warn(e); } } } };
 
+/* 2026-11-03「結局これ直ってないじゃん 文字」：前に作った仕入先の見積からの請求書の品名を、正しい文字で入れかえる。
+   仕入先の見積の文字を貼る（Claudeが読んだ文でも、メールの本文でも）→ 仕入の金額で行を合わせて品名だけ入れかえ（金額・並びはそのまま） */
+async function renameFromText(){
+  if(!S.built){ toast('先に作業を開いて'); return; }
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const costOf = l => { const m = /仕入\s*¥?\s*([\d,]+)/.exec(String(l.carried || '')); return m ? Number(m[1].replace(/,/g, '')) : null; };
+  const targets = S.lines.filter(l => !l.head && costOf(l) != null);
+  const M = sheet(); M.hidden = false; document.body.classList.add('xqt-open');
+  M.innerHTML = '<div class="xqt-c" style="max-width:780px"><div class="xqt-h"><b>品名を正しい文字で入れかえる</b><span class="sp"></span><button type="button" class="btn" data-q="x">閉じる</button></div><div class="xqt-b">' +
+    '<p class="muted" style="margin:0 0 8px">仕入先の見積の文字を貼る（Claudeが読んだ文・メールの本文など）。<b>仕入の金額で行を合わせて、品名だけ入れかえる</b>（金額・並び・区分はそのまま）。' + (targets.length ? '' : '<br><b class="xqt-warn">この作業には、仕入の金額のわかる行がない（仕入先の見積から作った作業で使う）</b>') + '</p>' +
+    '<textarea id="qRnT" rows="12" style="width:100%;border-radius:10px;padding:8px;background:var(--bg,#fff);color:inherit;border:1px solid var(--line,#dce4e5)" placeholder="2 6204ZZC3 ベアリング(軸受) 交換 1 2,360 2,360&#10;3 6305ZZC3 ベアリング(軸受) 交換 1 2,220 2,220&#10;…"></textarea>' +
+    '<label style="display:flex;gap:6px;align-items:center;margin:8px 0;font-size:13px"><input type="checkbox" id="qRnD"> 販売・修理の行の「貸出」の日付も消す</label>' +
+    '<div id="qRnP" class="muted" style="font-size:12.5px"></div><div class="xqt-foot"><span class="sp"></span><button type="button" class="btn" id="qRnChk">見てみる</button><button type="button" class="btn primary" id="qRnGo" disabled>入れかえる</button></div></div></div>';
+  M.querySelector('[data-q="x"]').onclick = close;
+  let plan = [];
+  const look = async () => { const t = document.getElementById('qRnT').value; if(!t.trim()){ toast('文字を貼って'); return; }
+    const R = await readSupplier(null, t), used = new Set(); plan = [];
+    targets.forEach(l => { const c = costOf(l); const i = R.rows.findIndex((r, k) => !used.has(k) && r.type !== 'disc' && Math.abs(Number(r.cost) || 0) === c); if(i >= 0){ used.add(i); plan.push({ l, to: R.rows[i].name }); } else plan.push({ l, to: null }); });
+    const ok = plan.filter(x => x.to && x.to !== x.l.name);
+    document.getElementById('qRnP').innerHTML = '<table class="xqt-t" style="margin-top:6px"><thead><tr><th>いまの品名</th><th></th><th>入れかえる品名</th></tr></thead><tbody>' + plan.map(x => '<tr' + (x.to ? '' : ' class="off"') + '><td>' + esc(x.l.name) + '</td><td>→</td><td>' + (x.to ? esc(x.to) : '<em class="w">合う金額の行がない（そのまま）</em>') + '</td></tr>').join('') + '</tbody></table>' + '<p>' + ok.length + ' 行を入れかえる</p>';
+    document.getElementById('qRnGo').disabled = !ok.length; };
+  document.getElementById('qRnChk').onclick = look;
+  document.getElementById('qRnGo').onclick = () => { const dd = document.getElementById('qRnD').checked; let n = 0;
+    plan.forEach(x => { if(x.to && x.to !== x.l.name){ x.l.name = x.to; if(x.l.sys) x.l.sys.name = x.to; x.l.userNm = true; n++; } });
+    if(dd) S.lines.forEach(l => { if(!l.head && l.kashi && !/^(日極|月極)$/.test(l.kb || '')){ l.kashi = ''; if(l.sys) l.sys.kashi = ''; } });
+    save(); try{ drawSites(); }catch(e){} close(); toast(n + ' 行の品名を入れかえた（↶ でもどせる）', 4000); };
+}
+X.quoteRename = renameFromText;
+/* 現場の画面の上に「品名を正しい文字で入れかえる」（仕入先の見積から作った作業のときだけ） */
+(function watchRn(){ const add = () => { try{ const H = document.getElementById('shead'); if(!H || !S.built || !S.meta || !/^S-/.test(String(S.meta.qno || '')) || H.querySelector('#xQRn')) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.id = 'xQRn'; b.textContent = '品名を正しい文字で入れかえる'; b.title = '仕入先の見積の文字を貼って、品名だけ入れかえる（スキャンで品名がくずれたとき）';
+    (H.querySelector('.row') || H).appendChild(b); }catch(e){} };
+  new MutationObserver(add).observe(document.body, { childList: true, subtree: true }); add(); })();
+document.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('#xQRn'); if(!b) return; ev.preventDefault(); renameFromText(); });
+
 /* 入口：読み込みの「なんでも置く」の下・コマンド */
 function mount(){
   const a = document.getElementById('xAny'); if(!a || document.getElementById('xQtBtn')) return;
@@ -12361,6 +12452,8 @@ css.textContent = '.xqt{position:fixed;inset:0;z-index:300;background:rgba(8,14,
   '.xqt-in{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:10px 0;padding:12px 14px;border:1px solid var(--line,#dce4e5);border-radius:14px;background:linear-gradient(90deg,rgba(227,178,60,.10),transparent)}.xqt-in b{font-size:14px}.xqt-in .muted{flex:1 1 300px;font-size:12px}.xqt-ib{display:flex;gap:6px;flex-wrap:wrap}' +
   '#xQt input[type=checkbox],#xQt input[type=radio]{appearance:auto!important;-webkit-appearance:auto!important;width:16px!important;height:16px!important;accent-color:#14646E;opacity:1!important;position:static!important}' +
   '.xqt-dw{position:relative;display:block}.xqt-dw input.xqt-d{width:100%;padding-right:34px;font-variant-numeric:tabular-nums}.xqt-cal{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:7px;display:grid;place-items:center;border:1px solid var(--line,#dce4e5);background:var(--surface,#fff);cursor:pointer}.xqt-cal svg{width:15px;height:15px;stroke:var(--ink2,#4a5d60);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.xqt-cal input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0;margin:0;border:0;cursor:pointer}.xqt-ret .xqt-dw{display:inline-block;width:150px}' +
+  '.xqt-img{display:block;margin-top:4px;max-width:440px;width:100%;min-height:34px;object-fit:contain;object-position:left;border-radius:6px;border:1px solid var(--line,#dce4e5);background:#fff;cursor:zoom-in}.xqt-img.big{max-width:none;width:860px;cursor:zoom-out;position:relative;z-index:2;box-shadow:0 10px 30px rgba(0,0,0,.4)}.xqt-note b.ok{color:#2E8B57}.xqt-note b.ng{color:#D9534F}.xqt-warn{color:var(--warn,#B7791F)}' +
+  '.xqt-resume{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 16px 0;padding:10px 12px;border-radius:12px;background:rgba(227,178,60,.12);border:1px solid rgba(227,178,60,.4)}.xqt-resume span{flex:1;font-size:12.5px}' +
   'body.xqt-open{overflow:hidden}@media (max-width:760px){.xqt-q{grid-template-columns:1fr 1fr;}.xqt-q .r,.xqt-q small,.xqt-q .d{display:none}}';
 document.head.appendChild(css);
 X._qLines = pdfToLines; X._qParse = parseLines;
@@ -12871,7 +12964,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-03 06:48';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 00:23';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
