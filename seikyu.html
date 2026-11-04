@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 00:36-->
+<!--BUILD:2026-11-05 00:48-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 00:36';
+const BUILD = '2026-11-05 00:48';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -4551,6 +4551,8 @@ $('#siteBody').addEventListener('dragover', ev => { if(!dragId) return; const tr
 $('#siteBody').addEventListener('drop', ev => {
   if(!dragId) return; ev.preventDefault(); const tr = ev.target.closest('tr[data-id]'); $$('#siteBody tr.dropto').forEach(x => x.classList.remove('dropto'));
   const a = S.lines.find(l => l.id === dragId), b = tr && S.lines.find(l => l.id === tr.dataset.id); dragId = null; if(!a || !b || a === b) return;
+  /* 2026-11-05「4つ選んで一緒に上にドラッグしたら1個だけ」→ 選んだ行をつまんだら、選んだ行をまとめて動かす */
+  if(window.seikyuExt && window.seikyuExt.dragGroup && window.seikyuExt.dragGroup(a, b)) return;
   const ia = S.lines.indexOf(a); S.lines.splice(ia, 1); const ib = S.lines.indexOf(b); const ls = linesOf(sheetById(a.sheet)); const after = ls.indexOf(b) > -1 && ia <= S.lines.indexOf(b);
   S.lines.splice(after ? ib + 1 : ib, 0, a); save(); drawSites(); toast('行を動かした（↶ でもどせる）');
 });
@@ -12804,6 +12806,7 @@ function finish(commit){
     done();
     const a = S.lines.find(l => l.id === d.id), b = S.lines.find(l => l.id === d.rows[d.target].dataset.id);
     if(!a || !b || a === b) return;
+    if(window.seikyuExt && window.seikyuExt.dragGroup && window.seikyuExt.dragGroup(a, b, d.target > d.src)) return;
     const after = d.target > d.src;
     S.lines.splice(S.lines.indexOf(a), 1); const ib = S.lines.indexOf(b);
     if(a.sheet !== b.sheet) a.sheet = b.sheet;
@@ -13224,7 +13227,7 @@ function card(){
     '<div class="v">' + n + '<small style="font-size:13px"> / ' + ks.length + ' 現場</small><span class="xpk-p">' + pct + '%</span></div>' +
     '<div class="xpk-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>' +
     '<div class="s">金額で ' + ap + '%（税抜 ' + yen(got) + ' / ' + yen(all) + '）' + (todo ? '・要確認の残り <b>' + todo + '</b> 件' : '・要確認なし') + (kagDone ? '・鑑 完了' : '') + '</div>' +
-    (rest.length ? '<div class="xpk-rest"><span>まだ：</span>' + rest.slice(0, 8).map(s => '<button type="button" data-xpkgo="' + s.id + '" title="この現場を開く">' + esc(s.name) + '</button>').join('') + (rest.length > 8 ? '<span>ほか ' + (rest.length - 8) + '</span>' : '') + '</div>'
+    (rest.length ? '<div class="xpk-rest"><span>まだ ' + rest.length + '：</span>' + rest.map(s => '<button type="button" data-xpkgo="' + s.id + '" title="この現場を開く">' + esc(s.name) + '</button>').join('')  + '</div>'
       : '<div class="xpk-rest ok">全部の現場が完了 ✓</div>');
   K.appendChild(d);
 }
@@ -13469,6 +13472,25 @@ css.textContent = '#xPriceSug{position:fixed;z-index:900;padding:5px;background:
   '#xPriceSug button{display:flex;width:100%;justify-content:space-between;align-items:baseline;gap:8px;font:inherit;padding:6px 9px;border:0;border-radius:8px;background:transparent;color:inherit;cursor:pointer;text-align:left}#xPriceSug button b{font-weight:700}#xPriceSug button span{font-size:11px;opacity:.65}#xPriceSug button:hover{background:color-mix(in srgb,var(--acc,#2a9) 16%,transparent)}' +
   '@media (pointer:coarse){#xPriceSug button{padding:10px}}';
 document.head.appendChild(css);
+})();
+/* 2026-11-05 選んだ行をまとめてドラッグ（番号をつまむ・スマホの ≡）：つまんだ行が選んだ行の中なら、選んだ行を全部、落とした行の上（下へ動かすときは下）へ。並びはそのまま */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+X.dragGroup = function(a, b, downHint){
+  const sh = sheetById(a.sheet); if(!sh || !S.bulkSel || S.bulkSel.size < 2) return false;
+  const all = linesOf(sh), sel = all.filter((l, i) => S.bulkSel.has(i + 1));
+  if(sel.length < 2 || !sel.includes(a)) return false;
+  if(sel.includes(b)){ toast('選んだ行の中には落とせない。選んでいない行の上に落として'); return true; }
+  if(X.siteLocked && X.siteLocked(sh.id)){ toast('この現場は完了でロック中'); return true; }
+  const down = downHint != null ? downHint : all.indexOf(a) < all.indexOf(b);
+  sel.forEach(l => S.lines.splice(S.lines.indexOf(l), 1));
+  const ib = S.lines.indexOf(b); S.lines.splice(down ? ib + 1 : ib, 0, ...sel);
+  if(b.sheet !== a.sheet) sel.forEach(l => { l.sheet = b.sheet; });
+  const now = linesOf(sh), set = new Set(); sel.forEach(l => { const i = now.indexOf(l); if(i >= 0) set.add(i + 1); });
+  S.bulkSel = set.size ? set : null; S.bulkRows = set.size && typeof rowsText === 'function' ? rowsText(set) : '';
+  save(); drawSites(); toast(sel.length + ' 行をまとめて動かした（↶ でもどせる）', 2600);
+  return true;
+};
 })();
 
 /* 請求ナビ Web：完了した現場はロック（ext3f.js）
@@ -14071,7 +14093,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 00:36';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 00:48';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
