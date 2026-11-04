@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 22:16-->
+<!--BUILD:2026-11-04 22:54-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 22:16';
+const BUILD = '2026-11-04 22:54';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3883,9 +3883,10 @@ async function updateFromCsv(x){
   /* 2026-11-02：運賃・軽油のように伝票も貸出日もないキー（|ZZ824|W| など）は、ほかの現場の同じキーの行とまちがえて組んでいた
      （三同 三河台の返却運賃(4tﾀﾞﾝﾌﾟ)が恵比寿西へ・関東 本田→等々力・成美 千葉港→東六郷）→ 同じ現場（CSVの現場コード）の行だけと組む */
   const sameSite = (o, l) => !o.site || !l.site || String(o.site) === String(l.site);
+  /* 2026-11-04 直し：中の sameSite が外の sameSite と同じ名前で、使う行より下に宣言されていた（ReferenceError）→ 「更新」が build() のあとで止まり、並び順・メモ・出さないの決め・完了・OKにしたチェックが引き継がれていなかった */
   const oldOf = l => { const c = (l.key && byKey[l.key] || []).filter(o => !used.has(o) && sameSite(o, l)); /* 2026-11-02 三同 恵比寿西：伝票番号のない運賃・軽油は同じキー（|ZZ824|W|）になる。品名も現場もちがう行（恵比寿の返却運賃）と組んで、三河台の 返却運賃(4tﾀﾞﾝﾌﾟ)・軽油 が恵比寿へ移っていた → 同じ現場・同じ品名のときだけ組む */
-    const sameSite = o => String(o.site || '') === String(l.site || '');
-    const o = c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx && sameSite(o)) || c.find(o => sysSig(o) === sysSig(l) && sameSite(o)) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && sameSite(o)) || c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && o.sys.qty === l.sys.qty) || null; if(o) used.add(o); return o; };
+    const same1 = o => String(o.site || '') === String(l.site || '');
+    const o = c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx && same1(o)) || c.find(o => sysSig(o) === sysSig(l) && same1(o)) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && same1(o)) || c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && o.sys.qty === l.sys.qty) || null; if(o) used.add(o); return o; };
   const pair = new Map(), idMap = {}; S.lines.filter(l => l.key && l.sys && !l.dup && !l.manual).forEach(l => { const o = oldOf(l); if(o) pair.set(l, o); });
   pair.forEach((o, l) => { ['nbDec','luDec','suggDec','memo','pxDec','rule'].forEach(k => { if(o[k] != null && l[k] == null) l[k] = o[k]; }); if(o.nb && !l.nb && o.nbDec){ l.nb = true; } });
   /* 手で直した行：直した欄だけ前のまま、直していない欄（期間・日数など）は新しいCSVの値にして計算し直す */
@@ -10453,7 +10454,7 @@ checks = function(){ const out = _ck.apply(this, arguments);
     });
     out.forEach(x => { if(x.id && !x.xfix && /^続いている品に基本料/.test(x.t)) x.xfix = 'base'; });
     /* 本物の請求書（システムの印刷）と CSV の合計がちがう＝CSV が古い（2026-10-31 成美 目白：本物 168,150・CSV 138,150） */
-    if(S.real && window.seikyuExt.cmpReal){ const old = []; S.sheets.forEach(sh => { try{ const c = window.seikyuExt.cmpReal(sh); if(c && c.total != null && c.total !== sheetSys(sh)) old.push(sh.name + '（CSV ' + yen(sheetSys(sh)) + '・本物 ' + yen(c.total) + '）'); }catch(e){} });
+    if(S.real && window.seikyuExt.cmpReal){ const old = []; S.sheets.forEach(sh => { try{ if(!linesOf(sh).length && S.sheets.some(o => o !== sh && String(o.code) === String(sh.code) && linesOf(o).length)) return; /* 2026-11-04 同じ現場コードの空のシート（前月の 神田 (2) など）は見ない */ const c = window.seikyuExt.cmpReal(sh); if(c && c.total != null && c.total !== sheetSys(sh)) old.push(sh.name + '（CSV ' + yen(sheetSys(sh)) + '・本物 ' + yen(c.total) + '）'); }catch(e){} });
       if(old.length) out.unshift({ lv: 'warn', t: 'CSVが本物の請求書より古い：' + old.length + ' 現場', s: old.slice(0, 6).join('、') + (old.length > 6 ? ' ほか' : '') + '。CSVを取ったあとにシステムで追加・返却・直しがあった。システムからCSVを取り直して、読み込みで「今の手直しを残して更新」。そうしないと本物と数字が合わない' }); }
   }catch(e){ console.warn(e); }
   return out; };
@@ -13743,7 +13744,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 22:16';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 22:54';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
