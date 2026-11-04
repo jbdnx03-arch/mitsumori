@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 14:40-->
+<!--BUILD:2026-11-04 15:47-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1260,7 +1260,9 @@ function totals(){
 function shortName(n){
   let s = String(n || '').replace(/^\s*[(（]仮称[)）]\s*/, '').replace(/(既存建物)?解体工事.*$|新築工事.*$|計画.*$|工事.*$/, '');
   const m = /(?:[都道府県]|^)?(?:[^都道府県市区町村]{1,4}[市区])?([^市区町村0-9０-９]{1,4})[0-9０-９一二三四五六七八九十]/.exec(s);
-  if(m && m[1]) return m[1].replace(/^[都道府県市区町村]/, '');
+  if(m && m[1] && !/^丁目/.test(m[1])) return m[1].replace(/^[都道府県市区町村]/, '');
+  /* 2026-11-04「日本橋本町4丁目…」が「丁目」になっていた → 数字の前までの地名を使う */
+  if(m && m[1]){ const b = s.split(/[0-9０-９一二三四五六七八九十]/)[0].replace(/^.*?[都道府県]/, '').replace(/^.*?[市区]/, ''); if(b && b.length >= 2) return b.slice(0, 5); }
   return s.slice(0, 6) || '現場';
 }
 /* 前月の手直しが「1対1の書きかえ」か（分けた・別の品にした、ではない） */
@@ -2812,9 +2814,12 @@ function relinkPrev(P){
   const used = new Set(); const r = { pv: 0, sg: 0, mv: 0, dup: 0 };
   S.prev = P; S.sameMonth = false; S.prevPack = packPrev(P); S.relinkVer = RELINK_VER;
   S.sheets.forEach(sh => {
-    const ps = P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code));
+    let ps = P.sheets.find(x => String(x.code) === String(sh.code) && x.name === (sh.prevName || sh.name)) || P.sheets.find(x => String(x.code) === String(sh.code));
+    /* 2026-11-04 前月のシートの現場コードが 0（勝どき・高田馬場）なら名前で */
+    if(!ps){ const nm = String(sh.prevName || sh.name || '').normalize('NFKC'); const c = P.sheets.filter(x => (!x.code || String(x.code) === '0') && String(x.name || '').normalize('NFKC') === nm); if(c.length === 1) ps = c[0]; }
     if(!ps) return;
     sh.prev = ps; useTitle(sh, ps); useCust(sh, ps); useSk(sh, ps);
+    if(!String(sh.kouji || '').trim() && ps.kouji && String(ps.kouji) !== '0') sh.kouji = String(ps.kouji);   /* 2026-11-04 照らし直しでも工番を前月から入れる（空のときだけ） */
     const old = sh.prevManual || [], pm = prevManualOf(ps.lines || []);
     sh.prevManual = pm;   /* 足してあるかは、いまのシートに同じ行があるかで決める（消していたら、また足せる） */
     /* 同じ「前月に手で足した行」が2つ以上あれば、1つだけ残して、ほかは「消した行」へ（もどせる） */
@@ -2959,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 14:40';
+const BUILD = '2026-11-04 15:47';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7498,6 +7503,47 @@ window.addEventListener('click', ev => { const b = ev.target.closest && ev.targe
 function nudge(){ try{ if(!S.built || !isSanki()) return; const n = S.sheets.filter(sh => skMiss(sh).length).length; if(n >= 2 && !S._skNudged){ S._skNudged = true; setTimeout(() => toast('三貴の指定用紙：工番・担当者が空の現場が ' + n + ' あります。チェックの「全部の現場をまとめて入れる」で1回で入れられる', 7000), 2500); } }catch(e){} }
 const _ow = openWork; openWork = function(){ const r = _ow.apply(this, arguments); S._skNudged = false; nudge(); return r; };
 const _bd = build; build = function(){ const r = _bd.apply(this, arguments); S._skNudged = false; nudge(); return r; };
+})();
+
+
+/* ==================================================================
+   2026-11-04「更新したら工事番号と担当者が根こそぎなくなった」
+   作業を「作り直す」（前月なしで CSV から作る等）と、入れてあった工番・担当者・注文番号が消えていた。
+   → 現場ごとの工番・担当者・注文番号をこの端末に覚えておき、同じ得意先・締めを作り直したとき、空の欄にもどす
+   ================================================================== */
+(function(){
+const KEEPK = 'seikyuNaviWeb.skKeep';
+const ld = () => { try{ return JSON.parse(localStorage.getItem(KEEPK) || '{}') || {}; }catch(e){ return {}; } };
+const sv = o => { try{ const ks = Object.keys(o); if(ks.length > 40) ks.sort((a, b) => String(o[a]._at || '').localeCompare(String(o[b]._at || ''))).slice(0, ks.length - 40).forEach(k => delete o[k]); localStorage.setItem(KEEPK, JSON.stringify(o)); }catch(e){} };
+const wid = () => { try{ return S.meta ? workIdOf(S.meta) : ''; }catch(e){ return ''; } };
+const valsOf = sh => ({ k: String(sh.kouji || '').trim(), t: String((sh.skv && sh.skv.AD21) || '').trim(), f: String((sh.skv && sh.skv.F23) || '').trim(), s: String((sh.skv && sh.skv.S23) || '').trim() });
+function keep(){
+  if(!S.built || !S.meta || !isSanki() || S._skRestoring) return; const id = wid(); if(!id) return;
+  const all = ld(), m = all[id] || {}; let ch = false;
+  S.sheets.forEach(sh => { const v = valsOf(sh), key = String(sh.code) + '|' + sh.name, o = m[key] || {};
+    ['k', 't', 'f', 's'].forEach(f => { if(v[f] && v[f] !== '0' && o[f] !== v[f]){ o[f] = v[f]; ch = true; } });
+    if(Object.keys(o).length) m[key] = o; });
+  if(ch){ m._at = new Date().toISOString(); all[id] = m; sv(all); }
+}
+function restore(){
+  if(!S.built || !S.meta || !isSanki()) return 0; const m = ld()[wid()]; if(!m) return 0;
+  let n = 0;
+  S.sheets.forEach(sh => {
+    let o = m[String(sh.code) + '|' + sh.name];
+    if(!o){ const c = Object.keys(m).filter(k => k !== '_at' && k.split('|')[0] === String(sh.code) && String(sh.code) !== '0'); if(c.length === 1 || (c.length > 1 && c.every(k => JSON.stringify(m[k]) === JSON.stringify(m[c[0]])))) o = m[c[0]]; }   /* 同じコードが2つ（神田・神田 (2)）でも中身が同じなら使う */
+    if(!o){ const c = Object.keys(m).filter(k => k !== '_at' && k.slice(k.indexOf('|') + 1) === sh.name); if(c.length === 1) o = m[c[0]]; }
+    if(!o) return;
+    const v = valsOf(sh);
+    if(!v.k && !v.f && (o.f || o.k)){ sh.kouji = o.f || o.k; sh.skv = sh.skv || {}; if(o.f) sh.skv.F23 = o.f; n++; }
+    if(!v.t && o.t){ sh.skv = sh.skv || {}; sh.skv.AD21 = o.t; n++; }
+    if(!v.s && o.s){ sh.skv = sh.skv || {}; sh.skv.S23 = o.s; n++; }
+  });
+  return n;
+}
+window.seikyuExt.skRestore = restore;
+const _sv = save; save = function(){ try{ keep(); }catch(e){} return _sv.apply(this, arguments); };
+const _ow = openWork; openWork = function(){ const r = _ow.apply(this, arguments); try{ const n = restore(); if(n){ save(); setTimeout(() => toast('指定用紙：前に入れてあった工番・担当者など ' + n + ' か所をもどした', 5000), 1200); } else keep(); }catch(e){} return r; };
+const _bd = build; build = function(){ const r = _bd.apply(this, arguments); try{ S._skRestoring = true; const n = restore(); S._skRestoring = false; if(n) setTimeout(() => toast('指定用紙：前に入れてあった工番・担当者など ' + n + ' か所をもどした', 5000), 1500); }catch(e){ S._skRestoring = false; } return r; };
 })();
 
 /* ==================================================================
@@ -13240,7 +13286,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 14:40';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 15:47';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
