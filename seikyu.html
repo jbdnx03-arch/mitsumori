@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 16:34-->
+<!--BUILD:2026-11-04 16:58-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 16:34';
+const BUILD = '2026-11-04 16:58';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -11243,6 +11243,9 @@ const _ds = drawSites;
 drawSites = function(){ const r = _ds.apply(this, arguments);
   /* 2026-11-04「目黒 なんで前月の引き継ぎができないの？」：前月その現場は全部手で足した行だった（CSVに無い）→ 現場の画面に「前月どおり入れる」をすぐ出す */
   setTimeout(pmBar, 0);
+  /* 2026-11-04「読み込みで前月を入れてるのに、現場でまた入れなきゃいけないのはおかしい」→ 読み込みに入っている前月（同じ得意先・前の締め）があれば、自動で照らし直す */
+  try{ if(S.built && !S.prev && !S._autoRelink && typeof prevData !== 'undefined' && prevData && prevData.label && S.meta && prevData.label < (S.meta.seikyuDate || '') && !(typeof prevCustNg === 'function' && prevCustNg(prevData, S.meta.custCode)) && !(typeof RO === 'function' && RO())){
+      S._autoRelink = true; setTimeout(() => { try{ const rr = relinkPrev(prevData); save(); drawSites(); toast('読み込みに入っている前月（' + jdate(prevData.label) + '締め）で自動で照らし直した：前月とつながった行 ' + rr.pv, 6000); }catch(e){ console.warn(e); } }, 0); } }catch(e){}
   try{ const H = document.getElementById('shead'); if(H){ if(!S.prev){ /* 2026-11-04「引き継ぎのボタン・本物通りに戻すボタンどこ？」：前月が入っていない作業では、まず前月を入れるボタン */ let n0 = H.querySelector('#xNoPrev'); if(!n0){ const o = H.querySelector('#xCarryBtn'); if(o) o.parentElement.remove(); H.insertAdjacentHTML('afterbegin', '<div id="xNoPrev" style="margin:0 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn primary" data-xprevin>前月の引き継ぎ：まず前月（9月）の請求ナビを入れる</button><button type="button" class="btn" data-xrealall>ぜんぶ本物どおりにする</button><small class="muted">この作業には前月が入っていない（前月の請求ナビ .xlsm を置くと「前月の引き継ぎ」が使える）</small></div>'); } }
     else { const n0 = H.querySelector('#xNoPrev'); if(n0) n0.remove(); }
     if(S.prev){ let b = H.querySelector('#xCarryBtn'); if(!b){ H.insertAdjacentHTML('afterbegin', '<div style="margin:0 0 8px"><button type="button" class="btn primary" id="xCarryBtn" data-xcarry></button> <button type="button" class="btn" data-xrealall>ぜんぶ本物どおりにする</button> <small class="muted">本物どおりのまま、前月の手直し・手で足した行・ETC888 などをまとめて入れる／出す</small></div>'); b = H.querySelector('#xCarryBtn'); } b.textContent = label(); } } }catch(e){}
@@ -11741,6 +11744,7 @@ window.addEventListener('click', ev => { const b = ev.target && ev.target.closes
 window.addEventListener('click', async ev => {
   const pin = ev.target && ev.target.closest && ev.target.closest('[data-xprevin]'), ra = ev.target && ev.target.closest && ev.target.closest('[data-xrealall]');
   if(!pin && !ra) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  if(pin && typeof prevData !== 'undefined' && prevData && prevData.label && S.meta && prevData.label < (S.meta.seikyuDate || '')){ try{ const rr = relinkPrev(prevData); save(); drawSites(); toast('読み込みに入っている前月で照らし直した：つながった行 ' + rr.pv, 5000); }catch(e){ toast('照らし直せなかった：' + (e.message || e)); } return; }
   if(pin){ const f = document.createElement('input'); f.type = 'file'; f.accept = '.xlsm,.xlsx,.json'; f.onchange = () => { if(f.files && f.files[0] && window.seikyuExt.takeAny) window.seikyuExt.takeAny([f.files[0]]); else if(f.files && f.files[0]) document.getElementById('fAny') && (() => { const dt = new DataTransfer(); dt.items.add(f.files[0]); const fa = document.getElementById('fAny'); fa.files = dt.files; fa.dispatchEvent(new Event('change', { bubbles: true })); })(); }; f.click(); return; }
   if(ra){ const X = window.seikyuExt; if(!X.carryGroups || !X.carryApply){ toast('いまは使えない'); return; }
     const T0 = totals(); const v = await askDialog('ぜんぶ本物どおりにする', 'いま <b>税込 ' + yti(T0.net) + '</b>（システムとの差 ' + (T0.diff ? yti(T0.diff, true) : 'ぴったり') + '）<br>前月の手直し・前月に手で足した行・前月と同じ見出しは外し、ETC888 などの「出さない」品はぜんぶ出して、システム（本物）と同じにします。<br><small>今月自分で直した行・足した行はそのまま（↶ でもどせる）</small>', [{ t:'本物どおりにする', v:'ok', primary:true, k:'Y' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
@@ -13324,7 +13328,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 16:34';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 16:58';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
