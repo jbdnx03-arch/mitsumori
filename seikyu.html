@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 00:48-->
+<!--BUILD:2026-11-05 00:57-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 00:48';
+const BUILD = '2026-11-05 00:57';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -13238,9 +13238,14 @@ function listMarks(){
     btn.classList.toggle('xst-done', ok); btn.classList.toggle('xst-todo', !ok && !!sh.inKagami);
     const b = btn.querySelector('.b') || btn; b.querySelectorAll('.xsdone,.xst').forEach(x => x.remove());
     if(!sh.inKagami && !ok) return;
-    b.insertAdjacentHTML('afterbegin', '<span class="tag xst ' + (ok ? 'ok' : 'todo') + '">' + (ok ? '完了' : '未完了') + '</span>');
+    b.insertAdjacentHTML('afterbegin', '<span class="tag xst ' + (ok ? 'ok' : 'todo') + '" role="button" data-xstgl="' + sh.id + '" title="押すと' + (ok ? '未完了にもどす' : '完了にする') + '">' + (ok ? '完了' : '未完了') + '</span>');
   });
 }
+/* 2026-11-05「リストでも完了・未完了を選べるように」：札を押すと切りかわる（その現場は開かない） */
+['pointerdown', 'mousedown'].forEach(tp => document.addEventListener(tp, ev => { if(ev.target.closest && ev.target.closest('[data-xstgl]')) ev.stopPropagation(); }, true));
+document.addEventListener('click', ev => { const t = ev.target.closest && ev.target.closest('[data-xstgl]'); if(!t) return; ev.stopPropagation(); ev.preventDefault();
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const sh = sheetById(t.dataset.xstgl); if(sh && typeof seenToggle === 'function') seenToggle(sh); }, true);
 const _dsx = drawSites; drawSites = function(){ const r = _dsx.apply(this, arguments); try{ listMarks(); }catch(e){} return r; };
 const _dk = drawKpis; drawKpis = function(){ const r = _dk.apply(this, arguments); try{ card(); }catch(e){} return r; };
 document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-xpkgo]'); if(!b) return; ev.stopPropagation(); S.cur = b.dataset.xpkgo; if(typeof setTab === 'function' && S.tab !== 'sites') setTab('sites'); save(); drawSites(); setTimeout(() => { const h = document.getElementById('shead'); if(h) h.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); });
@@ -13256,6 +13261,7 @@ css.textContent = [
   '.xpk-rest.ok{color:#3CC37A;font-weight:700}',
   '.xpk-rest button{font:inherit;font-size:12px;padding:2px 9px;border-radius:99px;border:1px solid rgba(127,127,127,.3);background:transparent;color:inherit;cursor:pointer}',
   '.xpk-rest button:hover{border-color:var(--brand,#5EC8D2);color:var(--brand,#5EC8D2)}',
+  '#siteList .site .tag.xst{cursor:pointer;transition:transform .12s}#siteList .site .tag.xst:hover{transform:scale(1.08);outline:1.5px solid currentColor}',
   '#siteList .site .tag.xst.todo{background:rgba(224,160,32,.16);color:#E0A020;font-weight:700}',
   '#siteList .site .tag.xst.ok{background:rgba(60,195,122,.18);color:#3CC37A;font-weight:700}',
   '#siteList .site.xst-done{box-shadow:inset 3px 0 0 #3CC37A}',
@@ -14093,7 +14099,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 00:48';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 00:57';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },

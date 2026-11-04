@@ -216,6 +216,8 @@ function assigned(cat){ var A = jget('wq.fx.assign', {}); return A[cat] ? [A[cat
 function appComplete(){ return APP === 'sharyo' ? 'car' : APP === 'meshitsu' ? 'hankorow' : APP === 'zoto' ? 'noshi' : 'sumi'; }
 var lastSent = [], lastLv = null;
 var ORDER_ONLY = { flip:1, flag:1, constellation:1, scaled:1 };
+/* 2026-11-05「（今年のまとめ）これ邪魔」：大きな窓で画面をふさぐもの（今年のまとめ・今月のハイライト・宝箱）は、日替わりおまかせ・保存・送付では出さない（ふり返りから見る） */
+var NO_AUTO = { yearsum:1, endroll:1, treasure:1 };
 function event(kind, o){
   o = o || {}; if(document.hidden) return;
   o.x = o.x == null ? W() / 2 : o.x; o.y = o.y == null ? H() * .7 : o.y;
@@ -223,13 +225,14 @@ function event(kind, o){
   if(APP === 'mitsumori' && kind === 'complete' && /地図|案内図/.test(o.text || '')) { FX.pin.fn(o); return; }
   if(APP === 'mitsumori' && kind === 'complete' && /単価/.test(o.text || '')) { FX.loupe.fn(o); return; }
   var list;
-  if(ls('wq.fx.random') === '1'){ var pool = Object.keys(FX).filter(function(k){ return FX[k].fn && !FX[k].tag && FX[k].no > 0 && (kind === 'order' || !ORDER_ONLY[k]); }); var seed = today() + cat; var h = 0; for(var i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0; list = [pool[h % pool.length]]; }
+  if(ls('wq.fx.random') === '1'){ var pool = Object.keys(FX).filter(function(k){ return FX[k].fn && !FX[k].tag && FX[k].no > 0 && !NO_AUTO[k] && (kind === 'order' || !ORDER_ONLY[k]); }); var seed = today() + cat; var h = 0; for(var i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0; list = [pool[h % pool.length]]; }
   else list = assigned(cat);
   /* 季節・隠しの日は、大きいお祝いをその日用に */
   var sec = secretToday(); if(sec && (kind === 'order' || kind === 'done')){ playSecret(sec, o); list = []; }
   /* 2026-11-04「控え保存を押したとき 受注の四角い文字が浮かぶ」：受注の絵（受注のカード・祝受注の旗・受注の星座・受注額の花火）は受注のときだけ */
   var isOrder = kind === 'order';
   if(!isOrder) list = list.map(function(id){ return ORDER_ONLY[id] ? (DEF[cat] && DEF[cat][0]) || 'check' : id; });
+  if(kind !== 'done') list = list.map(function(id){ return NO_AUTO[id] ? 'check' : id; });
   var WORD = { save:'保存', sent:'送付済', order:'受注', pdf:'印刷', done:'締め完了', delivery:'手配', latest:'最新', complete:'完了' }[kind] || '完了';
   list.forEach(function(id, i){ setTimeout(function(){ if(id === '__app') id = appComplete(); if(id === 'stamp') o.word = WORD; if(id === 'goldtext' && !isOrder) o.word = WORD === '受注' ? '受注おめでとう' : WORD + ' ✓'; play(id, o); }, i * 250); });
   /* 自動で出るもの：ひとこと・夜・連続・コンボ・星座・レベル・アルバム */
