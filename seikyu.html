@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 01:13-->
+<!--BUILD:2026-11-05 01:18-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 01:13';
+const BUILD = '2026-11-05 01:18';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7717,7 +7717,8 @@ async function bin(names){ for(const n of names){ try{ const r = await fetch(n, 
 async function prep(){
   await loadList(SRC_PDFLIB, () => !!window.PDFLib);
   await loadList(SRC_FONTKIT, () => !!window.fontkit);
-  if(!FG) FG = await bin(['./pdf-g.ttf', './fonts/pdf-g.ttf']);
+  /* 2026-11-05「0に線入ってる」：IPAゴシックの 0 は斜め線つき → 0 の斜め線をとった字（WQゴシックZ・IPAフォントの派生。名前を変えてある）。?z1 で古いのを使わない */
+  if(!FG) FG = await bin(['./pdf-g.ttf?z1', './fonts/pdf-g.ttf?z1', './pdf-g.ttf']);
   if(!FM) FM = await bin(['./pdf-m.ttf', './fonts/pdf-m.ttf']);
   if(!FG) throw new Error('PDF用の字（pdf-g.ttf）が読めない');
   if(!window.SF_PDF){ for(const s of ['./sysform_pdf.js', './fonts/sysform_pdf.js']){ try{ await loadJs(s); if(window.SF_PDF) break; }catch(e){} } }
@@ -14169,7 +14170,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 01:13';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 01:18';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
