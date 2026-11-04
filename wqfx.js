@@ -232,7 +232,7 @@ function event(kind, o){
   /* 2026-11-04「控え保存を押したとき 受注の四角い文字が浮かぶ」：受注の絵（受注のカード・祝受注の旗・受注の星座・受注額の花火）は受注のときだけ */
   var isOrder = kind === 'order';
   if(!isOrder) list = list.map(function(id){ return ORDER_ONLY[id] ? (DEF[cat] && DEF[cat][0]) || 'check' : id; });
-  if(kind !== 'done') list = list.map(function(id){ return NO_AUTO[id] ? 'check' : id; });
+  list = list.map(function(id){ return NO_AUTO[id] ? 'check' : id; });   /* 締め完了でも出さない（2026-11-05「これまだ出るけど」） */
   var WORD = { save:'保存', sent:'送付済', order:'受注', pdf:'印刷', done:'締め完了', delivery:'手配', latest:'最新', complete:'完了' }[kind] || '完了';
   list.forEach(function(id, i){ setTimeout(function(){ if(id === '__app') id = appComplete(); if(id === 'stamp') o.word = WORD; if(id === 'goldtext' && !isOrder) o.word = WORD === '受注' ? '受注おめでとう' : WORD + ' ✓'; play(id, o); }, i * 250); });
   /* 自動で出るもの：ひとこと・夜・連続・コンボ・星座・レベル・アルバム */
