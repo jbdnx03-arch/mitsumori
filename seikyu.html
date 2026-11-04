@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 00:57-->
+<!--BUILD:2026-11-05 01:13-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 00:57';
+const BUILD = '2026-11-05 01:13';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -10462,7 +10462,8 @@ function sysDiff(l){
   DF.forEach(f => { if(!(f in l.sys)) return; if(l.uf && l.uf[f]) return; const a = day(l[f]), b = day(l.sys[f]); if(a !== b) out.push(LB[f] + ' ' + md(b) + '→' + md(a)); });
   return out.length ? out : null;
 }
-function retEnd(l){ return !l.head && rent(l) && day(l.retd) && day(l.end) && day(l.end) > day(l.retd) && !(l.uf && l.uf.end); }
+/* 2026-11-05「終了日と返却日が違うのはアラームじゃないの？」：手で終了日を直した行も出す（わざとなら OK で消える） */
+function retEnd(l){ return !l.head && !l.nb && rent(l) && day(l.retd) && day(l.end) && day(l.end) > day(l.retd); }
 const _ck = checks;
 checks = function(){ const out = _ck.apply(this, arguments);
   try{ if(!S.lines) return out;
@@ -11323,7 +11324,16 @@ async function pick(){
   const html = partHtml(sel), one = [...sel].filter(x => x !== '__k'), sh1 = one.length === 1 && !sel.has('__k') ? sheetById(one[0]) : null;
   if(v === 'print'){ doPrint(html, sh1 ? { site: sh1.siteName || sh1.name } : undefined); return; }
   const P = document.getElementById('print'); P.innerHTML = html; P.style.display = 'block'; try{ XR.fitShrink(P); XR.sysFit(P); }catch(e){} P.style.display = '';
-  const nm = sh1 ? pdfSiteName(sh1.siteName || sh1.name) : pdfBase() + (sel.size < items.length ? '_一部' : '');
+  /* 2026-11-05「選んでPDF保存するとき 御中_ のあと、選んだ現場名を全部」：_一部 ではなく、選んだ現場の名前をならべる（長すぎるときは ほか○現場） */
+  let nm;
+  if(sh1) nm = pdfSiteName(sh1.siteName || sh1.name);
+  else if(sel.size < items.length){
+    const cl = t => String(t || '').replace(/[\\/:*?"<>|\s]/g, '');
+    const names = (sel.has('__k') ? ['鑑'] : []).concat(S.sheets.filter(sh => sel.has(sh.id)).map(sh => cl(sh.name)));
+    let txt = '', k = 0; for(; k < names.length; k++){ const nx = txt ? txt + '・' + names[k] : names[k]; if(nx.length > 120) break; txt = nx; }
+    if(k < names.length) txt += 'ほか' + (names.length - k) + '現場';
+    nm = pdfBase() + '_' + txt;
+  } else nm = pdfBase();
   makePdf(P, nm);
 }
 window.seikyuExt.pickPrint = pick;
@@ -13594,6 +13604,66 @@ css.textContent = '.xlockbar{display:flex;flex-wrap:wrap;align-items:center;gap:
 document.head.appendChild(css);
 })();
 
+/* 請求ナビ Web：プレビューの左に目次（ext3g.js）
+   2026-11-05「左の方に 鑑、各現場の目次みたいのつけて そこ押したら飛べるように」
+   ・全現場のとき：鑑（表紙）と各現場。押すとその請求書へスクロール。いま見ている所に色
+   ・1現場のとき：現場の一覧。押すとその現場のプレビューに切りかえ
+   ・完了の現場には ✓ 。せまい画面では「目次」ボタンで開く */
+(function(){
+const done = id => !!(S.ext && S.ext.siteDone && S.ext.siteDone[id]);
+const groupOf = n => { n = String(n || ''); if(!n || n === '鑑' || /^表紙|^cover/i.test(n)) return '__k'; const sh = S.sheets.find(s => s.name === n) || S.sheets.find(s => 'y' + s.name === n || 's' + s.name === n || n.indexOf(s.name) === 1); return sh ? sh.id : '__k'; };
+let toc = null, scT = 0;
+function build(){
+  const M = document.getElementById('sitePv'), B = document.getElementById('spvBody');
+  if(!M || M.hidden || !B || !S.built){ if(toc) toc.hidden = true; return; }
+  if(!toc){ toc = document.createElement('nav'); toc.id = 'xPvToc'; toc.setAttribute('aria-label', '目次'); M.appendChild(toc);
+    toc.addEventListener('click', ev => { const a = ev.target.closest('[data-tg]'); if(a){ ev.preventDefault(); go(a.dataset.tg); return; } const t = ev.target.closest('[data-tocx]'); if(t){ toc.classList.toggle('open'); } }); }
+  const all = typeof pvAll !== 'undefined' && pvAll;
+  const first = {}; if(all) B.querySelectorAll('.xp[data-pg]').forEach(p => { const g = groupOf(p.dataset.pg); if(!first[g]) first[g] = p; });
+  const items = [];
+  if(all){ if(first.__k) items.push({ id: '__k', t: '鑑（表紙）', kag: true }); S.sheets.forEach(sh => { if(first[sh.id]) items.push({ id: sh.id, t: sh.name, net: sheetNet(sh), ok: done(sh.id) }); }); }
+  else S.sheets.filter(s => s.inKagami).forEach(sh => items.push({ id: sh.id, t: sh.name, net: sheetNet(sh), ok: done(sh.id), on: sh.id === S.cur }));
+  const nDone = items.filter(i => i.ok).length, nS = items.filter(i => !i.kag).length;
+  toc.innerHTML = '<button type="button" class="xtoc-x" data-tocx title="目次をひらく／とじる">☰ 目次</button><div class="xtoc-h">目次<small>完了 ' + nDone + ' / ' + nS + '</small></div><ol>' +
+    items.map((it, i) => '<li><a href="#" data-tg="' + it.id + '" class="' + (it.on ? 'on ' : '') + (it.kag ? 'kag' : '') + '"><span class="n">' + (it.kag ? '鑑' : i + (first.__k ? 0 : 1)) + '</span><span class="t">' + esc(it.t) + '</span>' + (it.ok ? '<span class="ok" title="完了">✓</span>' : '') + (it.net != null ? '<small>' + yen(it.net) + '</small>' : '') + '</a></li>').join('') + '</ol>';
+  toc.hidden = false; toc.__first = first; toc.__all = all;
+  { const bar = M.querySelector('.spv-bar'); if(bar) toc.style.top = (bar.offsetHeight + 10) + 'px'; }
+  if(!B.__xtoc){ B.__xtoc = 1; B.addEventListener('scroll', () => { clearTimeout(scT); scT = setTimeout(mark, 80); }, { passive: true }); }
+  mark();
+}
+function go(id){
+  const B = document.getElementById('spvBody'); if(!B || !toc) return;
+  if(toc.__all){ const p = toc.__first && toc.__first[id]; if(p){ B.scrollTo({ top: p.offsetTop - 8, behavior: 'smooth' }); } }
+  else if(id !== '__k' && id !== S.cur){ S.cur = id; try{ save(); }catch(e){} sitePreview(false); try{ drawSites(); }catch(e){} }
+  toc.classList.remove('open');
+}
+function mark(){
+  if(!toc || !toc.__all) return; const B = document.getElementById('spvBody'); if(!B) return;
+  const top = B.getBoundingClientRect().top + 80; let cur = null;
+  B.querySelectorAll('.xp[data-pg]').forEach(p => { const r = p.getBoundingClientRect(); if(r.top <= top) cur = p; });
+  const g = cur ? groupOf(cur.dataset.pg) : '__k';
+  toc.querySelectorAll('a[data-tg]').forEach(a => { const on = a.dataset.tg === g; a.classList.toggle('on', on); if(on){ const r = a.getBoundingClientRect(), tr = toc.getBoundingClientRect(); if(r.top < tr.top + 40 || r.bottom > tr.bottom - 10) a.scrollIntoView({ block: 'nearest' }); } });
+}
+const _sp = sitePreview; sitePreview = function(){ const r = _sp.apply(this, arguments); setTimeout(() => { try{ build(); }catch(e){ console.warn(e); } }, 60); return r; };
+if(typeof closeSitePv === 'function'){ const _c = closeSitePv; closeSitePv = function(){ const r = _c.apply(this, arguments); if(toc) toc.hidden = true; return r; }; }
+document.addEventListener('click', ev => { if(ev.target.closest && ev.target.closest('[data-xsh], [data-xstgl]')) setTimeout(() => { try{ build(); }catch(e){} }, 120); }, true);
+const css = document.createElement('style');
+css.textContent = [
+  '#xPvToc{position:absolute;left:12px;top:132px;bottom:14px;width:190px;z-index:3;display:flex;flex-direction:column;background:rgba(14,24,28,.92);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:#E9F1F2;box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden;font-size:12.5px}',
+  '#xPvToc[hidden]{display:none}',
+  '#xPvToc .xtoc-x{display:none}',
+  '#xPvToc .xtoc-h{padding:10px 12px 6px;font-weight:800;font-size:13px;display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid rgba(255,255,255,.1)}#xPvToc .xtoc-h small{font-weight:400;opacity:.7;font-size:11px}',
+  '#xPvToc ol{list-style:none;margin:0;padding:6px;overflow:auto;flex:1}',
+  '#xPvToc a{display:grid;grid-template-columns:24px 1fr auto;grid-template-rows:auto auto;column-gap:4px;padding:6px 8px;border-radius:9px;color:inherit;text-decoration:none;line-height:1.25}',
+  '#xPvToc a .n{grid-row:1/3;opacity:.55;font-size:11px;padding-top:1px}#xPvToc a .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#xPvToc a .ok{color:#3CC37A;font-weight:800}#xPvToc a small{grid-column:2/4;opacity:.6;font-size:10.5px}',
+  '#xPvToc a:hover{background:rgba(94,200,210,.14)}#xPvToc a.on{background:rgba(94,200,210,.26);box-shadow:inset 3px 0 0 #5EC8D2}#xPvToc a.kag .t{color:#F6E7B5}',
+  '@media (min-width:1500px){#sitePv .spv-body{padding-left:216px}}',
+  '@media (max-width:1499px){#xPvToc{bottom:auto;max-height:calc(100% - 150px);width:auto}#xPvToc:not(.open) .xtoc-h,#xPvToc:not(.open) ol{display:none}#xPvToc .xtoc-x{display:block;background:none;border:0;color:inherit;font:inherit;font-weight:700;padding:8px 12px;cursor:pointer;text-align:left}#xPvToc.open{width:220px;bottom:14px;max-height:none}}',
+  '@media print{#xPvToc{display:none!important}}'
+].join('\n');
+document.head.appendChild(css);
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -14099,7 +14169,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 00:57';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 01:13';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
