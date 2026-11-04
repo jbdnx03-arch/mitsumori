@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 01:56-->
+<!--BUILD:2026-11-05 02:47-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 01:56';
+const BUILD = '2026-11-05 02:47';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7635,10 +7635,10 @@ function selAct(a){
   if(a === 'up' || a === 'down' || a === 'top' || a === 'bottom') return moveSel(a);
   if(a === 'del') return selDel();
   /* 2026-11-04「複数選択して他の現場に移動できたり色々できるように」→ 出さない・出す・複製・まとめて変える も */
-  if(a === 'nb' || a === 'show'){ const sel = selLines(); if(!sel.length) return; const to = a === 'nb'; let k = 0; sel.forEach(l => { if(l.head) return; if(!!l.nb !== to){ l.nb = to; l.nbDec = true; k++; } }); setSel(sel); save(); drawSites(); toast(k + ' 行を' + (to ? '請求書に出さないにした' : '請求書に出すにした') + '（↶ でもどせる）', 3000); return; }
+  if(a === 'nb' || a === 'show'){ const sel = selLines(); if(!sel.length) return; const to = a === 'nb'; let k = 0; sel.forEach(l => { if(l.head) return; if(!!l.nb !== to){ l.nb = to; l.nbDec = true; k++; } }); S.bulkSel = null; S.bulkRows = ''; save(); drawSites(); toast(k + ' 行を' + (to ? '請求書に出さないにした' : '請求書に出すにした') + '（↶ でもどせる）', 3000); return; }
   if(a === 'dup'){ const sh = sheetById(S.cur), sel = selLines().filter(l => !l.head); if(!sel.length) return; const made = [];
     sel.forEach(l => { const c = JSON.parse(JSON.stringify(l)); c.id = uid(); c.dup = true; c.manual = l.manual; delete c.pmKey; S.lines.splice(S.lines.indexOf(l) + 1, 0, c); made.push(c); });
-    setSel(sel.concat(made)); save(); drawSites(); toast(made.length + ' 行を複製した（↶ でもどせる）', 3000); return; }
+    S.bulkSel = null; S.bulkRows = ''; save(); drawSites(); toast(made.length + ' 行を複製した（↶ でもどせる）', 3000); return; }
   if(a === 'bulk'){ const bb = document.getElementById('bulkBar') || document.querySelector('#shead .bulk, #bkRows'); const r = document.getElementById('bkRows'); if(r){ r.value = S.bulkRows || ''; r.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => { const kb = document.getElementById('bkKb') || document.querySelector('#shead select[data-bk="kb"]'); (kb || r).focus(); }, 350); toast('上の「まとめて変える」に選んだ行（' + (S.bulkRows || '') + '）を入れた。区分や期間を選んで「変える」', 4500); } else toast('まとめて変える が見つからない'); return; }
   if(a === 'clear'){ S.bulkSel = null; S.bulkRows = ''; drawSites(); return; }
   if(a === 'end'){ selMode = false; S.bulkSel = null; S.bulkRows = ''; drawSites(); return; }
@@ -7689,6 +7689,16 @@ const _st = setTab;
 setTab = function(t){ const r = _st.apply(this, arguments); try{ if(t !== 'sites'){ selMode = false; } selBar(); }catch(e){} return r; };
 document.addEventListener('keydown', ev => { if(ev.key === 'Escape' && (selMode || (S.bulkSel && S.bulkSel.size)) && S.tab === 'sites' && !document.querySelector('.dlg')){ selMode = false; S.bulkSel = null; S.bulkRows = ''; drawSites(); } });
 
+
+/* 2026-11-05「これ消えないのはなぜ？」：えらんだ帯は、表の外を押したら消える（Esc でも）。出さない・出す・複製のあとも消える
+   表・帯・上の見出し・まとめて変える・ダイアログを押したときは消さない（続けて上へ／下へ・ドラッグできるように） */
+document.addEventListener('pointerdown', ev => {
+  if(!(S.bulkSel && S.bulkSel.size) || selMode || S.tab !== 'sites' || ev.button > 0) return;
+  const t = ev.target; if(!t || !t.closest) return; if(ev.clientX >= document.documentElement.clientWidth || ev.clientY >= document.documentElement.clientHeight) return;   /* スクロールバー */
+  if(document.querySelector('.dlg')) return;
+  if(t.closest('#xSelBar, #shead, #xMini, #bulkBar, .dlg, .toast, #toast, [id^="x"][id$="Sug"], #siteBody') || (t.closest('table') && t.closest('table').querySelector('#siteBody'))) return;
+  S.bulkSel = null; S.bulkRows = ''; drawSites();
+}, true);
 const st = document.createElement('style');
 st.textContent = '.xselbar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px);padding:10px 14px;border-radius:14px;background:var(--card,#132a30);color:var(--ink,#EAF2F2);border:1px solid rgba(94,200,210,.45);box-shadow:0 12px 36px rgba(0,0,0,.35)}' +
   '.xselbar .xsb-sum{display:inline-flex;align-items:baseline;gap:6px;padding:4px 12px;border-radius:10px;background:rgba(94,200,210,.14);font-size:13px}.xselbar .xsb-sum b{font-size:17px;color:#5EC8D2}.xselbar .xsb-sum small{opacity:.75}.xselbar .xsb-sum small.nb{color:#E0A020;opacity:.9}' +
@@ -11337,9 +11347,8 @@ async function pick(){
   else if(sel.size < items.length){
     const cl = t => String(t || '').replace(/[\\/:*?"<>|\s]/g, '');
     const names = (sel.has('__k') ? ['鑑'] : []).concat(S.sheets.filter(sh => sel.has(sh.id)).map(sh => cl(sh.name)));
-    let txt = '', k = 0; for(; k < names.length; k++){ const nx = txt ? txt + '・' + names[k] : names[k]; if(nx.length > 120) break; txt = nx; }
-    if(k < names.length) txt += 'ほか' + (names.length - k) + '現場';
-    nm = pdfBase() + '_' + txt;
+    /* 2026-11-05「現場多くても全部表示して」：ほか○現場 にはしない。全部ならべる */
+    nm = pdfBase() + '_' + names.join('・');
   } else nm = pdfBase();
   makePdf(P, nm);
 }
@@ -13673,32 +13682,64 @@ document.head.appendChild(css);
 
 /* 請求ナビ Web：貸出順に並べる・元に戻す／やり直す（ext3h.js）
    2026-11-05「貸出順に並べるボタンが欲しい。あと一つ前の作業に戻るボタンも」
-   ・現場の見出しの帯に「貸出順に並べる」：貸出日（なければ開始日）の古い順。日付のない行（運賃・軽油など）は、すぐ上の行にくっついたまま動く。
+   ・現場の見出しの帯に「貸出順に並べる」：本物の請求書の並び（sysKey）。手で足した行は、すぐ上の行にくっついたまま動く。
      見出し（【○○】）があれば、その中だけで並べる。行を2つ以上えらんでいれば、えらんだ行だけを並べる
    ・「↶ 元に戻す」「↷ やり直す」を、上の細い帯（現場名・税込の帯）とプレビューの上にも。やり直すは Ctrl+Y／Ctrl+Shift+Z でも */
 (function(){
 const X = window.seikyuExt = window.seikyuExt || {};
-const dkey = l => String(l.kashi || l.start || '').slice(0, 10);
+const iso = v => { v = String(v || '').trim(); if(/^\d{5}$/.test(v)){ const d = new Date(Date.UTC(1899, 11, 30) + v * 864e5); return d.toISOString().slice(0, 10); } const m = v.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/); return m ? m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') : v.slice(0, 10); };
+const nn = v => { const x = parseInt(String(v || '').replace(/[^0-9]/g, ''), 10); return isNaN(x) ? 0 : x; };
+const r0 = l => { const v = String(l.ret0 == null ? '' : l.ret0).trim(); return v === '0' ? '' : v; };
+const isCsv = l => !l.manual && (l.csvIx != null || l.den || r0(l));
+/* 本物の請求書の並び（2026-11-05 本物PDFとCSVで確かめた：102現場中96が一致）
+   ・返却された貸出：返却伝票ごとにまとめて、終わった日（請求終了日か返却日）で並べる。返却の運賃はその最後
+   ・まだ続いている貸出：貸出伝票ごと、請求終了日で。同じ日なら返却より前
+   ・販売・配送・修理など：貸出日で。同じ日なら返却・継続より前。同じ日どうしは伝票番号の順 */
+function sysKey(l, ix){
+  const den = String(l.den || '').trim(), ret = r0(l), kashi = iso(l.kashi), st = iso(l.start), en = iso(l.end), rt = iso(l.retd);
+  const ci = l.csvIx != null ? +l.csvIx : 1e6 + ix;
+  if(st && rt){ const D = (en || rt) > st ? (en || rt) : st; return { k: 'R' + (ret || den), D, T: 1, V: nn(ret || den), it: [0, nn(den), kashi, ci] }; }
+  if(st) return { k: 'C' + den, D: en || '9999', T: .5, V: nn(den), it: [0, 0, '', ci] };
+  if(ret && !den) return { k: 'R' + ret, D: rt || kashi || '9999', T: 1, V: nn(ret), it: [1, 0, '', ci] };
+  return { k: 'O' + den + '|' + kashi, D: kashi || '9999', T: 0, V: nn(den), it: [0, 0, '', ci] };
+}
+const cmpA = (a, b) => { for(let i = 0; i < a.length; i++){ if(a[i] < b[i]) return -1; if(a[i] > b[i]) return 1; } return 0; };
+function orderSec(sec){
+  /* 手で足した行（と日付のない行）は、すぐ上の行にくっついたまま動く */
+  const units = [];
+  sec.forEach((l, i) => { if(units.length && !isCsv(l)) units[units.length - 1].att.push(l); else units.push({ l, att: [], i }); });
+  /* 同じ現場のCSVの行だけなら、CSVの順（＝本物の順）そのまま。ほかの現場から来た行などがあるときは本物の並べ方のルールで */
+  const cu = units.filter(u => isCsv(u.l));
+  if(cu.length && cu.every(u => u.l.csvIx != null && !u.l.movedFrom && String(u.l.site) === String(cu[0].l.site)) && isCsv(units[0].l)){
+    const out = []; units.slice().sort((a, b) => a.l.csvIx - b.l.csvIx || a.i - b.i).forEach(u => out.push(u.l, ...u.att)); return out;
+  }
+  const G = new Map();
+  units.forEach(u => {
+    let g;
+    if(isCsv(u.l)){ const k = sysKey(u.l, u.i); u.it = k.it; g = G.get(k.k); if(!g){ g = { D: k.D, T: k.T, V: k.V, us: [], o: k.it[3], dr: '' }; G.set(k.k, g); } else g.o = Math.min(g.o, k.it[3]);
+      if(k.k[0] === 'R' && k.it[0] === 0 && k.D > g.dr){ g.dr = k.D; } if(g.dr) g.D = g.dr; }
+    else { const D = iso(u.l.kashi) || iso(u.l.start) || '0000'; u.it = [0, 0, '', u.i]; g = { D, T: 0, V: 0, us: [], o: 2e6 + u.i }; G.set('M' + u.i, g); }
+    g.us.push(u);
+  });
+  const gs = [...G.values()].sort((a, b) => a.D < b.D ? -1 : a.D > b.D ? 1 : a.T - b.T || a.V - b.V || a.o - b.o);
+  const out = []; gs.forEach(g => { g.us.sort((a, b) => cmpA(a.it, b.it) || a.i - b.i); g.us.forEach(u => out.push(u.l, ...u.att)); });
+  return out;
+}
+X.sysOrderSec = orderSec;
 function kashiSort(){
   const sh = sheetById(S.cur); if(!sh) return;
   if(X.siteLocked && X.siteLocked(sh.id)){ toast('この現場は完了でロック中。直すときは「ロックを外す」'); return; }
   const all = linesOf(sh);
   const selOnly = S.bulkSel && S.bulkSel.size >= 2;
   const pick = selOnly ? all.filter((l, i) => S.bulkSel.has(i + 1)) : all;
-  /* 見出しで区切る → 区切りごとに、日付のある行を頭にしたまとまりで並べる */
+  /* 見出しで区切って、区切りごとに本物の並びにする */
   const out = []; let sec = [];
-  const flush = () => {
-    if(!sec.length) return;
-    const groups = []; sec.forEach(l => { if(dkey(l) || !groups.length) groups.push([l]); else groups[groups.length - 1].push(l); });
-    groups.forEach((g, i) => { g.k = dkey(g[0]) || '9999'; g.i = i; });
-    groups.sort((a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : (String(a[0].den || '') < String(b[0].den || '') ? -1 : String(a[0].den || '') > String(b[0].den || '') ? 1 : a.i - b.i));
-    groups.forEach(g => out.push(...g)); sec = [];
-  };
-  pick.forEach(l => { if(l.head && !selOnly){ flush(); out.push(l); } else sec.push(l); }); flush();
-  const same = out.every((l, i) => l === pick[i]); if(same){ toast(selOnly ? 'えらんだ行はもう貸出順' : 'もう貸出順にならんでいる'); return; }
+  const flush = () => { if(sec.length) out.push(...orderSec(sec)); sec = []; };
+  pick.forEach(l => { if(l.head && !selOnly){ flush(); out.push(l); } else if(!l.head) sec.push(l); else { flush(); out.push(l); } }); flush();
+  const same = out.every((l, i) => l === pick[i]); if(same){ toast(selOnly ? 'えらんだ行はもう本物とおなじ並び' : 'もう本物の請求書とおなじ並び'); return; }
   const slots = pick.map(l => S.lines.indexOf(l)).sort((a, b) => a - b); slots.forEach((ix, k) => { S.lines[ix] = out[k]; });
-  if(selOnly){ const now = linesOf(sh), set = new Set(); out.forEach(l => set.add(now.indexOf(l) + 1)); S.bulkSel = set; S.bulkRows = typeof rowsText === 'function' ? rowsText(set) : ''; }
-  save(); drawSites(); toast((selOnly ? 'えらんだ ' + pick.length + ' 行を' : 'この現場を') + '貸出順にならべた（↶ でもどせる）', 3000);
+  if(selOnly){ S.bulkSel = null; S.bulkRows = ''; }
+  save(); drawSites(); toast((selOnly ? 'えらんだ ' + pick.length + ' 行を' : 'この現場を') + '本物の請求書とおなじ並びにした（↶ でもどせる）', 3000);
 }
 X.kashiSort = kashiSort;
 /* ---- やり直す（↷） ---- */
@@ -13746,7 +13787,7 @@ document.addEventListener('click', ev => { const b = ev.target.closest && ev.tar
 /* 上の段の「元に戻す」のとなりにも「やり直す」 */
 function topRedo(){ const u = document.getElementById('btnUndo'); if(!u || document.getElementById('btnRedo')) return; const b = document.createElement('button'); b.id = 'btnRedo'; b.type = 'button'; b.className = u.className; b.textContent = '↷ やり直す'; b.title = 'やり直す（Ctrl+Y）'; b.disabled = !redo.length; b.addEventListener('click', doRedo); u.after(b); }
 /* 見出しの帯に「貸出順に並べる」 */
-function sortBtn(){ const bar = document.querySelector('#shead .xbar'); if(!bar || bar.querySelector('[data-xks]')) return; const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.dataset.xks = '1'; b.textContent = '貸出順に並べる'; b.title = '貸出日の古い順に（運賃など日付のない行は上の行といっしょに動く。行をえらんでいれば、えらんだ行だけ）'; const so = bar.querySelector('[data-x5="sysorder"]'); if(so) so.before(b); else bar.appendChild(b); }
+function sortBtn(){ const bar = document.querySelector('#shead .xbar'); if(!bar || bar.querySelector('[data-xks]')) return; const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.dataset.xks = '1'; b.textContent = '貸出順に並べる'; b.title = '本物の請求書とおなじ並びに（返却は返却日、販売・運賃は貸出日の順。手で足した行は上の行といっしょに動く。行をえらんでいれば、えらんだ行だけ）'; const so = bar.querySelector('[data-x5="sysorder"]'); if(so) so.before(b); else bar.appendChild(b); }
 document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-xks]'); if(!b) return; ev.preventDefault(); ev.stopPropagation(); kashiSort(); }, true);
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ sortBtn(); topRedo(); paintBtns(); }catch(e){} return r; };
 const _sp = sitePreview; sitePreview = function(){ const r = _sp.apply(this, arguments); setTimeout(paintBtns, 30); return r; };
@@ -14262,7 +14303,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 01:56';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 02:47';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
