@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 18:36-->
+<!--BUILD:2026-11-04 21:59-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 18:36';
+const BUILD = '2026-11-04 21:59';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -12892,6 +12892,10 @@ function find(q, selfId){
   for(const h of hits){ const n = nk(h.e.name); seen[n] = (seen[n] || 0) + 1; if(seen[n] > 2) continue; out.push(h.e); if(out.length >= 8) break; }
   return out;
 }
+/* 2026-11-04 よく一緒に出る品（ext3b）からも使う：品名にいちばん合う候補（区分・単位・単価） */
+window.seikyuExt = window.seikyuExt || {};
+window.seikyuExt.nmLoad = loadSaved;
+window.seikyuExt.nmBest = function(name){ const k = nk(name); if(!k) return null; const all = dict('').filter(e => nk(e.name) === k); all.sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); return all[0] || null; };
 /* ---- 下に出す箱 ---- */
 let box = null, cur = null;   /* cur = { inp, mode:'row'|'sheet', id, items, ix } */
 function close(){ if(box){ box.remove(); box = null; } cur = null; }
@@ -12914,6 +12918,7 @@ function place(){
 function hl(ix){ if(!box || !cur) return; cur.ix = ix; box.querySelectorAll('.it').forEach((n, i) => n.classList.toggle('on', i === ix)); const n = box.querySelector('.it.on'); if(n) n.scrollIntoView({ block: 'nearest' }); }
 function pick(i){
   const c = cur, e = c && c.items[i]; if(!e) return; close();
+  if(c.mode === 'tog'){ c.inp.value = ''; if(window.seikyuExt && window.seikyuExt.togPick) window.seikyuExt.togPick(e); return; }
   if(c.mode === 'sheet'){
     const root = c.inp.closest('.xsheet') || document; const set = (f, v) => { const n = root.querySelector('[data-lf="' + f + '"]'); if(n && v != null){ n.value = v; n.classList.add('xns-fill'); setTimeout(() => n.classList.remove('xns-fill'), 900); } };
     set('name', e.name); if(e.kb) set('kb', e.kb); if(e.unit) set('unit', e.unit); set('lu', e.lu ? String(e.lu) : ''); set('su', e.su ? String(e.su) : ''); set('bu', e.bu ? String(e.bu) : '');
@@ -12940,6 +12945,7 @@ function pick(i){
 /* どの欄で出すか */
 function target(t){
   if(!t || t.tagName !== 'INPUT') return null;
+  if(t.id === 'xTogQ') return { mode: 'tog', id: '' };
   if(t.matches('#siteBody table.ln input.e[data-f="name"]')){
     const tr = t.closest('tr[data-id]'); const l = tr && S.lines.find(x => x.id === tr.dataset.id);
     if(!l || !l.manual || l.head) return null; if(typeof RO === 'function' && RO()) return null;
@@ -12976,6 +12982,196 @@ css.textContent = [
   '@media (pointer:coarse){#xNmSug .it{padding:11px 10px}#xNmSug{font-size:15px}}',
   '.xns-fill{animation:xnsFill .9s ease}',
   '@keyframes xnsFill{0%{background:color-mix(in srgb,var(--acc,#E3B23C) 35%,transparent)}100%{background:inherit}}'
+].join('\n');
+document.head.appendChild(css);
+})();
+
+/* 請求ナビ Web：よく一緒に出る品（ext3b.js）
+   2026-11-04「こういう時に web見積と一緒で よく一緒に出るもの を追加できるようにして。もちろん新たに追加したら更新してね」
+   ・現場の画面の表の下に「よく一緒に出る品」。手で足した行（品名あり）を親にして、
+     これまでの作業・前月・いまの作業で「同じ伝票（手で足した行は同じ現場）に一緒に載っていた品」を多い順に出す
+   ・押すと親の行のすぐ下（親につづく手入力の行の下）に足す。区分・単位・単価は品名の候補と同じ（同じ請求先を先に）
+   ・足した品は「おぼえた組み合わせ」に入る（web見積と同じ wq.tog。web見積の「よく一緒に出ている品」にも出る）
+   ・手で足した行のすぐ下に、手で品名を打って行を足したときもおぼえる。× で「この親には出さない」
+   ・下の「さがして足す」で、出ていない品も足せる（チェックを入れたまま足すと次から出る） */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const nk = s => String(s || '').normalize('NFKC').toLowerCase().replace(/[\s　・･\-－ー_]/g, '').replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+const RENTK = k => k === '日極' || k === '月極';
+const K2KB = { 1: '日極', 2: '月極', 3: '整備', 4: '配送', 5: '販売', 6: '一式', 8: '修理', 10: '出庫' };
+const KB2K = { '日極': 1, '月極': 2, '整備': 3, '配送': 4, '販売': 5, '一式': 6, '修理': 8, '出庫': 10 };
+const ro = () => typeof RO === 'function' && RO();
+
+/* ---- おぼえた組み合わせ（web見積と同じ置き場） ---- */
+function togKey(){
+  try{ const v = sessionStorage.getItem('wq.me'); if(v){ const n = String(JSON.parse(v).name || '').trim(); if(n) return 'wq.tog|' + n; } }catch(e){}
+  try{ const ks = []; for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.indexOf('wq.tog|') === 0) ks.push(k); } if(ks.length === 1) return ks[0]; }catch(e){}
+  return 'wq.tog';
+}
+function togRead(){ let o = {}; try{ o = JSON.parse(localStorage.getItem(togKey()) || '{}') || {}; }catch(e){} return o; }
+function togWrite(o){ try{ localStorage.setItem(togKey(), JSON.stringify(o)); }catch(e){} }
+function togRec(t, oya){ const a = nk(oya); for(const k of Object.keys(t)) if(nk(k) === a) return k; return String(oya).trim(); }
+function togSet(oya, nm, how, kb){
+  oya = String(oya || '').trim(); nm = String(nm || '').trim(); if(!oya || !nm || nk(oya) === nk(nm)) return;
+  const t = togRead(), key = togRec(t, oya), r = t[key] || { add: [], hide: {} }; r.add = r.add || []; r.hide = r.hide || {};
+  if(how === 'add'){ for(const h of Object.keys(r.hide)) if(nk(h) === nk(nm)) delete r.hide[h]; if(!r.add.some(x => nk(x.nm) === nk(nm))) r.add.push({ nm, k: KB2K[kb] || 0 }); }
+  else { r.add = r.add.filter(x => nk(x.nm) !== nk(nm)); r.hide[nm] = true; }
+  t[key] = r; togWrite(t);
+}
+
+/* ---- これまでの作業から「一緒に載っていた品」を数える ---- */
+let ST = null, stAt = 0, stLoading = null;
+function addGroups(lines, tag, G){
+  const by = {};
+  (lines || []).forEach(l => {
+    if(!l || l.head) return; const nm = String(l.name || '').trim(); if(!nm || /^【.*】$/.test(nm)) return;
+    const den = String(l.den || '').trim();
+    const g = tag + '|' + (l.sheet || l.site || '') + '|' + (den ? 'D' + den : (l.manual ? 'M' : ''));
+    if(!den && !l.manual) return;
+    (by[g] = by[g] || []).push(nm);
+  });
+  Object.values(by).forEach(a => { const u = {}; a.forEach(n => { const k = nk(n); if(!u[k]) u[k] = n; }); const ks = Object.keys(u); if(ks.length >= 2 && ks.length <= 30) G.push(u); });
+}
+async function buildStats(){
+  const G = [];
+  try{ const all = (typeof WK !== 'undefined' && WK.all) ? await WK.all() : []; all.forEach(o => { if(o && o.id !== S.workId) addGroups(o.lines, 'w' + o.id, G); }); }catch(e){}
+  const cnt = {}, pair = {}, disp = {};
+  G.forEach(u => { const ks = Object.keys(u); ks.forEach(a => { cnt[a] = (cnt[a] || 0) + 1; disp[a] = disp[a] || u[a]; const p = pair[a] = pair[a] || {}; ks.forEach(b => { if(b !== a) p[b] = (p[b] || 0) + 1; }); }); });
+  return { cnt, pair, disp };
+}
+function liveStats(keys){
+  /* いまの作業と前月はその場で数える（開いている作業は保存のたびに変わるので）。親の品のぶんだけ */
+  const G = []; addGroups(S.lines, 'cur', G);
+  const P = S.prev; if(P) (P.sheets || []).forEach((sh, i) => addGroups((sh.lines || []).map(l => Object.assign({}, l, { sheet: 'p' + i })), 'prev', G));
+  const base = ST || { cnt: {}, pair: {}, disp: {} }, cnt = {}, pair = {}, disp = {};
+  keys.forEach(a => { cnt[a] = base.cnt[a] || 0; pair[a] = Object.assign({}, base.pair[a] || {}); });
+  G.forEach(u => { const ks = Object.keys(u); ks.forEach(a => { if(!pair[a]) return; cnt[a]++; ks.forEach(b => { if(b !== a){ pair[a][b] = (pair[a][b] || 0) + 1; if(!disp[b]) disp[b] = u[b]; } }); }); });
+  return { cnt, disp: new Proxy(disp, { get: (o, k) => o[k] || base.disp[k] }), pairOf: a => pair[a] || {} };
+}
+function loadStats(){
+  if(stLoading || (ST && Date.now() - stAt < 90000)) return stLoading;
+  stLoading = buildStats().then(r => { ST = r; stAt = Date.now(); stLoading = null; try{ if(X.nmLoad) return X.nmLoad(); }catch(e){} }).then(() => { try{ paint(); }catch(e){} });
+  return stLoading;
+}
+
+/* ---- 出す品を決める ---- */
+function parents(){
+  const sh = sheetById(S.cur); if(!sh) return [];
+  return linesOf(sh).filter(l => l.manual && !l.head && String(l.name || '').trim() && !/^【.*】$/.test(String(l.name).trim()));
+}
+function list(){
+  const ps = parents(); if(!ps.length) return { ps, items: [] };
+  const sh = sheetById(S.cur), have = new Set(linesOf(sh).map(l => nk(l.name)));
+  const T = togRead(), L = liveStats([...new Set(ps.map(p => nk(p.name)))]), best = new Map();
+  ps.forEach(p => {
+    const a = nk(p.name), tk = Object.keys(T).find(k => nk(k) === a), te = tk ? T[tk] : null;
+    const hidden = new Set(te && te.hide ? Object.keys(te.hide).map(nk) : []);
+    if(te && te.add) te.add.forEach(x => { const b = nk(x.nm); if(!b || have.has(b) || hidden.has(b)) return; const cur = best.get(b); if(!cur || !cur.me) best.set(b, { nm: x.nm, kb: K2KB[x.k] || '', me: true, pct: 100, n: 0, from: p }); });
+    const c = L.cnt[a] || 0, pr = L.pairOf(a);
+    Object.keys(pr).forEach(b => {
+      if(have.has(b) || hidden.has(b)) return; const n = pr[b], pct = c ? Math.round(n / c * 100) : 0;
+      if(n < 2 && pct < 50) return;
+      const cur = best.get(b); if(cur && (cur.me || cur.pct >= pct)) { if(cur.me && !cur.n){ cur.n = n; cur.pctReal = pct; } return; }
+      best.set(b, { nm: L.disp[b] || b, me: false, pct, n, from: p });
+    });
+  });
+  const items = [...best.values()].sort((x, y) => (y.me - x.me) || (y.pct - x.pct) || (y.n - x.n)).slice(0, 10);
+  return { ps, items };
+}
+
+/* ---- 行を足す ---- */
+function addItem(nm, from, opt){
+  opt = opt || {};
+  if(ro()){ toast('読むだけの作業なので変えられない'); return; }
+  const sh = sheetById(from ? from.sheet : S.cur); if(!sh) return;
+  const e = (X.nmBest && X.nmBest(nm)) || null;
+  const kb = (e && e.kb) || opt.kb || (from && from.kb) || '一式';
+  const l = { id: uid(), sheet: sh.id, manual: true, name: String(nm).trim(), qty: num(from && from.qty) || 1, unit: (e && e.unit) || (RENTK(kb) ? '台' : '式'), kb,
+    lu: e ? e.lu : 0, su: e ? e.su : 0, bu: e ? e.bu : 0, la: 0, sa: 0, ba: 0, days: 0, sdays: 0, den: '', kanri: '' };
+  if(RENTK(kb) && from){ ['kashi', 'start', 'end'].forEach(f => { if(from[f]) l[f] = from[f]; }); if(from.retd) l.retd = from.retd; else if(from.cont) l.cont = from.cont; }
+  if(!RENTK(kb) && from && from.kashi) l.kashi = from.kashi;
+  if(RENTK(kb)){ if(l.start && l.end) daysFromPeriod(l); if(!num(l.days) && kb === '月極') l.days = 30; if(num(l.su)) l.sdays = num(l.days); }
+  calcLine(l);
+  /* 親の行の下（親につづく手入力の行のさらに下）へ */
+  const ls = linesOf(sh); let at = from ? ls.indexOf(from) : ls.length - 1;
+  if(at >= 0) while(at + 1 < ls.length && ls[at + 1].manual && !ls[at + 1].head) at++;
+  const ref = ls[at]; if(ref) S.lines.splice(S.lines.indexOf(ref) + 1, 0, l); else S.lines.push(l);
+  if(from && opt.learn !== false) togSet(from.name, l.name, 'add', kb);
+  save(); drawSites();
+  setTimeout(() => { const tr = document.querySelector('#siteBody tr[data-id="' + l.id + '"]'); if(tr){ tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); } }, 40);
+  toast('「' + l.name.slice(0, 20) + '」を足した' + (e ? '（' + kb + (e.lu || e.bu ? '・' + yen(e.lu || e.bu) : '') + '）' : '（単価は入れてね）') + '。↶ でもどせる', 3200);
+}
+X.togPick = e => { const ps = parents(), sel = document.getElementById('xTogOya'), reg = document.getElementById('xTogReg');
+  const from = ps.find(p => sel && p.id === sel.value) || ps[ps.length - 1] || null; addItem(e.name, from, { learn: !reg || reg.checked, kb: e.kb }); };
+
+/* ---- 画面 ---- */
+let last = [];
+function paint(){
+  const old = document.getElementById('xTog');
+  const tb = document.querySelector('#siteBody table.ln');
+  if(!tb || ro() || !S.built){ if(old) old.remove(); return; }
+  const { ps, items } = list(); last = items;
+  if(!ps.length){ if(old) old.remove(); return; }
+  const box = old || document.createElement('div'); box.id = 'xTog';
+  const q = old && old.querySelector('#xTogQ'), keepQ = q && document.activeElement === q;
+  const oyaNames = [...new Map(ps.map(p => [nk(p.name), p])).values()];
+  const selVal = (old && old.querySelector('#xTogOya') || {}).value;
+  box.innerHTML = '<div class="xtg-h">よく一緒に出る品<small>' + (oyaNames.length === 1 ? '「' + esc(String(oyaNames[0].name).slice(0, 24)) + '」と' : '手で足した行（' + oyaNames.length + '品）と') + '一緒に載っていた品・おぼえた品</small></div>' +
+    (items.length ? '<div class="xtg-chips">' + items.map((it, i) => { const e = X.nmBest ? X.nmBest(it.nm) : null; const kb = (e && e.kb) || it.kb || '';
+      const pr = e ? (e.lu ? yen(e.lu) : e.bu ? yen(e.bu) : '') : '';
+      return '<span class="xtg-c' + (it.me ? ' me' : '') + '"><button type="button" data-tg="' + i + '" title="' + esc((oyaNames.length > 1 ? '「' + it.from.name + '」の下に足す。' : '') + (it.me ? 'おぼえた組み合わせ' : 'これまで ' + it.n + ' 回一緒に載っていた')) + '"><b>＋ ' + esc(it.nm) + '</b><span>' + esc([kb, pr].filter(Boolean).join(' ')) + (it.me ? ' ・おぼえた' : ' ・' + it.n + '回 ' + it.pct + '%') + (oyaNames.length > 1 ? ' ・←' + esc(String(it.from.name).slice(0, 10)) : '') + '</span></button><button type="button" class="x" data-tgx="' + i + '" title="この品は「' + esc(it.from.name) + '」には出さない" aria-label="出さない">×</button></span>'; }).join('') + '</div>'
+      : '<div class="xtg-none">' + (ST ? 'まだ一緒に載っていた品がない。下から足すと、次から出る' : '数えている…') + '</div>') +
+    '<div class="xtg-add"><input id="xTogQ" placeholder="さがして足す（品名の一部。Enterでそのまま足す）" autocomplete="off">' +
+    (oyaNames.length > 1 ? '<select id="xTogOya" title="どの行の下に足すか（どの品とおぼえるか）">' + oyaNames.map(p => '<option value="' + p.id + '">' + esc(String(p.name).slice(0, 20)) + ' の下</option>').join('') + '</select>' : '') +
+    '<label><input type="checkbox" id="xTogReg" checked> 次から「よく一緒に出る品」にも出す</label></div>';
+  if(selVal){ const s2 = box.querySelector('#xTogOya'); if(s2 && [...s2.options].some(o => o.value === selVal)) s2.value = selVal; }
+  if(!old){ tb.parentNode.insertBefore(box, tb.nextSibling); }
+  else if(tb.nextElementSibling !== old) tb.parentNode.insertBefore(old, tb.nextSibling);
+  if(keepQ){ const q2 = box.querySelector('#xTogQ'); q2.value = q.value; q2.focus(); }
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('#xTog [data-tg], #xTog [data-tgx]'); if(!b) return; ev.stopPropagation();
+  if(b.dataset.tgx != null){ const it = last[+b.dataset.tgx]; if(!it) return; togSet(it.from.name, it.nm, 'hide'); paint(); toast('「' + String(it.nm).slice(0, 18) + '」は「' + String(it.from.name).slice(0, 18) + '」には出さない', 2600); return; }
+  const it = last[+b.dataset.tg]; if(!it) return; const sel = document.getElementById('xTogOya');
+  addItem(it.nm, sel && parents().length > 1 && sel.value ? (parents().find(p => p.id === sel.value) || it.from) : it.from, { kb: it.kb });
+});
+/* Enter：候補を選んでいなければ、打った名前のまま足す */
+document.addEventListener('keydown', ev => {
+  const t = ev.target; if(!t || t.id !== 'xTogQ' || ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
+  const v = String(t.value || '').trim(); if(!v) return; ev.preventDefault();
+  const box = document.getElementById('xNmSug'); if(box && box.querySelector('.it.on')) return;
+  if(box) box.remove(); t.value = ''; X.togPick({ name: v, kb: '' });
+});
+/* 手で足した行の下に、手で品名を打って行を足したとき → 上の行（親）とおぼえる */
+document.addEventListener('change', ev => {
+  const t = ev.target; if(!t || !t.matches || !t.matches('#siteBody table.ln input.e[data-f="name"]')) return;
+  const tr = t.closest('tr[data-id]'); const l = tr && S.lines.find(x => x.id === tr.dataset.id); if(!l || !l.manual || l.head) return;
+  const nm = String(t.value || l.name || '').trim(); if(!nm) return;
+  const ls = linesOf(sheetById(l.sheet)), i = ls.indexOf(l), up = i > 0 ? ls[i - 1] : null;
+  if(up && up.manual && !up.head && String(up.name || '').trim() && nk(up.name) !== nk(nm)) togSet(up.name, nm, 'add', l.kb);
+});
+/* 表は描き直しがあとから来ることがあるので、表の下から消えたら入れ直す */
+{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; const tb = document.querySelector('#siteBody table.ln'); if(!tb) return; const b = document.getElementById('xTog'); if(!b || tb.nextElementSibling !== b){ try{ paint(); }catch(e){} } }); }).observe(document.body, { childList: true, subtree: true }); }
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paint(); }catch(e){} try{ loadStats(); }catch(e){} return r; };
+const css = document.createElement('style');
+css.textContent = [
+  '#xTog{margin:10px 0 16px;padding:12px 14px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:14px;background:color-mix(in srgb,var(--brand,#5EC8D2) 6%,transparent)}',
+  '#xTog .xtg-h{font-weight:700;font-size:14px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}',
+  '#xTog .xtg-h small{font-weight:400;font-size:12px;opacity:.65}',
+  '#xTog .xtg-chips{display:flex;flex-wrap:wrap;gap:8px}',
+  '#xTog .xtg-c{display:inline-flex;align-items:stretch;border:1px solid var(--line,rgba(127,127,127,.3));border-radius:12px;overflow:hidden;background:var(--surface,rgba(255,255,255,.04))}',
+  '#xTog .xtg-c.me{border-color:color-mix(in srgb,var(--acc,#E3B23C) 60%,transparent)}',
+  '#xTog .xtg-c button{background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:7px 11px;text-align:left;display:flex;flex-direction:column;gap:2px;line-height:1.25}',
+  '#xTog .xtg-c button b{font-weight:600;font-size:13px}',
+  '#xTog .xtg-c button span{font-size:11px;opacity:.65}',
+  '#xTog .xtg-c button:hover{background:color-mix(in srgb,var(--brand,#5EC8D2) 14%,transparent)}',
+  '#xTog .xtg-c button.x{padding:0 9px;justify-content:center;opacity:.45;font-size:14px;border-left:1px solid var(--line,rgba(127,127,127,.2))}',
+  '#xTog .xtg-c button.x:hover{opacity:1;color:#E25C5C}',
+  '#xTog .xtg-none{font-size:12px;opacity:.65;padding:2px 0 4px}',
+  '#xTog .xtg-add{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:10px}',
+  '#xTog .xtg-add input#xTogQ{flex:1 1 260px;min-width:200px;padding:8px 11px;border-radius:10px}',
+  '#xTog .xtg-add label{font-size:12px;opacity:.8;display:inline-flex;gap:5px;align-items:center}',
+  '@media (pointer:coarse){#xTog .xtg-c button{padding:10px 12px}}'
 ].join('\n');
 document.head.appendChild(css);
 })();
@@ -13485,7 +13681,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 18:36';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 21:59';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
