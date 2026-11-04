@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 02:47-->
+<!--BUILD:2026-11-05 02:57-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 02:47';
+const BUILD = '2026-11-05 02:57';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -11218,7 +11218,10 @@ function addManual(sh, p){
   const ps = periodStartOf(S.meta.seikyuDate), pe = S.meta.seikyuDate;
   if(n.cont === '継続' || !n.retd){ n.start = day(n.kashi) > ps ? day(n.kashi) : ps; n.end = pe; n.cont = '継続'; n.retd = ''; if(n.ret != null) n.ret = '継続'; }
   if(rent(n)){ n.bu = 0; n.ba = 0; }
-  if(typeof daysFromPeriod === 'function') daysFromPeriod(n); calcLine(n);
+  if(typeof daysFromPeriod === 'function') daysFromPeriod(n);
+  /* 2026-11-05 三貴 神田 (2) 50psｺﾝﾌﾟﾚｯｻｰ：前月はサポート単価 400 があってもサポート日数が空（サポート料なし）→ 今月もサポート料は入れない */
+  if(num(p.su) && !num(p.sdays) && !num(p.sa)) n.sdays = 0;
+  calcLine(n);
   placeLine(sh, n, p); p.added = true; return true;
 }
 X.__addManual = (sh, p) => addManual(sh, p);
@@ -13798,6 +13801,60 @@ css.textContent = '.xurg{display:inline-flex;gap:4px}#xMini .xurg .btn{padding:4
 document.head.appendChild(css);
 })();
 
+/* 請求ナビ Web：前月は同じ現場で請求書が2枚あったとき（ext3i.js）
+   2026-11-05「神田の先月の引き継ぎが出ないよ」
+   三貴 神田：9月は「神田」（システムの行）と「神田 (2)」（60KVA発電機・50psｺﾝﾌﾟﾚｯｻｰ・20kgﾌﾞﾚｰｶｰ・ｴｱﾎｰｽ…を手で足した請求書）の2枚。
+   10月のCSVの行はぜんぶ「神田」に入るので「神田 (2)」は行が0 → 鑑から外して一覧のいちばん下へ回していた。
+   前月の引き継ぎで入れても 鑑から外れたまま・下のほうで見えない、神田の画面には何も出ない、だった。
+   ・神田の画面に「前月はこの現場の請求書がもう1枚（神田 (2)）」の帯：品名と前月の金額、[神田 (2) にぜんぶ入れる] [神田 (2) を開く]
+   ・行0の前月シートに前月の行を入れたら、鑑に入れて（請求書に出る）、同じ現場の請求書のすぐ後ろへ */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const rentKb = p => /^(日極|月極)$/.test(String(p.kb || ''));
+const pend = sh => (sh.prevManual || []).filter(p => p.pmKey && rentKb(p) && !linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey));
+const sibs = sh => S.sheets.filter(s => s !== sh && String(s.code) === String(sh.code) && s.code && String(s.code) !== '0');
+function fix(){
+  const msg = [];
+  S.sheets.slice().forEach(sh => {
+    if(!sh.emptyNow) return;
+    if(!linesOf(sh).some(l => l.manual && l.pmKey && !l.nb)) return;
+    sh.emptyNow = false;
+    if(!sh.inKagami){ sh.inKagami = true; msg.push(sh.name); }
+    const sb = sibs(sh).filter(s => !s.emptyNow); if(sb.length){ const last = sb[sb.length - 1]; S.sheets.splice(S.sheets.indexOf(sh), 1); S.sheets.splice(S.sheets.indexOf(last) + 1, 0, sh); }
+  });
+  if(msg.length) setTimeout(() => toast('「' + msg.join('・') + '」を鑑に入れた（請求書に出る）。外すときは現場の見出しの「鑑に出す」を外して', 6000), 50);
+}
+const _sv = save; save = function(){ try{ if(S.built) fix(); }catch(e){ console.warn(e); } return _sv.apply(this, arguments); };
+function banner(){
+  const sh = sheetById(S.cur), H = document.getElementById('shead'); if(!sh || !H) return;
+  const old = document.getElementById('xSibPm'); if(old) old.remove();
+  if(sh.emptyNow) return;
+  const list = sibs(sh).map(s => ({ s, p: pend(s) })).filter(x => x.p.length);
+  if(!list.length) return;
+  const d = document.createElement('div'); d.id = 'xSibPm'; d.className = 'xsibpm';
+  d.innerHTML = list.map(x => '<div><b>前月はこの現場の請求書がもう1枚（' + esc(x.s.name) + '）</b>' + (x.s.inKagami ? '' : '<small>いまは鑑に入っていない</small>') +
+    '<div class="xsp-l">' + x.p.map(p => '<span>' + esc(p.name) + ' <small>前月 ' + yen(num(p.la) + num(p.sa)) + '</small></span>').join('') + '</div>' +
+    '<button type="button" class="btn sm primary" data-xsib="add" data-id="' + x.s.id + '">「' + esc(x.s.name) + '」にぜんぶ入れる（' + x.p.length + ' 行）</button> ' +
+    '<button type="button" class="btn sm" data-xsib="open" data-id="' + x.s.id + '">「' + esc(x.s.name) + '」を開く</button></div>').join('');
+  H.after(d);
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-xsib]'); if(!b) return; ev.preventDefault(); ev.stopPropagation();
+  const s = sheetById(b.dataset.id); if(!s) return;
+  if(b.dataset.xsib === 'open'){ S.cur = s.id; save(); drawSites(); return; }
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  if(X.siteLocked && X.siteLocked(s.id)){ toast('「' + s.name + '」は完了でロック中'); return; }
+  if(!X.__addManual){ S.cur = s.id; drawSites(); toast('「' + s.name + '」の見出しの「前月に手で足した行」の ＋ で入れて'); return; }
+  try{ if(typeof undoMark === 'function') undoMark(); }catch(e){}
+  let n = 0; pend(s).forEach(p => { if(X.__addManual(s, p)) n++; });
+  S.cur = s.id; save(); drawSites(); toast('「' + s.name + '」に前月の行を ' + n + ' 行入れた（↶ でもどせる）', 4000);
+}, true);
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ banner(); }catch(e){ console.warn(e); } return r; };
+const css = document.createElement('style');
+css.textContent = '.xsibpm{margin:8px 0;padding:10px 12px;border:1.5px solid #E0A020;border-radius:12px;background:rgba(224,160,32,.08);font-size:13px}.xsibpm>div+div{margin-top:8px}.xsibpm small{opacity:.7;margin-left:6px}.xsibpm .xsp-l{display:flex;flex-wrap:wrap;gap:4px 10px;margin:6px 0 8px}.xsibpm .xsp-l small{margin-left:2px}';
+document.head.appendChild(css);
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -14303,7 +14360,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 02:47';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 02:57';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
