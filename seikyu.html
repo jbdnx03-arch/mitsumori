@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 23:57-->
+<!--BUILD:2026-11-05 00:36-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 23:57';
+const BUILD = '2026-11-05 00:36';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7565,8 +7565,15 @@ function setSel(ls){
   ls.forEach(l => { const i = all.indexOf(l); if(i >= 0) set.add(i + 1); });
   S.bulkSel = set.size ? set : null; S.bulkRows = set.size ? rowsText(set) : '';
 }
+let selSheet = '';
 function selBar(){
   let B = document.getElementById('xSelBar');
+  /* 2026-11-05「この帯がずっと残ってる」：選びが現場を変えたあと・行が無くなったあとも残っていた → 合わなくなったら消す */
+  if(S.bulkSel && S.bulkSel.size){
+    const n0 = (sheetById(S.cur) ? linesOf(sheetById(S.cur)).length : 0);
+    if((selSheet && selSheet !== S.cur) || S.tab !== 'sites' || ![...S.bulkSel].some(i => i >= 1 && i <= n0)){ S.bulkSel = null; S.bulkRows = ''; }
+    else selSheet = S.cur;
+  } else selSheet = '';
   const on = S.tab === 'sites' && S.built && (selMode || (S.bulkSel && S.bulkSel.size));
   if(!on){ if(B) B.hidden = true; document.body.classList.toggle('xselmode', false); return; }
   document.body.classList.toggle('xselmode', selMode);
@@ -7601,7 +7608,7 @@ function moveSel(dir){
   setTimeout(() => { const tr = document.querySelector('tr[data-id="' + sel[0].id + '"]'); if(tr) tr.scrollIntoView({ block:'nearest' }); }, 30);
 }
 function selMove(toId){
-  const to = sheetById(toId), sel = selLines(); if(!to || !sel.length) return;
+  const to = sheetById(toId), sel = selLines(); if(!to || !sel.length){ S.bulkSel = null; S.bulkRows = ''; drawSites(); toast('選んだ行が見つからない。もう一度番号を押して選んで'); return; }
   sel.forEach(l => { l.sheet = to.id; l.userMoved = to.name; });
   /* 移した先の最後にまとめて並べる */
   sel.forEach(l => { S.lines.splice(S.lines.indexOf(l), 1); }); const tl = linesOf(to); const at = tl.length ? S.lines.indexOf(tl[tl.length - 1]) + 1 : S.lines.length; S.lines.splice(at, 0, ...sel);
@@ -10963,10 +10970,10 @@ const LB = { draft: '作業中', printed: '印刷済', sent: '送付済', done: 
 function bar(){
   const pdf = document.getElementById('spvPdf'); if(!pdf || !S.built || !S.workId) return;
   let g = document.getElementById('xStBar');
-  if(!g){ g = document.createElement('span'); g.id = 'xStBar'; g.style.cssText = 'display:inline-flex;gap:0;margin-right:6px;border-radius:10px;overflow:hidden;vertical-align:middle';
+  if(!g){ g = document.createElement('span'); g.id = 'xStBar'; g.style.cssText = 'display:inline-flex;align-items:stretch;gap:0;margin-right:6px;border-radius:10px;overflow:hidden;vertical-align:middle';
     const hk = document.getElementById('xHkBtn'); pdf.parentNode.insertBefore(g, hk || pdf); }
   const cur = S.status || 'draft';
-  g.innerHTML = Object.keys(LB).map(k => '<button type="button" class="btn' + (k === cur ? ' primary' : '') + '" data-xst="' + k + '" style="border-radius:0;margin:0" title="この作業を「' + LB[k] + '」にする">' + (k === cur ? '● ' : '') + LB[k] + '</button>').join('');
+  g.innerHTML = '<small style="align-self:center;padding:0 6px 0 2px;opacity:.75;white-space:nowrap">作業全体：</small>' + Object.keys(LB).map(k => '<button type="button" class="btn' + (k === cur ? ' primary' : '') + '" data-xst="' + k + '" style="border-radius:0;margin:0" title="この作業を「' + LB[k] + '」にする">' + (k === cur ? '● ' : '') + LB[k] + '</button>').join('');
 }
 const _sp = sitePreview;
 sitePreview = function(){ const r = _sp.apply(this, arguments); try{ bar(); }catch(e){} return r; };
@@ -11008,7 +11015,8 @@ function bar(){
   /* 2026-11-01：その現場のシステム（CSV）との差。全現場のときは見ている請求書の現場 */
   const d = netOf(sh) - sysOf(sh), dz = d ? '<b style="color:' + (d < 0 ? '#E05252' : '#E0A020') + '">' + yti(d, true) + '</b>' : '<b style="color:#2E8B57">ぴったり ✓</b>';
   g.innerHTML = '<small style="opacity:.8;max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(sh.name) + '：</small><span style="font-size:12.5px;white-space:nowrap" title="この現場のシステム（CSV）との差（税込・かっこは税抜）">システム差 ' + dz + '</span>' +
-    '<button type="button" class="btn' + (s2 ? ' primary' : '') + '" data-xsh="done" data-sh="' + sh.id + '" title="' + (s2 ? '押すと未完了にもどす' : '押すと完了にする') + '（' + (sh.kag ? '鑑' : 'この現場') + '）">' + (s2 ? '✓ 完了' : '未完了') + '</button>';
+    /* 2026-11-04「現場ごとの完了・未完了のボタンはどうした？」→ この現場の［未完了｜完了］の2つにして、作業全体の状態とはっきり分ける */
+    '<span class="xshseg" title="' + (sh.kag ? '鑑' : 'この現場') + 'だけの完了／未完了（作業全体の状態は右の帯）"><button type="button" class="btn' + (!s2 ? ' on' : '') + '" data-xsh="done" data-to="0" data-sh="' + sh.id + '">未完了</button><button type="button" class="btn' + (s2 ? ' on' : '') + '" data-xsh="done" data-to="1" data-sh="' + sh.id + '">' + (s2 ? '✓ ' : '') + '完了</button></span>';
 }
 window.seikyuExt.siteBar = bar;
 const _sp = sitePreview;
@@ -11017,7 +11025,7 @@ window.addEventListener('click', ev => { const b = ev.target && ev.target.closes
   if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
   const sh = b.dataset.sh === KAG.id ? KAG : sheetById(b.dataset.sh); if(!sh) return; const e = E();
   if(b.dataset.xsh === 'seen'){ e.seen = e.seen || {}; if(seenOk2(sh)) delete e.seen[sh.id]; else e.seen[sh.id] = { at: nowIso(), net: netOf(sh) }; toast(sh.name + '：' + (seenOk2(sh) ? '見た ✓' : '見たを外した'), 1600); }
-  else { e.siteDone = e.siteDone || {}; if(e.siteDone[sh.id]) delete e.siteDone[sh.id]; else { e.siteDone[sh.id] = { at: nowIso(), net: netOf(sh) }; e.seen = e.seen || {}; e.seen[sh.id] = { at: nowIso(), net: netOf(sh) }; } toast(sh.name + '：' + (doneOk(sh) ? '完了 ✓' : '完了を外した'), 1600); }
+  else { e.siteDone = e.siteDone || {}; if(b.dataset.to != null && (b.dataset.to === '1') === !!e.siteDone[sh.id]) return; if(e.siteDone[sh.id]) delete e.siteDone[sh.id]; else { e.siteDone[sh.id] = { at: nowIso(), net: netOf(sh) }; e.seen = e.seen || {}; e.seen[sh.id] = { at: nowIso(), net: netOf(sh) }; } toast(sh.name + '：' + (doneOk(sh) ? '完了 ✓' : '完了を外した'), 1600); }
   save(); bar(); }, true);
 /* 現場の一覧にも「完了」 */
 const _ds = drawSites;
@@ -11041,6 +11049,10 @@ function pvBtn(){ const g = document.getElementById('xShBar'); if(!g) return; do
   if(n) g.insertAdjacentHTML('beforebegin', '<button type="button" class="btn primary xpmPv" data-xpmall style="margin-right:6px" title="前月の請求書から足した行で、日付・伝票番号などが前月とちがう行">前月どおりにもどす（' + n + ' 行）</button>'); }
 window.addEventListener('click', () => setTimeout(() => { try{ pvBtn(); }catch(e){} }, 400), true);
 })();
+
+/* 現場の［未完了｜完了］の見た目 ／ プレビューを開いているあいだは現場の画面の「えらんだ行」帯をかくす */
+(function(){ const c = document.createElement('style'); c.textContent = '.xshseg{display:inline-flex;border-radius:10px;overflow:hidden;border:1px solid rgba(127,127,127,.4)}.xshseg .btn{border:0!important;border-radius:0!important;margin:0!important;opacity:.7}.xshseg .btn.on{opacity:1}.xshseg .btn.on[data-to="0"]{background:#E0A020!important;color:#1b1b1b!important}.xshseg .btn.on[data-to="1"]{background:#2E8B57!important;color:#fff!important}' +
+  'body:has(#sitePv:not([hidden])) #xSelBar{display:none!important}'; document.head.appendChild(c); })();
 
 /* ==================================================================
    請求ナビ Web：PDFの保存を Excel版と同じ決まりに（2026-11-01「pdf保存は色々ルールあったよね？ yoursは現場ごとにpdfにするとか」）
@@ -12910,6 +12922,7 @@ function find(q, selfId){
 /* 2026-11-04 よく一緒に出る品（ext3b）からも使う：品名にいちばん合う候補（区分・単位・単価） */
 window.seikyuExt = window.seikyuExt || {};
 window.seikyuExt.nmLoad = loadSaved;
+window.seikyuExt.nmAll = function(name, selfId){ const k = nk(name); if(!k) return []; return dict(selfId || '').filter(e => nk(e.name) === k).sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); };
 window.seikyuExt.nmBest = function(name){ const k = nk(name); if(!k) return null; const all = dict('').filter(e => nk(e.name) === k); all.sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); return all[0] || null; };
 /* ---- 下に出す箱 ---- */
 let box = null, cur = null;   /* cur = { inp, mode:'row'|'sheet', id, items, ix } */
@@ -13264,9 +13277,11 @@ let M = new Map(), order = new Map();   /* 行id → 現場id／行id → ひと
 function sync(){ M = new Map(); order = new Map(); const last = {}; (S.lines || []).forEach(l => { M.set(l.id, l.sheet); order.set(l.id, last[l.sheet] || ''); last[l.sheet] = l.id; }); }
 function detect(){
   if(!S.built || !M.size || (typeof undoing !== 'undefined' && undoing)) return;
+  let moved = 0;
   (S.lines || []).forEach(l => {
     const was = M.get(l.id); if(!was || was === l.sheet) return;
     const from = sheetById(was), to = sheetById(l.sheet); if(!from || !to) return;
+    moved++;
     /* 来たところへ帰った → その「あと」を消す */
     const back = (to.movedOut || []).find(g => g.ref === l.id);
     if(back){ to.movedOut = to.movedOut.filter(g => g !== back); if(l.movedFromId === to.id){ delete l.movedFrom; delete l.movedFromId; } else if(back.fromId){ } }
@@ -13278,6 +13293,8 @@ function detect(){
     /* ほかの現場に残っている同じ行のあと → 行き先を今の現場に */
     S.sheets.forEach(s => (s.movedOut || []).forEach(g => { if(g.ref === l.id && s !== from){ g.to = to.name; g.toId = to.id; } }));
   });
+  /* 2026-11-05 移したあとも「1 行をえらんだ」の帯が残っていた（番号で覚えている選びが、ずれたまま残る）→ 移したら選びは消す */
+  if(moved && S.bulkSel){ S.bulkSel = null; S.bulkRows = ''; }
   sync();
 }
 const _save = save; save = function(){ try{ detect(); }catch(e){ console.warn(e); } return _save.apply(this, arguments); };
@@ -13298,8 +13315,12 @@ function paint(){
     const tr = document.createElement('tr'); tr.className = 'xghost';
     tr.innerHTML = '<td class="sub rowno xg-no">⇢</td><td colspan="' + (ncol - 1) + '"><span class="xg-t">「' + esc(g.name) + '」' + (g.den ? '<small>（伝票 ' + esc(g.den) + '）</small>' : '') + ' は <b>' + esc(toName) + '</b> へ移した' + (g.amt ? '<small>　' + yen(g.amt) + '</small>' : '') + '<small>　この請求書には出ない</small></span>' +
       (live ? '<button type="button" class="btn sm" data-xgback="' + g.ref + '" data-sh="' + sh.id + '" title="この現場にもどす">↩ もどす</button>' : '<small>（行はもうない）</small>') + '<button type="button" class="btn sm ghost" data-xgdel="' + i + '" data-sh="' + sh.id + '" title="このあとだけ消す（行はそのまま）">×</button></td>';
-    const af = g.afterId && tb.querySelector('tr[data-id="' + g.afterId + '"]');
-    if(af) af.after(tr); else if(g.afterId === '' && tb.firstElementChild) tb.insertBefore(tr, tb.firstElementChild.classList.contains('headrow') && !tb.firstElementChild.dataset.id ? tb.firstElementChild.nextSibling : tb.firstElementChild); else tb.appendChild(tr);
+    tr.dataset.ref = g.ref;
+    /* 2026-11-05「4つ移動したのに1個だけ」：続けて移した行は、ひとつ上の行も移していて見つからず、表のいちばん下に出ていた → 上の行のあと（移した行のあと）をたどって、その下に並べる */
+    let aid = g.afterId, af = null, guard = 0;
+    while(aid && guard++ < 200){ af = tb.querySelector('tr[data-id="' + aid + '"]') || tb.querySelector('tr.xghost[data-ref="' + aid + '"]'); if(af) break; const g2 = gs.find(x => x.ref === aid); if(!g2){ aid = ''; break; } aid = g2.afterId; }
+    if(af){ let at = af; while(at.nextElementSibling && at.nextElementSibling.classList.contains('xghost') && at.nextElementSibling.dataset.ref !== g.ref && gs.findIndex(x => x.ref === at.nextElementSibling.dataset.ref) < i) at = at.nextElementSibling; at.after(tr); }
+    else if(tb.firstElementChild) tb.insertBefore(tr, tb.firstElementChild); else tb.appendChild(tr);
   });
 }
 function back(ref, shId){
@@ -13414,6 +13435,135 @@ document.addEventListener('click', ev => { const b = ev.target.closest && ev.tar
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ btns(); }catch(e){} return r; };
 { let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; btns(); }); }).observe(document.body, { childList: true, subtree: true }); }
 const css = document.createElement('style'); css.textContent = '#siteBody .lnbtn [data-act="addb"]{font-weight:800;color:var(--brand,#5EC8D2)}'; document.head.appendChild(css);
+})();
+/* 2026-11-05「単価かえる時も金額の候補出して」：賃貸単価・サポート単価・基本料／販売単価の欄に入ると、同じ品のこれまでの単価を出す（同じ請求先を先に）。押すとその単価が入る */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const LBL = { lu: '賃貸単価', su: 'サポート単価', bu: '基本料・販売単価' };
+let box = null, inp = null;
+function close(){ if(box){ box.remove(); box = null; } inp = null; }
+function show(t){
+  close();
+  const tr = t.closest('tr[data-id]'), l = tr && S.lines.find(x => x.id === tr.dataset.id); if(!l || l.head || !X.nmAll) return;
+  if(X.siteLocked && X.siteLocked(l.sheet)) return;
+  const f = t.dataset.f, cur = num(l[f]);
+  const seen = new Map();
+  X.nmAll(l.name, l.id).forEach(e => { const v = num(e[f]); if(!v || v === cur) return; const k = v + '|' + (e.kb || ''); if(!seen.has(k)) seen.set(k, { v, kb: e.kb || '', w: e.w, at: e.at }); else seen.get(k).w += e.w; });
+  if(l.sys && num(l.sys[f]) && num(l.sys[f]) !== cur){ const k = num(l.sys[f]) + '|' + (l.sys.kb || l.kb || ''); if(!seen.has(k)) seen.set(k, { v: num(l.sys[f]), kb: l.sys.kb || l.kb || '', w: 999, at: '', csv: true }); else seen.get(k).csv = true; }
+  if(l.pv && num(l.pv[f]) && num(l.pv[f]) !== cur){ const k = num(l.pv[f]) + '|' + (l.kb || ''); if(!seen.has(k)) seen.set(k, { v: num(l.pv[f]), kb: l.kb || '', w: 500, at: '', pm: true }); else seen.get(k).pm = true; }
+  const items = [...seen.values()].sort((a, b) => (b.csv - a.csv) || (b.pm - a.pm) || b.w - a.w).slice(0, 8); if(!items.length) return;
+  inp = t; box = document.createElement('div'); box.id = 'xPriceSug';
+  box.innerHTML = '<div class="h">' + LBL[f] + 'の候補（' + esc(String(l.name).slice(0, 16)) + '）</div>' + items.map(it => '<button type="button" data-pv="' + it.v + '"><b>' + yen(it.v) + '</b><span>' + [it.kb, it.csv ? 'CSV' : '', it.pm ? '前月' : '', !it.csv && !it.pm ? 'これまで ' + it.w + '回分' : ''].filter(Boolean).join('・') + '</span></button>').join('');
+  box.addEventListener('pointerdown', ev => { const b = ev.target.closest('[data-pv]'); ev.preventDefault(); if(!b || !inp) return; const i = inp; i.value = b.dataset.pv; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); close(); });
+  document.body.appendChild(box);
+  const r = t.getBoundingClientRect(), W = 230; box.style.width = W + 'px';
+  box.style.left = Math.max(8, Math.min(window.innerWidth - W - 8, r.right - W)) + 'px';
+  const h = box.offsetHeight; box.style.top = (window.innerHeight - r.bottom < h + 12 && r.top > h + 12 ? r.top - h - 4 : r.bottom + 4) + 'px';
+}
+document.addEventListener('focusin', ev => { const t = ev.target; if(t && t.matches && t.matches('#siteBody table.ln input.e[data-f="lu"], #siteBody table.ln input.e[data-f="su"], #siteBody table.ln input.e[data-f="bu"]')){ if(X.nmLoad) try{ X.nmLoad(); }catch(e){} show(t); } });
+document.addEventListener('focusout', ev => { if(inp && ev.target === inp) setTimeout(() => { if(inp && document.activeElement !== inp) close(); }, 120); });
+document.addEventListener('keydown', ev => { if(inp && (ev.key === 'Escape' || ev.key === 'Tab')) close(); }, true);
+window.addEventListener('scroll', () => { if(inp) close(); }, true);
+const css = document.createElement('style');
+css.textContent = '#xPriceSug{position:fixed;z-index:900;padding:5px;background:var(--surface,#fff);color:var(--ink,#222);border:1px solid var(--line,#ccd);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.28);font-size:13px}#xPriceSug .h{font-size:11px;opacity:.65;padding:3px 7px 4px}' +
+  '#xPriceSug button{display:flex;width:100%;justify-content:space-between;align-items:baseline;gap:8px;font:inherit;padding:6px 9px;border:0;border-radius:8px;background:transparent;color:inherit;cursor:pointer;text-align:left}#xPriceSug button b{font-weight:700}#xPriceSug button span{font-size:11px;opacity:.65}#xPriceSug button:hover{background:color-mix(in srgb,var(--acc,#2a9) 16%,transparent)}' +
+  '@media (pointer:coarse){#xPriceSug button{padding:10px}}';
+document.head.appendChild(css);
+})();
+
+/* 請求ナビ Web：完了した現場はロック（ext3f.js）
+   2026-11-05「完了現場にしたら金額変わらないようにロックして。ロック解除したらまたいじれるように。
+              csv更新で金額変わる時は ロックしていますが金額変わりますよろしいですか？的な質問をして」
+   ・完了にした現場は、行（品名・数量・単価・日付・出す出さない・並び・足す・消す・移す）を変えられない。工番・担当者・メモはそのまま書ける
+   ・現場の見出しに「🔒 完了でロック中」と「ロックを外す」（＝未完了にもどす）
+   ・どこから変えても（プレビューの欄・直すシート・選んで移す・ドラッグ…）、保存の前にロックした現場が変わっていたら元にもどす
+   ・CSVで更新したとき、ロックした現場の金額が変わるなら聞く（変わってよい／更新をやめる） */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const done = id => !!(S.ext && S.ext.siteDone && S.ext.siteDone[id]);
+X.siteLocked = id => !!id && done(id);
+let bypass = 0;
+const MSG = 'この現場は完了でロック中。直すときは上の「ロックを外す」';
+const F = ['name', 'qty', 'unit', 'kb', 'lu', 'su', 'bu', 'la', 'sa', 'ba', 'days', 'sdays', 'start', 'end', 'kashi', 'retd', 'cont', 'nb', 'denW', 'kanW', 'head'];
+const sig = (lines, id) => JSON.stringify(lines.filter(l => l.sheet === id).map(l => [l.id].concat(F.map(f => l[f] == null ? '' : l[f]))));
+/* ---- 保存の前の見張り ---- */
+const _save = save;
+save = function(){
+  try{
+    if(!bypass && S.built && typeof undoLast !== 'undefined' && undoLast && !(typeof undoing !== 'undefined' && undoing)){
+      const ids = Object.keys((S.ext && S.ext.siteDone) || {}).filter(id => id !== '__kagami' && sheetById(id));
+      if(ids.length){
+        const st = JSON.parse(undoLast); const bad = ids.filter(id => sig(st.lines || [], id) !== sig(S.lines, id) && (st.lines || []).some(l => l.sheet === id));
+        if(bad.length){
+          const pm = new Map(S.sheets.map(s => [s.id, s.prev]));
+          S.lines = st.lines; S.trash = st.trash || []; S.sheets = st.sheets.map(s => { s.prev = pm.get(s.id) || null; return s; });
+          setTimeout(() => { try{ drawSites(); }catch(e){} toast('「' + bad.map(id => (sheetById(id) || {}).name).join('・') + '」は完了でロック中なので変えなかった。直すときは現場の「ロックを外す」', 5000); }, 0);
+          return _save.apply(this, arguments);
+        }
+      }
+    }
+  }catch(e){ console.warn(e); }
+  return _save.apply(this, arguments);
+};
+/* ---- 入れる前に止める（打ちかけて元にもどるより、はじめから止めるほうがわかりやすい） ---- */
+const inLocked = el => { const tr = el.closest && el.closest('#siteBody tr[data-id]'); if(tr){ const l = S.lines.find(x => x.id === tr.dataset.id); return !!(l && done(l.sheet)); } return !!(el.closest && el.closest('#siteBody') && done(S.cur)); };
+function stop(ev, quiet){ ev.preventDefault(); ev.stopImmediatePropagation(); if(!quiet) toast(MSG, 2600); }
+document.addEventListener('beforeinput', ev => { const t = ev.target; if(t && t.matches && t.matches('#siteBody table.ln input, #siteBody table.ln textarea') && inLocked(t)) stop(ev); }, true);
+document.addEventListener('input', ev => { const t = ev.target; if(t && t.matches && t.matches('#siteBody table.ln input, #siteBody table.ln select') && inLocked(t)) stop(ev, true); }, true);
+document.addEventListener('change', ev => {
+  const t = ev.target; if(!t || !t.matches) return;
+  if(t.matches('#siteBody table.ln input, #siteBody table.ln select') && inLocked(t)){ stop(ev); setTimeout(() => { try{ drawSites(); }catch(e){} }, 0); return; }
+  /* ほかの現場から、ロックした現場へは移せない */
+  if(t.matches('select[data-act="move"], #xSelMove, [data-pe-mv]') && t.value && done(t.value)){ stop(ev, true); toast('「' + (sheetById(t.value) || {}).name + '」は完了でロック中なので移せない', 3000); t.value = ''; }
+}, true);
+document.addEventListener('click', ev => {
+  const t = ev.target; if(!t || !t.closest) return;
+  const b = t.closest('#siteBody table.ln [data-act], #siteBody [data-act="addb"], #addLine, #addAdj, #addHead, #bkGo, #xTog [data-tg], #siteBody .xgrip, [data-addprev], [data-xgback], [data-xmvback]');
+  if(b && done(S.cur) && b.closest('#siteBody, #xTog')) return stop(ev);
+  const sb = t.closest('#xSelBar [data-sel]'); if(sb && done(S.cur) && !/^(clear|end)$/.test(sb.dataset.sel)) return stop(ev);
+}, true);
+['touchstart', 'pointerdown'].forEach(tp => document.addEventListener(tp, ev => { const g = ev.target && ev.target.closest && ev.target.closest('.xgrip'); if(g && done(S.cur)){ ev.stopImmediatePropagation(); ev.preventDefault(); toast(MSG, 2200); } }, { capture: true, passive: false }));
+/* ---- 見出しの帯 ---- */
+function paint(){
+  const H = document.getElementById('shead'), B = document.getElementById('siteBody'); if(!H || !B) return;
+  H.querySelectorAll('.xlockbar').forEach(x => x.remove());
+  const on = done(S.cur); B.classList.toggle('xsitelock', on);
+  if(!on) return;
+  const d = document.createElement('div'); d.className = 'xlockbar';
+  d.innerHTML = '<b>🔒 完了でロック中</b><span>この現場の行・金額は変えられない（工番・担当者・メモは書ける）</span><button type="button" class="btn sm" data-xunlock="' + S.cur + '">ロックを外す（未完了にもどす）</button>';
+  H.prepend(d);
+}
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-xunlock]'); if(!b) return; ev.stopPropagation(); ev.preventDefault();
+  const e = S.ext = S.ext || {}; e.siteDone = e.siteDone || {}; delete e.siteDone[b.dataset.xunlock]; if(e.seen) delete e.seen[b.dataset.xunlock];
+  bypass++; try{ save(); }finally{ bypass--; } drawSites(); toast('ロックを外した（未完了）。直したらもう一度「完了」でロック', 3500); }, true);
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paint(); }catch(e){} return r; };
+/* ---- CSVで更新：ロックした現場の金額が変わるなら聞く ---- */
+const netOfLines = (lines, id) => lines.filter(l => l.sheet === id && !l.nb && !l.head).reduce((a, l) => { try{ return a + lineAmt(l); }catch(e){ return a; } }, 0);
+if(typeof updateFromCsv === 'function'){
+  const _u = updateFromCsv;
+  updateFromCsv = async function(x){
+    let w = null; try{ w = await loadWork(x); }catch(e){}
+    const lockedOld = w && w.ext && w.ext.siteDone ? Object.keys(w.ext.siteDone).filter(id => id !== '__kagami').map(id => { const s = (w.sheets || []).find(z => z.id === id); return s ? { name: s.name, code: s.code, net: netOfLines(w.lines || [], id) } : null; }).filter(Boolean) : [];
+    bypass++; let r; try{ r = await _u.apply(this, arguments); }finally{ bypass--; }
+    try{
+      if(!lockedOld.length || !w) return r;
+      const ch = [];
+      lockedOld.forEach(o => { const sh = S.sheets.find(s => s.name === o.name && String(s.code) === String(o.code)) || S.sheets.find(s => String(s.code) === String(o.code)); if(!sh) return; const n = netOfLines(S.lines, sh.id); if(n !== o.net) ch.push({ o, sh, n }); });
+      if(!ch.length) return r;
+      const v = await askDialog('ロックしている現場の金額が変わります',
+        '完了にしてロックしている現場の金額が、新しいCSVで変わります。<table class="xlog" style="margin-top:8px"><tr><th>現場</th><th class="n">いま</th><th class="n">更新すると</th><th class="n">差</th></tr>' +
+        ch.map(c => '<tr><td>' + esc(c.sh.name) + '</td><td class="n">' + yen(c.o.net) + '</td><td class="n"><b>' + yen(c.n) + '</b></td><td class="n">' + (c.n - c.o.net > 0 ? '+' : '') + yen(c.n - c.o.net) + '</td></tr>').join('') + '</table><p style="margin-top:8px">変わってよければ「更新する」（その現場は未完了にもどる）。やめると、更新する前のままにもどします。</p>',
+        [{ t: '変わってよい・更新する', v: 'ok', primary: true, k: 'Y' }, { t: '更新をやめる（前のまま）', v: 'no', k: 'N' }]);
+      if(v === 'ok'){ const e = S.ext = S.ext || {}; e.siteDone = e.siteDone || {}; ch.forEach(c => { delete e.siteDone[c.sh.id]; }); bypass++; try{ save(); }finally{ bypass--; } drawSites(); toast(ch.length + ' 現場の金額が変わったので未完了にもどした。見直したらもう一度「完了」', 5000); }
+      else { openWork(w); bypass++; try{ save(); }finally{ bypass--; } toast('更新をやめて、前のままにもどした', 4000); }
+    }catch(e){ console.warn(e); }
+    return r;
+  };
+}
+const css = document.createElement('style');
+css.textContent = '.xlockbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 10px;padding:9px 14px;border-radius:12px;background:rgba(46,139,87,.14);border:1.5px solid rgba(46,139,87,.55);font-size:13px}.xlockbar b{color:#2E8B57;font-size:14px}.xlockbar span{opacity:.8}.xlockbar .btn{margin-left:auto}' +
+  '#siteBody.xsitelock table.ln input.e, #siteBody.xsitelock table.ln select{pointer-events:none;opacity:.75}#siteBody.xsitelock table.ln .lnbtn button, #siteBody.xsitelock table.ln .lnbtn select, #siteBody.xsitelock .xgrip{opacity:.3;pointer-events:none}#siteBody.xsitelock #addLine, #siteBody.xsitelock #addAdj, #siteBody.xsitelock #addHead{opacity:.35;pointer-events:none}';
+document.head.appendChild(css);
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -13921,7 +14071,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 23:57';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 00:36';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
