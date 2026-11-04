@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 01:18-->
+<!--BUILD:2026-11-05 01:56-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 01:18';
+const BUILD = '2026-11-05 01:56';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7583,7 +7583,11 @@ function selBar(){
     B.addEventListener('click', ev => { const b = ev.target.closest('[data-sel]'); if(!b) return; ev.stopPropagation(); selAct(b.dataset.sel); });
     B.addEventListener('change', ev => { if(ev.target.id === 'xSelMove' && ev.target.value){ selMove(ev.target.value); } }); }
   const n = S.bulkSel ? S.bulkSel.size : 0, sh = sheetById(S.cur), others = S.sheets.filter(s => s !== sh);
-  B.innerHTML = '<b>' + (n ? n + ' 行をえらんだ' : '行を押してえらぶ') + '</b>' + (n ? '' : '<span class="muted">（Shift で範囲）</span>') +
+  /* 2026-11-05「帯に選んだ合計を表示するように」：税抜の合計（出さない行は別に）と税込 */
+  let sumTxt = '';
+  if(n){ const ls = selLines().filter(l => !l.head); const on = ls.filter(l => !l.nb), net = on.reduce((a, l) => a + lineAmt(l), 0), off = ls.filter(l => l.nb).reduce((a, l) => a + lineAmt(l), 0);
+    sumTxt = '<span class="xsb-sum" title="選んだ行の金額（請求書に出す行だけ）">合計 <b>' + yen(net) + '</b><small>（税抜・税込 ' + yen(net + tax(net)) + '）</small>' + (off ? '<small class="nb">出さない行 ' + yen(off) + '</small>' : '') + '</span>'; }
+  B.innerHTML = '<b>' + (n ? n + ' 行をえらんだ' : '行を押してえらぶ') + '</b>' + sumTxt + (n ? '' : '<span class="muted">（Shift で範囲）</span>') +
     '<span class="xsb-g"><button class="btn sm" data-sel="up" ' + (n ? '' : 'disabled') + ' title="選んだ行を1行上へ">↑ 上へ</button><button class="btn sm" data-sel="down" ' + (n ? '' : 'disabled') + ' title="選んだ行を1行下へ">↓ 下へ</button>' +
     '<button class="btn sm" data-sel="top" ' + (n ? '' : 'disabled') + ' title="選んだ行をこの現場のいちばん上へ">⤒ 先頭へ</button><button class="btn sm" data-sel="bottom" ' + (n ? '' : 'disabled') + ' title="選んだ行をこの現場のいちばん下へ">⤓ 最後へ</button></span>' +
     '<label class="xsb-mv">ほかの現場へ <select id="xSelMove" ' + (n ? '' : 'disabled') + '><option value="">移す先…</option>' + others.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('') + '</select></label>' +
@@ -7687,6 +7691,8 @@ document.addEventListener('keydown', ev => { if(ev.key === 'Escape' && (selMode 
 
 const st = document.createElement('style');
 st.textContent = '.xselbar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px);padding:10px 14px;border-radius:14px;background:var(--card,#132a30);color:var(--ink,#EAF2F2);border:1px solid rgba(94,200,210,.45);box-shadow:0 12px 36px rgba(0,0,0,.35)}' +
+  '.xselbar .xsb-sum{display:inline-flex;align-items:baseline;gap:6px;padding:4px 12px;border-radius:10px;background:rgba(94,200,210,.14);font-size:13px}.xselbar .xsb-sum b{font-size:17px;color:#5EC8D2}.xselbar .xsb-sum small{opacity:.75}.xselbar .xsb-sum small.nb{color:#E0A020;opacity:.9}' +
+  '.xselbar .xsb-sum{display:inline-flex;align-items:baseline;gap:6px;padding:4px 12px;border-radius:10px;background:rgba(94,200,210,.14);font-size:13px}.xselbar .xsb-sum b{font-size:17px;color:#5EC8D2}.xselbar .xsb-sum small{opacity:.75}.xselbar .xsb-sum small.nb{color:#E0A020;opacity:.9}' +
   '.xselbar b{font-size:14px}.xselbar .sp{flex:1 1 8px}.xselbar .xsb-g{display:inline-flex;gap:4px}.xselbar .xsb-mv{display:inline-flex;align-items:center;gap:4px;font-size:13px}.xselbar .xsb-del{color:#E25C5C;border-color:rgba(226,92,92,.5)}' +
   'body.xselmode #siteBody tr[data-id]{cursor:pointer}' +
   '#siteBody tr[data-id] td.rowno{position:relative;text-align:center;min-width:34px;border-radius:8px;transition:background .15s}#siteBody tr[data-id]:not(.bksel) td.rowno:hover{background:color-mix(in srgb,var(--brand,#5EC8D2) 14%,transparent);text-decoration:none}' +
@@ -13665,6 +13671,92 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+/* 請求ナビ Web：貸出順に並べる・元に戻す／やり直す（ext3h.js）
+   2026-11-05「貸出順に並べるボタンが欲しい。あと一つ前の作業に戻るボタンも」
+   ・現場の見出しの帯に「貸出順に並べる」：貸出日（なければ開始日）の古い順。日付のない行（運賃・軽油など）は、すぐ上の行にくっついたまま動く。
+     見出し（【○○】）があれば、その中だけで並べる。行を2つ以上えらんでいれば、えらんだ行だけを並べる
+   ・「↶ 元に戻す」「↷ やり直す」を、上の細い帯（現場名・税込の帯）とプレビューの上にも。やり直すは Ctrl+Y／Ctrl+Shift+Z でも */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const dkey = l => String(l.kashi || l.start || '').slice(0, 10);
+function kashiSort(){
+  const sh = sheetById(S.cur); if(!sh) return;
+  if(X.siteLocked && X.siteLocked(sh.id)){ toast('この現場は完了でロック中。直すときは「ロックを外す」'); return; }
+  const all = linesOf(sh);
+  const selOnly = S.bulkSel && S.bulkSel.size >= 2;
+  const pick = selOnly ? all.filter((l, i) => S.bulkSel.has(i + 1)) : all;
+  /* 見出しで区切る → 区切りごとに、日付のある行を頭にしたまとまりで並べる */
+  const out = []; let sec = [];
+  const flush = () => {
+    if(!sec.length) return;
+    const groups = []; sec.forEach(l => { if(dkey(l) || !groups.length) groups.push([l]); else groups[groups.length - 1].push(l); });
+    groups.forEach((g, i) => { g.k = dkey(g[0]) || '9999'; g.i = i; });
+    groups.sort((a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : (String(a[0].den || '') < String(b[0].den || '') ? -1 : String(a[0].den || '') > String(b[0].den || '') ? 1 : a.i - b.i));
+    groups.forEach(g => out.push(...g)); sec = [];
+  };
+  pick.forEach(l => { if(l.head && !selOnly){ flush(); out.push(l); } else sec.push(l); }); flush();
+  const same = out.every((l, i) => l === pick[i]); if(same){ toast(selOnly ? 'えらんだ行はもう貸出順' : 'もう貸出順にならんでいる'); return; }
+  const slots = pick.map(l => S.lines.indexOf(l)).sort((a, b) => a - b); slots.forEach((ix, k) => { S.lines[ix] = out[k]; });
+  if(selOnly){ const now = linesOf(sh), set = new Set(); out.forEach(l => set.add(now.indexOf(l) + 1)); S.bulkSel = set; S.bulkRows = typeof rowsText === 'function' ? rowsText(set) : ''; }
+  save(); drawSites(); toast((selOnly ? 'えらんだ ' + pick.length + ' 行を' : 'この現場を') + '貸出順にならべた（↶ でもどせる）', 3000);
+}
+X.kashiSort = kashiSort;
+/* ---- やり直す（↷） ---- */
+let redo = [];
+if(typeof undo === 'function'){
+  const _u = undo;
+  undo = function(){ let cur = null; try{ if(typeof undoStack !== 'undefined' && undoStack.length) cur = undoState(); }catch(e){} const r = _u.apply(this, arguments); if(cur) redo.push(cur); if(redo.length > 40) redo.shift(); paintBtns(); return r; };
+}
+function doRedo(){
+  if(!redo.length){ toast('やり直すものはありません'); return; }
+  try{
+    const now = undoState(); const st = JSON.parse(redo.pop()), pm = new Map(S.sheets.map(s => [s.id, s.prev]));
+    undoing = true; undoStack.push(now);
+    S.sheets = st.sheets.map(s => { s.prev = pm.get(s.id) || null; return s; }); S.lines = st.lines; S.cur = st.cur; S.trash = st.trash || [];
+    undoLast = undoState(); undoT = 0; save(); undoing = false; updUndoBtn();
+    if(S.tab === 'sites') drawSites(); else if(S.tab === 'check') drawChecks(); else if(S.tab === 'paper') drawPaper();
+    try{ const M = document.getElementById('sitePv'); if(M && !M.hidden) sitePreview(typeof pvAll !== 'undefined' ? pvAll : false); }catch(e){}
+    toast('やり直した' + (redo.length ? '（あと ' + redo.length + ' 回）' : ''));
+  }catch(e){ undoing = false; console.warn(e); }
+  paintBtns();
+}
+X.redo = doRedo;
+/* 新しく手を入れたら、やり直しは消える */
+if(typeof undoMark === 'function'){ const _m = undoMark; undoMark = function(){ const n0 = (typeof undoStack !== 'undefined') ? undoStack.length : 0; const r = _m.apply(this, arguments); try{ if(!undoing && undoStack.length > n0) redo = []; }catch(e){} return r; }; }
+['openWork', 'build'].forEach(fn => { if(typeof window[fn] === 'function'){ const o = window[fn]; window[fn] = function(){ redo = []; return o.apply(this, arguments); }; } });
+document.addEventListener('keydown', ev => {
+  if(!(ev.ctrlKey || ev.metaKey) || document.querySelector('.dlg')) return;
+  const t = ev.target; if(t && t.matches && t.matches('input,textarea') && t.value !== t.defaultValue) return;
+  if(ev.key === 'y' || ev.key === 'Y' || (ev.shiftKey && (ev.key === 'z' || ev.key === 'Z'))){ if(!S.built) return; ev.preventDefault(); doRedo(); }
+});
+/* ---- ボタン ---- */
+const BTN = () => '<button type="button" class="btn xur" data-xur="u" title="元に戻す（Ctrl+Z）"' + ((typeof undoStack !== 'undefined' && undoStack.length) ? '' : ' disabled') + '>↶ 元に戻す</button><button type="button" class="btn xur" data-xur="r" title="やり直す（Ctrl+Y）"' + (redo.length ? '' : ' disabled') + '>↷ やり直す</button>';
+function paintBtns(){
+  try{
+    const mini = document.getElementById('xMini');
+    if(mini && mini.classList.contains('on')){ let g = mini.querySelector('.xurg'); if(!g){ g = document.createElement('span'); g.className = 'xurg'; const pv = mini.querySelector('[data-xm="pv"]'); if(pv) mini.insertBefore(g, pv); else mini.appendChild(g); } g.innerHTML = BTN(); }
+    const bar = document.querySelector('#sitePv .spv-bar');
+    if(bar){ let g = bar.querySelector('.xurg'); if(!g){ g = document.createElement('span'); g.className = 'xurg'; const cl = document.getElementById('spvClose'); if(cl) bar.insertBefore(g, cl); else bar.appendChild(g); } g.innerHTML = BTN(); }
+    const tb = document.getElementById('btnRedo'); if(tb) tb.disabled = !redo.length;
+  }catch(e){}
+}
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-xur]'); if(!b) return; ev.preventDefault(); ev.stopPropagation(); if(b.dataset.xur === 'u'){ undo(); try{ const M = document.getElementById('sitePv'); if(M && !M.hidden) sitePreview(typeof pvAll !== 'undefined' ? pvAll : false); }catch(e){} } else doRedo(); }, true);
+/* 上の段の「元に戻す」は前の undo を直接呼ぶので、やり直しをおぼえるほうへ回す */
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('#btnUndo'); if(!b) return; ev.preventDefault(); ev.stopImmediatePropagation(); undo(); }, true);
+/* 上の段の「元に戻す」のとなりにも「やり直す」 */
+function topRedo(){ const u = document.getElementById('btnUndo'); if(!u || document.getElementById('btnRedo')) return; const b = document.createElement('button'); b.id = 'btnRedo'; b.type = 'button'; b.className = u.className; b.textContent = '↷ やり直す'; b.title = 'やり直す（Ctrl+Y）'; b.disabled = !redo.length; b.addEventListener('click', doRedo); u.after(b); }
+/* 見出しの帯に「貸出順に並べる」 */
+function sortBtn(){ const bar = document.querySelector('#shead .xbar'); if(!bar || bar.querySelector('[data-xks]')) return; const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.dataset.xks = '1'; b.textContent = '貸出順に並べる'; b.title = '貸出日の古い順に（運賃など日付のない行は上の行といっしょに動く。行をえらんでいれば、えらんだ行だけ）'; const so = bar.querySelector('[data-x5="sysorder"]'); if(so) so.before(b); else bar.appendChild(b); }
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-xks]'); if(!b) return; ev.preventDefault(); ev.stopPropagation(); kashiSort(); }, true);
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ sortBtn(); topRedo(); paintBtns(); }catch(e){} return r; };
+const _sp = sitePreview; sitePreview = function(){ const r = _sp.apply(this, arguments); setTimeout(paintBtns, 30); return r; };
+if(typeof updUndoBtn === 'function'){ const _uu = updUndoBtn; updUndoBtn = function(){ const r = _uu.apply(this, arguments); paintBtns(); return r; }; }
+{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; const mini = document.getElementById('xMini'); if(mini && mini.classList.contains('on') && !mini.querySelector('.xurg')) paintBtns(); sortBtn(); topRedo(); }); }).observe(document.body, { childList: true, subtree: true }); }
+const css = document.createElement('style');
+css.textContent = '.xurg{display:inline-flex;gap:4px}#xMini .xurg .btn{padding:4px 10px;font-size:12.5px}.xurg .btn[disabled]{opacity:.4}';
+document.head.appendChild(css);
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -14170,7 +14262,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 01:18';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 01:56';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -14810,9 +14902,13 @@ function onToast(t){
     var tx = String(t.textContent || '').trim(); if(!tx || tx === lastTx && Date.now() - lastFx < 4000) return;
     if(!OK_RE.test(tx) || NG_RE.test(tx)) return;
     if(Date.now() - lastFx < 1200) return; lastFx = Date.now(); lastTx = tx;
-    var kind = kindOf(tx); logEvent(kind);
+    /* 2026-11-05「完了押したら御中みたいな封筒（和紙に墨の「完了」）が出るのはおかしい」：現場の完了／未完了・ロックは小さな ✓ だけ */
+    if(/未完了|ロックを外した/.test(tx)) return;
+    var siteDone = /：完了 ✓|完了にした|完了でロック/.test(tx);
+    var kind = siteDone ? 'save' : kindOf(tx); logEvent(kind);
     if(motion() !== 'max') return;
     var r = t.getBoundingClientRect(), ctx = { x:r.left + r.width / 2, y:r.top + r.height / 2, text:tx, app:APP };
+    if(siteDone){ loadFx().then(function(F){ F.play('check', ctx); }).catch(function(){}); return; }
     if(APP === 'mitsumori' && kind === 'order'){ try{ ctx.amount = window.WQ && WQ.calc ? WQ.calc().gross : 0; }catch(e){} }
     loadFx().then(function(F){ F.event(kind, ctx); }).catch(function(){});
   }catch(e){}
