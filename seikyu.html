@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 16:15-->
+<!--BUILD:2026-11-04 16:34-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 16:15';
+const BUILD = '2026-11-04 16:34';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -11152,6 +11152,8 @@ function groups(){
   return G;
 }
 X.carryGroups = groups;
+/* 2026-11-04 ぜんぶ本物どおり（外す／出す）を1回で */
+X.carryApply = real => { const G = groups(); const on = new Set(); if(real) G.forEach(g => { if(g.out) g.rows.forEach(r => on.add(r.id)); }); const n = apply(G, on); (S.ext = S.ext || {}).carryDecAt = new Date().toISOString(); return n; };
 function pending(){ let n = 0; try{ groups().forEach(g => { if(!g.out) n += g.rows.filter(r => !r.on).length; else n += g.rows.filter(r => !r.l.nbDec && !r.l.pxDec && !r.l.luDec).length; }); }catch(e){} return n; }
 
 /* ---- 入れる／外す ---- */
@@ -11171,6 +11173,7 @@ function addManual(sh, p){
   if(typeof daysFromPeriod === 'function') daysFromPeriod(n); calcLine(n);
   placeLine(sh, n, p); p.added = true; return true;
 }
+X.__addManual = (sh, p) => addManual(sh, p);
 function removeManual(sh, p){
   const ls = linesOf(sh).filter(l => l.manual && l.pmKey === p.pmKey);
   ls.forEach(l => { const a = linesOf(sh), ix = a.indexOf(l); (S.trash = S.trash || []).push({ line: l, afterId: ix > 0 ? a[ix - 1].id : '', beforeId: a[ix + 1] ? a[ix + 1].id : '', at: nowIso(), why: '前月の引き継ぎで外した' }); S.lines.splice(S.lines.indexOf(l), 1); });
@@ -11238,8 +11241,22 @@ askNoBill = async function(){ if(realMode()){ if(typeof RO === 'function' && RO(
 function label(){ const n = pending(); return '前月の引き継ぎ' + (n ? '（' + n + ' まだ）' : ''); }
 const _ds = drawSites;
 drawSites = function(){ const r = _ds.apply(this, arguments);
-  try{ const H = document.getElementById('shead'); if(H && S.prev){ let b = H.querySelector('#xCarryBtn'); if(!b){ H.insertAdjacentHTML('afterbegin', '<div style="margin:0 0 8px"><button type="button" class="btn primary" id="xCarryBtn" data-xcarry></button> <small class="muted">本物どおりのまま、前月の手直し・手で足した行・ETC888 などをまとめて入れる／出す</small></div>'); b = H.querySelector('#xCarryBtn'); } b.textContent = label(); } }catch(e){}
+  /* 2026-11-04「目黒 なんで前月の引き継ぎができないの？」：前月その現場は全部手で足した行だった（CSVに無い）→ 現場の画面に「前月どおり入れる」をすぐ出す */
+  setTimeout(pmBar, 0);
+  try{ const H = document.getElementById('shead'); if(H){ if(!S.prev){ /* 2026-11-04「引き継ぎのボタン・本物通りに戻すボタンどこ？」：前月が入っていない作業では、まず前月を入れるボタン */ let n0 = H.querySelector('#xNoPrev'); if(!n0){ const o = H.querySelector('#xCarryBtn'); if(o) o.parentElement.remove(); H.insertAdjacentHTML('afterbegin', '<div id="xNoPrev" style="margin:0 0 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn primary" data-xprevin>前月の引き継ぎ：まず前月（9月）の請求ナビを入れる</button><button type="button" class="btn" data-xrealall>ぜんぶ本物どおりにする</button><small class="muted">この作業には前月が入っていない（前月の請求ナビ .xlsm を置くと「前月の引き継ぎ」が使える）</small></div>'); } }
+    else { const n0 = H.querySelector('#xNoPrev'); if(n0) n0.remove(); }
+    if(S.prev){ let b = H.querySelector('#xCarryBtn'); if(!b){ H.insertAdjacentHTML('afterbegin', '<div style="margin:0 0 8px"><button type="button" class="btn primary" id="xCarryBtn" data-xcarry></button> <button type="button" class="btn" data-xrealall>ぜんぶ本物どおりにする</button> <small class="muted">本物どおりのまま、前月の手直し・手で足した行・ETC888 などをまとめて入れる／出す</small></div>'); b = H.querySelector('#xCarryBtn'); } b.textContent = label(); } } }catch(e){}
   return r; };
+/* 現場の上の帯が描き直されても出るように */
+{ let q = 0; new MutationObserver(() => { if(q) return; q = setTimeout(() => { q = 0; const H = document.getElementById('shead'); if(H && !document.getElementById('xPmBar')) pmBar(); }, 120); }).observe(document.body, { childList: true, subtree: true }); }
+function pmBar(){ try{ const H = document.getElementById('shead'), sh = sheetById(S.cur); const old = document.getElementById('xPmBar'); if(old) old.remove();
+    if(H && sh && S.prev && !(typeof RO === 'function' && RO())){
+      const pend = (sh.prevManual || []).filter(p => p.pmKey && /^(日極|月極)$/.test(String(p.kb || '')) && !linesOf(sh).some(l => l.manual && l.pmKey === p.pmKey));
+      if(pend.length){ const sum = pend.reduce((a, p) => a + num(p.la) + num(p.sa), 0);
+        H.insertAdjacentHTML('afterbegin', '<div id="xPmBar" style="margin:0 0 8px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--warn,#E3B23C) 55%,transparent);background:color-mix(in srgb,var(--warn,#E3B23C) 10%,transparent);display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+          + '<span style="flex:1 1 260px">前月この現場は、CSVに無い品を<b>手で ' + pend.length + ' 行</b>足していた（' + esc(pend.slice(0, 3).map(p => p.name).join('・')) + (pend.length > 3 ? ' など' : '') + '／前月 ' + yen(sum) + '）。今月のCSVには入っていない</span>'
+          + '<button type="button" class="btn sm primary" data-xpmadd>この現場に前月どおり入れる</button></div>'); } } }catch(e){ console.warn('pmBar', e); } }
+
 const _sp = sitePreview;
 sitePreview = function(){ const r = _sp.apply(this, arguments);
   try{ const pdf = document.getElementById('spvPdf'); if(pdf && S.prev && !document.getElementById('xCarryPv')){ const b = document.createElement('button'); b.type = 'button'; b.id = 'xCarryPv'; b.className = 'btn'; b.dataset.xcarry = '1'; const sb = document.getElementById('xShBar'); (sb || pdf).parentNode.insertBefore(b, sb || pdf); }
@@ -11713,6 +11730,23 @@ window.addEventListener('click', ev => { const b = ev.target && ev.target.closes
   save(); drawChecks(); try{ drawSites(); }catch(e){} toast('「' + l.name + '」の返却を ' + (v ? md(v) : '継続') + ' にした（↶でもどせる）', 3500);
 }, true);
 })();
+
+/* 「この現場に前月どおり入れる」 */
+window.addEventListener('click', ev => { const b = ev.target && ev.target.closest && ev.target.closest('[data-xpmadd]'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  const X = window.seikyuExt; const sh = sheetById(S.cur); if(!sh || !X.carryGroups) return; const G = X.carryGroups().find(g => g.k === 'manual'); if(!G) return;
+  let n = 0; G.rows.filter(r => r.sh === sh && !r.on).forEach(r => { if(X.__addManual(r.sh, r.p)) n++; });
+  save(); drawSites(); toast(sh.name + '：前月に手で足していた ' + n + ' 行を入れた（期間は今月。金額を確かめて。↶ でもどせる）', 5000); }, true);
+
+/* 前月を入れる・ぜんぶ本物どおりにする（前月がない作業でも） */
+window.addEventListener('click', async ev => {
+  const pin = ev.target && ev.target.closest && ev.target.closest('[data-xprevin]'), ra = ev.target && ev.target.closest && ev.target.closest('[data-xrealall]');
+  if(!pin && !ra) return; ev.stopImmediatePropagation(); ev.preventDefault();
+  if(pin){ const f = document.createElement('input'); f.type = 'file'; f.accept = '.xlsm,.xlsx,.json'; f.onchange = () => { if(f.files && f.files[0] && window.seikyuExt.takeAny) window.seikyuExt.takeAny([f.files[0]]); else if(f.files && f.files[0]) document.getElementById('fAny') && (() => { const dt = new DataTransfer(); dt.items.add(f.files[0]); const fa = document.getElementById('fAny'); fa.files = dt.files; fa.dispatchEvent(new Event('change', { bubbles: true })); })(); }; f.click(); return; }
+  if(ra){ const X = window.seikyuExt; if(!X.carryGroups || !X.carryApply){ toast('いまは使えない'); return; }
+    const T0 = totals(); const v = await askDialog('ぜんぶ本物どおりにする', 'いま <b>税込 ' + yti(T0.net) + '</b>（システムとの差 ' + (T0.diff ? yti(T0.diff, true) : 'ぴったり') + '）<br>前月の手直し・前月に手で足した行・前月と同じ見出しは外し、ETC888 などの「出さない」品はぜんぶ出して、システム（本物）と同じにします。<br><small>今月自分で直した行・足した行はそのまま（↶ でもどせる）</small>', [{ t:'本物どおりにする', v:'ok', primary:true, k:'Y' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+    if(v !== 'ok') return; const n = X.carryApply(true); save(); try{ drawSites(); }catch(e){}
+    const T = totals(); toast('本物どおりにした（' + n + ' 件）。システムとの差 ' + (T.diff ? yti(T.diff, true) : 'ぴったり ✓'), 6000); }
+}, true);
 
 /* ==================================================================
    請求ナビ Web：プレビューの画面で全部できるように（2026-11-02）
@@ -13290,7 +13324,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 16:15';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 16:34';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
