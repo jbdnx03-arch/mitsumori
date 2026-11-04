@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 15:47-->
+<!--BUILD:2026-11-04 16:15-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 15:47';
+const BUILD = '2026-11-04 16:15';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -11209,11 +11209,15 @@ async function openPanel(){
   const T = totals();
   const body = '<p style="margin:0 0 6px">いまの合計 <b>税込 ' + yti(T.net) + '</b>　システム（本物）との差 <b>' + (T.diff ? yti(T.diff, true) : 'ぴったり ✓') + '</b></p>' +
     '<p style="margin:0 0 8px"><b>チェックした行＝入れる・請求書に出す</b>／チェックを外した行＝入れない・出さない。グループごとに「ぜんぶ」で一括。</p>' +
-    G.map((g, gi) => '<div class="xcg" data-g="' + gi + '" style="margin:10px 0 0;border:1px solid var(--line,#dde5e6);border-radius:10px;overflow:hidden">' +
+    '<p style="margin:0 0 8px"><button type="button" class="btn sm primary" data-cgreal>ぜんぶ本物どおり（システムと同じ）にする</button> <small class="muted">押してから「決めた」</small></p>' +
+    G.map((g, gi) => '<div class="xcg" data-g="' + gi + '"' + (g.out ? ' data-out="1"' : '') + ' style="margin:10px 0 0;border:1px solid var(--line,#dde5e6);border-radius:10px;overflow:hidden">' +
       '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:color-mix(in srgb,var(--brand,#2a6670) 10%,transparent)"><b style="flex:1">' + esc(g.t) + '　' + g.rows.length + '</b>' +
       '<button type="button" class="btn sm" data-cga="' + gi + '" data-v="1">ぜんぶ' + (g.out ? '出す' : '入れる') + '</button><button type="button" class="btn sm" data-cga="' + gi + '" data-v="0">ぜんぶ' + (g.out ? '出さない' : '外す') + '</button></div>' +
       '<ul class="ckl" style="margin:0;padding:0 8px;max-height:240px;overflow:auto">' + g.rows.map(r => '<li><label><input type="checkbox" data-ck="' + esc(r.id) + '"' + (r.on ? ' checked' : '') + '><span><b>' + esc(r.t) + '</b><br><small>' + esc(r.s) + '</small></span></label></li>').join('') + '</ul></div>').join('');
   const p = askDialog('前月の引き継ぎ（入れる／出す）', body, [{ t:'決めた', v:'ok', primary:true, k:'Y' }, { t:'あとで', v:null, ghost:true, k:'L' }]);
+  setTimeout(() => { const R = document.querySelector('[data-cgreal]'); if(R) R.addEventListener('click', ev => { ev.preventDefault();   /* 2026-11-04 本物どおり＝前月の手直し・足した行・見出しは入れない／出す・出さないの品はぜんぶ出す */
+      document.querySelectorAll('.xcg').forEach(box => { const on = box.dataset.out === '1'; box.querySelectorAll('input[data-ck]').forEach(c => { c.checked = on; c.dispatchEvent(new Event('change', { bubbles: true })); }); });
+      toast('ぜんぶ本物どおりにした。「決めた」を押すと入る', 3000); }); }, 0);
   setTimeout(() => { document.querySelectorAll('[data-cga]').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); const box = document.querySelector('.xcg[data-g="' + b.dataset.cga + '"]'); if(box) box.querySelectorAll('input[data-ck]').forEach(c => { c.checked = b.dataset.v === '1'; c.dispatchEvent(new Event('change', { bubbles: true })); }); })); }, 0);
   const v = await p; if(v !== 'ok') return;
   (S.ext = S.ext || {}).carryDecAt = new Date().toISOString();
@@ -13286,7 +13290,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 15:47';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 16:15';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
