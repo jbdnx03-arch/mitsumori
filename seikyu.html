@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-04 23:20-->
+<!--BUILD:2026-11-04 23:57-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2011,7 +2011,7 @@ function lineRow(l, i, others){
     + (l.sugg && l.sugg.vers && !suggSame(l) ? '<div class="why" style="color:var(--warn)">' + (l.sugg.how ? esc(l.sugg.how) + '：' : '') + '前月は手で ' + esc(l.sugg.diff || ('「' + l.sugg.names.join('・') + '」')) + ' にしていた（今月の日数で ' + yen(l.sugg.amt) + '、いまは ' + yen(lineAmt(l)) + '）　<button class="btn sm" data-act="usesugg">今月も同じにする</button>' + (l.suggDec ? '' : ' <button class="btn sm ghost" data-act="nosugg">このままでいい</button>') + '</div>' : '')
   const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
   const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : f === 'kashi' ? ' placeholder="月/日" title="貸出日"' : '') + '>';
-  return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押すと「まとめて変える」の行に入る（Shift で範囲）">' + (i + 1) + '</td>' +
+  return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押して選ぶ（Shift で範囲）。選んだ行を まとめて ほかの現場へ・出さない・複製・区分を変える・消す">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 <input class="e den' + (l.denW != null ? ' chg' : '') + '" data-f="denW" value="' + esc(denOf(l)) + '" placeholder="（出さない）" inputmode="numeric" style="width:64px;font-size:inherit;padding:0 3px" title="紙に出す伝票番号。空にすると紙に出さない。CSVの番号（' + esc(denSys(l) || 'なし') + '）にもどすときは右の ↺">' + (l.denW != null ? '<small style="opacity:.7">（CSVは ' + esc(denSys(l) || 'なし') + '）</small><button type="button" class="xrevw" data-revw="denW" title="CSVの番号にもどす">↺</button>' : '') + '　管理 <input class="e den' + (l.kanW != null ? ' chg' : '') + '" data-f="kanW" value="' + esc(kanOf(l)) + '" placeholder="（出さない）" style="width:96px;font-size:inherit;padding:0 3px" title="紙に出す管理番号。空にすると紙に出さない。CSVの番号（' + esc(kanSys(l) || 'なし') + '）にもどすときは右の ↺">' + (l.kanW != null ? '<small style="opacity:.7">（CSVは ' + esc(kanSys(l) || 'なし') + '）</small><button type="button" class="xrevw" data-revw="kanW" title="CSVの番号にもどす">↺</button>' : '') + (l.shohin && kanSys(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
       lineDecHtml(l) + pvHtml(l) + moSum(l) + '</td>' +
     '<td class="sub" style="white-space:nowrap"><span class="per">貸出 ' + inp('kashi', md(l.kashi), 46) + '</span><br><span class="per">' + inp('start', md(l.start), 46) + '〜' + inp('end', md(l.end), 46) + '</span>' + ((l.start || l.end || l.retd || l.cont) ? '<br><span class="per">返却 ' + inp('retd', md(l.retd), 46) + (l.cont && !l.retd ? '<small> ' + esc(l.cont) + '</small>' : '') + '</span>' : '') + '</td>' +
@@ -2964,7 +2964,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-04 23:20';
+const BUILD = '2026-11-04 23:57';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3876,7 +3876,7 @@ async function updateFromCsv(x){
   window.__keepExt = null; prevData = keepPrev;
   S.workId = w.id; S.status = w.status || 'draft'; S.printedAt = w.printedAt || ''; S.trash = w.trash || [];
   /* シートの設定・行の決めごとを写す */
-  S.sheets.forEach(sh => { const o = (w.sheets || []).find(s => s.code === sh.code && s.name === sh.name) || (w.sheets || []).find(s => s.code === sh.code); if(o){ sh.inKagami = o.inKagami; sh.memo = o.memo || ''; sh.siteName = sh.siteName || o.siteName; sh.prevManual = o.prevManual || sh.prevManual; } });
+  S.sheets.forEach(sh => { const o = (w.sheets || []).find(s => s.code === sh.code && s.name === sh.name) || (w.sheets || []).find(s => s.code === sh.code); if(o){ sh.inKagami = o.inKagami; sh.memo = o.memo || ''; sh.siteName = sh.siteName || o.siteName; sh.prevManual = o.prevManual || sh.prevManual; if(o.movedOut) sh.movedOut = o.movedOut; } });   /* movedOut：ほかの現場へ移した行の「あと」（ext3d） */
   const byKey = {}; oldLines.forEach(l => { if(l.key && !l.dup && !l.manual) (byKey[l.key] = byKey[l.key] || []).push(l); });
   /* 今の行と前の行を1対1で合わせる（同じキーが何本かあれば、CSVの中身が同じもの → 同じ並び） */
   const used = new Set(), sysSig = x => x && x.sys ? [num(x.sys.qty), num(x.sys.la) + num(x.sys.sa) + num(x.sys.ba), String(x.sys.name || '')].join('|') : '';
@@ -7578,6 +7578,7 @@ function selBar(){
     '<span class="xsb-g"><button class="btn sm" data-sel="up" ' + (n ? '' : 'disabled') + ' title="選んだ行を1行上へ">↑ 上へ</button><button class="btn sm" data-sel="down" ' + (n ? '' : 'disabled') + ' title="選んだ行を1行下へ">↓ 下へ</button>' +
     '<button class="btn sm" data-sel="top" ' + (n ? '' : 'disabled') + ' title="選んだ行をこの現場のいちばん上へ">⤒ 先頭へ</button><button class="btn sm" data-sel="bottom" ' + (n ? '' : 'disabled') + ' title="選んだ行をこの現場のいちばん下へ">⤓ 最後へ</button></span>' +
     '<label class="xsb-mv">ほかの現場へ <select id="xSelMove" ' + (n ? '' : 'disabled') + '><option value="">移す先…</option>' + others.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('') + '</select></label>' +
+    '<span class="xsb-g"><button class="btn sm" data-sel="nb" ' + (n ? '' : 'disabled') + ' title="選んだ行を請求書に出さない（行は残す）">⊘ 出さない</button><button class="btn sm" data-sel="show" ' + (n ? '' : 'disabled') + ' title="選んだ行を請求書に出す">◎ 出す</button><button class="btn sm" data-sel="dup" ' + (n ? '' : 'disabled') + ' title="選んだ行をそれぞれもう1行（分ける）">⧉ 複製</button><button class="btn sm" data-sel="bulk" ' + (n ? '' : 'disabled') + ' title="選んだ行の 区分・期間・返却・伝票 をまとめて変える（上の「まとめて変える」へ）">区分・期間を変える</button></span>' +
     '<button class="btn sm xsb-del" data-sel="del" ' + (n ? '' : 'disabled') + ' title="「消した行」に入る（もどせる）">× 消す</button>' +
     '<span class="sp"></span>' + (n ? '<button class="btn sm ghost" data-sel="clear">えらび直す</button>' : '') + '<button class="btn sm ghost" data-sel="end">' + (selMode ? 'えらぶモードを終わる' : '閉じる') + '</button>';
   B.hidden = false;
@@ -7620,6 +7621,12 @@ function selDel(){
 function selAct(a){
   if(a === 'up' || a === 'down' || a === 'top' || a === 'bottom') return moveSel(a);
   if(a === 'del') return selDel();
+  /* 2026-11-04「複数選択して他の現場に移動できたり色々できるように」→ 出さない・出す・複製・まとめて変える も */
+  if(a === 'nb' || a === 'show'){ const sel = selLines(); if(!sel.length) return; const to = a === 'nb'; let k = 0; sel.forEach(l => { if(l.head) return; if(!!l.nb !== to){ l.nb = to; l.nbDec = true; k++; } }); setSel(sel); save(); drawSites(); toast(k + ' 行を' + (to ? '請求書に出さないにした' : '請求書に出すにした') + '（↶ でもどせる）', 3000); return; }
+  if(a === 'dup'){ const sh = sheetById(S.cur), sel = selLines().filter(l => !l.head); if(!sel.length) return; const made = [];
+    sel.forEach(l => { const c = JSON.parse(JSON.stringify(l)); c.id = uid(); c.dup = true; c.manual = l.manual; delete c.pmKey; S.lines.splice(S.lines.indexOf(l) + 1, 0, c); made.push(c); });
+    setSel(sel.concat(made)); save(); drawSites(); toast(made.length + ' 行を複製した（↶ でもどせる）', 3000); return; }
+  if(a === 'bulk'){ const bb = document.getElementById('bulkBar') || document.querySelector('#shead .bulk, #bkRows'); const r = document.getElementById('bkRows'); if(r){ r.value = S.bulkRows || ''; r.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => { const kb = document.getElementById('bkKb') || document.querySelector('#shead select[data-bk="kb"]'); (kb || r).focus(); }, 350); toast('上の「まとめて変える」に選んだ行（' + (S.bulkRows || '') + '）を入れた。区分や期間を選んで「変える」', 4500); } else toast('まとめて変える が見つからない'); return; }
   if(a === 'clear'){ S.bulkSel = null; S.bulkRows = ''; drawSites(); return; }
   if(a === 'end'){ selMode = false; S.bulkSel = null; S.bulkRows = ''; drawSites(); return; }
 }
@@ -7672,7 +7679,11 @@ document.addEventListener('keydown', ev => { if(ev.key === 'Escape' && (selMode 
 const st = document.createElement('style');
 st.textContent = '.xselbar{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 24px);padding:10px 14px;border-radius:14px;background:var(--card,#132a30);color:var(--ink,#EAF2F2);border:1px solid rgba(94,200,210,.45);box-shadow:0 12px 36px rgba(0,0,0,.35)}' +
   '.xselbar b{font-size:14px}.xselbar .sp{flex:1 1 8px}.xselbar .xsb-g{display:inline-flex;gap:4px}.xselbar .xsb-mv{display:inline-flex;align-items:center;gap:4px;font-size:13px}.xselbar .xsb-del{color:#E25C5C;border-color:rgba(226,92,92,.5)}' +
-  'body.xselmode #siteBody tr[data-id]{cursor:pointer}body.xselmode #siteBody tr[data-id] td.rowno::before{content:"☐";margin-right:3px;opacity:.7}body.xselmode #siteBody tr.bksel td.rowno::before{content:"☑";opacity:1;color:#5EC8D2}' +
+  'body.xselmode #siteBody tr[data-id]{cursor:pointer}' +
+  '#siteBody tr[data-id] td.rowno{position:relative;text-align:center;min-width:34px;border-radius:8px;transition:background .15s}#siteBody tr[data-id]:not(.bksel) td.rowno:hover{background:color-mix(in srgb,var(--brand,#5EC8D2) 14%,transparent);text-decoration:none}' +
+  '#siteBody tr[data-id] td.rowno::before{content:"☐";display:block;font-size:13px;line-height:1;opacity:.45;margin-bottom:2px}#siteBody tr[data-id]:not(.bksel) td.rowno:hover::before{opacity:.9;color:var(--brand,#5EC8D2)}' +
+  '#siteBody tr.bksel td.rowno{background:color-mix(in srgb,var(--brand,#5EC8D2) 22%,transparent)!important;color:var(--brand,#5EC8D2)!important;font-weight:800}#siteBody tr.bksel td.rowno::before{content:"☑";opacity:1;color:var(--brand,#5EC8D2)}' +
+  '#siteBody tr.bksel td{box-shadow:inset 0 0 0 999px color-mix(in srgb,var(--brand,#5EC8D2) 7%,transparent)}' +
   'body.xselmode #siteBody{padding-bottom:90px}@media (max-width:600px){.xselbar{bottom:8px;padding:8px 10px;gap:6px}.xselbar .sp{display:none}}';
 document.head.appendChild(st);
 })();
@@ -10607,7 +10618,8 @@ function openBulk(pv){
 X.openBulk = openBulk;
 /* ---- 請求書（プレビュー）の上で選んでまとめて OK（2026-11-01「まとめてチェックも請求書画面でできるように」） ---- */
 let selOn = false; const sel = new Set();
-const selBar = document.createElement('div'); selBar.id = 'xSelBar'; selBar.hidden = true;
+/* 2026-11-04 直し：id が ext2j の行えらび帯（#xSelBar）とかぶっていて、現場の画面の 上へ・下へ・移す・消す が11/01から効かなくなっていた → xPvSelBar に */
+const selBar = document.createElement('div'); selBar.id = 'xPvSelBar'; selBar.hidden = true;
 selBar.innerHTML = '<span class="xsb-n">0 行</span><button type="button" class="btn" data-sb="all" title="気になる行をぜんぶ選ぶ">ぜんぶ</button><button type="button" class="btn" data-sb="none">はずす</button><button type="button" class="btn primary" data-sb="ok" disabled>OK</button><button type="button" class="btn ghost" data-sb="end">やめる</button>';
 (document.body || document.documentElement).appendChild(selBar);
 const pvB = () => document.getElementById('spvBody');
@@ -10622,7 +10634,7 @@ function selMode(v){ selOn = v; if(!v) sel.clear(); selBar.hidden = !v; document
 const lidAtPt = (pg, x, y) => { let hit = null; pg.querySelectorAll('.xlid').forEach(m => { const r = m.getBoundingClientRect(); if(x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) hit = m; }); return hit; };
 window.addEventListener('click', ev => {
   if(!selOn) return; const t = ev.target; if(!t || !t.closest) return;
-  if(t.closest('#xSelBar, #sitePv .spv-bar')) return;
+  if(t.closest('#xPvSelBar, #sitePv .spv-bar')) return;
   const B = pvB(); if(!B || !B.contains(t)) return;
   let lid = '';
   const g = t.closest('.xokb2'); if(g) lid = g.dataset.xok2;
@@ -10680,10 +10692,10 @@ st.textContent =
 '@media (max-width:760px){#chkList li .xck{top:12px;margin-top:0;width:36px;height:36px}#chkList li{padding-right:56px!important}.xbulk-v{align-items:flex-end}.xbulk{width:100%;max-height:88vh;border-radius:18px 18px 0 0}.xbulk-f{flex-wrap:wrap}.xbulk-f .btn{min-height:44px}.xbulk-f .btn.primary{flex-basis:100%}}' +
 '.xpvsel{margin-left:6px;white-space:nowrap}.xpvsel.on{background:#1F6FB2!important;color:#fff!important;border-color:#1F6FB2!important}' +
 'html.xselmode #spvBody .xlid{cursor:copy}#spvBody .xlid.xsel{outline:2.2pt solid #1F6FB2!important;background:rgba(31,111,178,.16)!important}.xokb2.sel{box-shadow:0 0 0 3px #1F6FB2,0 2px 6px rgba(0,0,0,.25)}' +
-'#xSelBar{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;padding:10px 12px;border-radius:16px;background:#14232A;color:#fff;box-shadow:0 12px 36px rgba(0,0,0,.4);max-width:calc(100vw - 20px)}' +
-'#xSelBar[hidden]{display:none}#xSelBar .xsb-n{font-weight:800;margin-right:4px}#xSelBar .btn{color:#14232A;background:#fff;border-color:#fff;min-height:40px}#xSelBar .btn.primary{background:#2E8B57;border-color:#2E8B57;color:#fff}#xSelBar .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}#xSelBar .btn[disabled]{opacity:.5}' +
-'@media (max-width:760px){#xSelBar{left:8px;right:8px;transform:none;max-width:none;flex-wrap:nowrap;gap:5px;padding:8px}#xSelBar .xsb-n{font-size:12px;white-space:nowrap}#xSelBar .btn{flex:1 1 auto;min-width:0;padding:6px 8px;font-size:13px;white-space:nowrap}#xSelBar .btn.primary{flex:2 1 auto}}' +
-'@media print{.xokL,.xbulkbar,.xpvbulk,.xpvsel,#xSelBar{display:none!important}}';
+'#xPvSelBar{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;padding:10px 12px;border-radius:16px;background:#14232A;color:#fff;box-shadow:0 12px 36px rgba(0,0,0,.4);max-width:calc(100vw - 20px)}' +
+'#xPvSelBar[hidden]{display:none}#xPvSelBar .xsb-n{font-weight:800;margin-right:4px}#xPvSelBar .btn{color:#14232A;background:#fff;border-color:#fff;min-height:40px}#xPvSelBar .btn.primary{background:#2E8B57;border-color:#2E8B57;color:#fff}#xPvSelBar .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}#xPvSelBar .btn[disabled]{opacity:.5}' +
+'@media (max-width:760px){#xPvSelBar{left:8px;right:8px;transform:none;max-width:none;flex-wrap:nowrap;gap:5px;padding:8px}#xPvSelBar .xsb-n{font-size:12px;white-space:nowrap}#xPvSelBar .btn{flex:1 1 auto;min-width:0;padding:6px 8px;font-size:13px;white-space:nowrap}#xPvSelBar .btn.primary{flex:2 1 auto}}' +
+'@media print{.xokL,.xbulkbar,.xpvbulk,.xpvsel,#xPvSelBar{display:none!important}}';
 document.head.appendChild(st);
 })();
 /* ==================================================================
@@ -13240,6 +13252,170 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+/* 請求ナビ Web：現場間で行を移したときの「あと」と「来た印」（ext3d.js）
+   2026-11-04「現場間移動の時は 移動する前のとこは 請求書に出ないような形で どこどこへ移動しました って残るようにして。
+             移動先ではもちろん請求書に載るようにして どこどこからきましたみたいな」
+   ・どのやり方で移しても（行の ⇢・えらんで移す・直すシート・ドラッグ）、もとの現場の表に うすい行「⇢ 「品名」は ○○ へ移した（この請求書には出ない）」が残る。「もどす」で帰せる
+   ・移した先の行には「○○ から移した」の札（画面だけ。紙には出ない）
+   ・あとは現場（sh.movedOut）に入れて保存。↶ でも一緒にもどる。「×」で あとだけ消せる */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+let M = new Map(), order = new Map();   /* 行id → 現場id／行id → ひとつ上の行id */
+function sync(){ M = new Map(); order = new Map(); const last = {}; (S.lines || []).forEach(l => { M.set(l.id, l.sheet); order.set(l.id, last[l.sheet] || ''); last[l.sheet] = l.id; }); }
+function detect(){
+  if(!S.built || !M.size || (typeof undoing !== 'undefined' && undoing)) return;
+  (S.lines || []).forEach(l => {
+    const was = M.get(l.id); if(!was || was === l.sheet) return;
+    const from = sheetById(was), to = sheetById(l.sheet); if(!from || !to) return;
+    /* 来たところへ帰った → その「あと」を消す */
+    const back = (to.movedOut || []).find(g => g.ref === l.id);
+    if(back){ to.movedOut = to.movedOut.filter(g => g !== back); if(l.movedFromId === to.id){ delete l.movedFrom; delete l.movedFromId; } else if(back.fromId){ } }
+    else {
+      from.movedOut = from.movedOut || [];
+      from.movedOut.push({ ref: l.id, name: String(l.name || ''), amt: (() => { try{ return lineAmt(l); }catch(e){ return 0; } })(), den: String(l.den || ''), to: to.name, toId: to.id, at: new Date().toISOString(), afterId: order.get(l.id) || '' });
+      if(!l.movedFromId || l.movedFromId === to.id){ l.movedFrom = from.name; l.movedFromId = from.id; }
+    }
+    /* ほかの現場に残っている同じ行のあと → 行き先を今の現場に */
+    S.sheets.forEach(s => (s.movedOut || []).forEach(g => { if(g.ref === l.id && s !== from){ g.to = to.name; g.toId = to.id; } }));
+  });
+  sync();
+}
+const _save = save; save = function(){ try{ detect(); }catch(e){ console.warn(e); } return _save.apply(this, arguments); };
+['openWork', 'build', 'undo', 'undoReset'].forEach(fn => { if(typeof window[fn] === 'function'){ const o = window[fn]; window[fn] = function(){ const r = o.apply(this, arguments); try{ sync(); }catch(e){} return r; }; } });
+if(typeof updateFromCsv === 'function'){ const _u = updateFromCsv; updateFromCsv = async function(){ const r = await _u.apply(this, arguments); try{ sync(); }catch(e){} return r; }; }
+/* ---- 画面 ---- */
+function paint(){
+  const sh = sheetById(S.cur), tb = document.querySelector('#siteBody table.ln tbody'); if(!sh || !tb) return;
+  tb.querySelectorAll('tr.xghost').forEach(x => x.remove());
+  /* 来た印 */
+  tb.querySelectorAll('tr[data-id]').forEach(tr => { const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return; const old = tr.querySelector('.xmvfrom'); if(old) old.remove();
+    if(l.movedFrom && l.sheet === sh.id){ const td = tr.children[1]; if(td){ const d = document.createElement('div'); d.className = 'sub xmvfrom'; d.innerHTML = '<span class="tag xmv">⇠ ' + esc(l.movedFrom) + ' から移した</span><button type="button" class="btn sm ghost" data-xmvback="' + l.id + '" title="' + esc(l.movedFrom) + ' へ帰す">もどす</button>'; td.appendChild(d); } } });
+  /* あと */
+  const gs = sh.movedOut || []; if(!gs.length) return;
+  const ncol = (tb.querySelector('tr[data-id]') || { children: { length: 10 } }).children.length;
+  gs.forEach((g, i) => {
+    const live = S.lines.find(l => l.id === g.ref), toName = (live && sheetById(live.sheet) || {}).name || g.to;
+    const tr = document.createElement('tr'); tr.className = 'xghost';
+    tr.innerHTML = '<td class="sub rowno xg-no">⇢</td><td colspan="' + (ncol - 1) + '"><span class="xg-t">「' + esc(g.name) + '」' + (g.den ? '<small>（伝票 ' + esc(g.den) + '）</small>' : '') + ' は <b>' + esc(toName) + '</b> へ移した' + (g.amt ? '<small>　' + yen(g.amt) + '</small>' : '') + '<small>　この請求書には出ない</small></span>' +
+      (live ? '<button type="button" class="btn sm" data-xgback="' + g.ref + '" data-sh="' + sh.id + '" title="この現場にもどす">↩ もどす</button>' : '<small>（行はもうない）</small>') + '<button type="button" class="btn sm ghost" data-xgdel="' + i + '" data-sh="' + sh.id + '" title="このあとだけ消す（行はそのまま）">×</button></td>';
+    const af = g.afterId && tb.querySelector('tr[data-id="' + g.afterId + '"]');
+    if(af) af.after(tr); else if(g.afterId === '' && tb.firstElementChild) tb.insertBefore(tr, tb.firstElementChild.classList.contains('headrow') && !tb.firstElementChild.dataset.id ? tb.firstElementChild.nextSibling : tb.firstElementChild); else tb.appendChild(tr);
+  });
+}
+function back(ref, shId){
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const l = S.lines.find(x => x.id === ref); if(!l) return;
+  const sh = shId ? sheetById(shId) : (l.movedFromId ? sheetById(l.movedFromId) : null); if(!sh){ toast('もどす先の現場がない'); return; }
+  const g = (sh.movedOut || []).find(x => x.ref === ref);
+  S.lines.splice(S.lines.indexOf(l), 1); l.sheet = sh.id;
+  const af = g && g.afterId ? S.lines.find(x => x.id === g.afterId && x.sheet === sh.id) : null;
+  if(af) S.lines.splice(S.lines.indexOf(af) + 1, 0, l); else { const ls = linesOf(sh); if(ls.length && g && g.afterId === '') S.lines.splice(S.lines.indexOf(ls[0]), 0, l); else if(ls.length) S.lines.splice(S.lines.indexOf(ls[ls.length - 1]) + 1, 0, l); else S.lines.push(l); }
+  if(l.userMoved) delete l.userMoved;
+  save(); drawSites(); toast('「' + String(l.name).slice(0, 20) + '」を ' + sh.name + ' にもどした（↶ でもどせる）', 3000);
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-xgback],[data-xgdel],[data-xmvback]'); if(!b) return; ev.stopPropagation(); ev.preventDefault();
+  if(b.dataset.xgback) return back(b.dataset.xgback, b.dataset.sh);
+  if(b.dataset.xmvback) return back(b.dataset.xmvback, '');
+  const sh = sheetById(b.dataset.sh); if(!sh || !sh.movedOut) return; const g = sh.movedOut[+b.dataset.xgdel]; if(!g) return;
+  sh.movedOut.splice(+b.dataset.xgdel, 1); const l = S.lines.find(x => x.id === g.ref); if(l && l.movedFromId === sh.id){ delete l.movedFrom; delete l.movedFromId; } save(); drawSites();
+}, true);
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paint(); }catch(e){ console.warn(e); } return r; };
+{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; const sh = sheetById(S.cur), tb = document.querySelector('#siteBody table.ln tbody'); if(!sh || !tb) return; const need = (sh.movedOut || []).length || linesOf(sh).some(l => l.movedFrom); if(need && !tb.querySelector('tr.xghost, .xmvfrom')){ try{ paint(); }catch(e){} } }); }).observe(document.body, { childList: true, subtree: true }); }
+sync();
+const css = document.createElement('style');
+css.textContent = [
+  'tr.xghost td{background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(127,127,127,.06) 6px 12px)!important;color:var(--ink3,#8aa);font-size:12.5px;padding:7px 8px;border-top:1px dashed rgba(127,127,127,.35)!important;border-bottom:1px dashed rgba(127,127,127,.35)!important}',
+  'tr.xghost .xg-no{text-align:center;font-size:16px;cursor:default;opacity:.6}tr.xghost .xg-no::before{content:none!important}',
+  'tr.xghost .xg-t{margin-right:8px}tr.xghost .xg-t b{color:var(--brand,#5EC8D2)}tr.xghost .xg-t small{opacity:.7}tr.xghost .btn{margin-left:4px;padding:2px 9px}',
+  '.xmvfrom{margin-top:4px;display:flex;gap:6px;align-items:center}.tag.xmv{background:rgba(94,200,210,.14);color:var(--brand,#5EC8D2);font-weight:700}.xmvfrom .btn{padding:1px 8px;font-size:11.5px}',
+  '@media print{tr.xghost,.xmvfrom{display:none!important}}'
+].join('\n');
+document.head.appendChild(css);
+})();
+
+/* 請求ナビ Web：現場の表で Tab で次の欄へ（ext3e.js）
+   2026-11-04「ここの日付 tabで次に移動できるようにしてよ」
+   ・日付（貸出・開始・終了・返却）などを直して Tab を押すと、表が描き直されて行き先の欄が消えていた
+   → Tab／Shift+Tab は、行き先（同じ行の次の欄、行の最後なら次の行の最初）をおぼえてから描き直し、そこへ入れる */
+(function(){
+const ORDER = ['name', 'denW', 'kanW', 'kashi', 'start', 'end', 'retd', 'qty', 'unit', 'days', 'sdays', 'lu', 'su', 'bu'];
+function fieldsOf(tr){ return ORDER.map(f => tr.querySelector('input.e[data-f="' + f + '"]')).filter(e => e && !e.disabled && e.offsetParent !== null); }
+document.addEventListener('keydown', ev => {
+  if(ev.key !== 'Tab' || ev.isComposing || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+  const t = ev.target; if(!t || !t.matches || !t.matches('#siteBody table.ln input.e[data-f]')) return;
+  const tr = t.closest('tr[data-id]'); if(!tr) return;
+  const rows = [...document.querySelectorAll('#siteBody table.ln tbody tr[data-id]')].filter(r => r.offsetParent !== null);
+  let fs = fieldsOf(tr), i = fs.indexOf(t), ri = rows.indexOf(tr), target = null;
+  if(i < 0) return;
+  if(!ev.shiftKey){
+    if(i + 1 < fs.length) target = fs[i + 1];
+    else { for(let r = ri + 1; r < rows.length && !target; r++){ const g = fieldsOf(rows[r]); if(g.length) target = g[0]; } }
+  } else {
+    if(i > 0) target = fs[i - 1];
+    else { for(let r = ri - 1; r >= 0 && !target; r--){ const g = fieldsOf(rows[r]); if(g.length) target = g[g.length - 1]; } }
+  }
+  if(!target) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const rid = target.closest('tr[data-id]').dataset.id, f = target.dataset.f;
+  t.blur();   /* change → 描き直し */
+  const go = () => { const n = document.querySelector('#siteBody tr[data-id="' + rid + '"] input.e[data-f="' + f + '"]'); if(n){ n.focus(); if(n.select) try{ n.select(); }catch(e){} n.scrollIntoView({ block: 'nearest' }); } };
+  setTimeout(go, 0); setTimeout(() => { const a = document.activeElement; if(!a || !a.matches || !a.matches('#siteBody input.e[data-f="' + f + '"]')) go(); }, 60);
+}, true);
+})();
+/* 2026-11-04「本とか個とか候補はどうした？」：単位の欄は datalist だと、入っている字（台）で絞られて他が出ない → 自前の候補（ぜんぶ出す） */
+(function(){
+const UNITS = ['式', '台', 'ケ', '本', '枚', '個', 'm', '㍑', '回', '日', 'ヶ月', 'セット', '組', '袋', '箱', '缶', '巻', '対', '基', '人工'];
+let box = null, inp = null;
+function close(){ if(box){ box.remove(); box = null; } inp = null; }
+function show(t){
+  close(); inp = t; t.removeAttribute('list');
+  box = document.createElement('div'); box.id = 'xUnitSug';
+  const cur = String(t.value || '').trim();
+  box.innerHTML = UNITS.map(u => '<button type="button" data-u="' + u + '"' + (u === cur ? ' class="on"' : '') + '>' + u + '</button>').join('');
+  box.addEventListener('pointerdown', ev => { const b = ev.target.closest('[data-u]'); ev.preventDefault(); if(!b || !inp) return; const i = inp; i.value = b.dataset.u; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); close(); });
+  document.body.appendChild(box);
+  const r = t.getBoundingClientRect(), W = Math.min(300, window.innerWidth - 16); box.style.width = W + 'px';
+  box.style.left = Math.max(8, Math.min(window.innerWidth - W - 8, r.left)) + 'px';
+  const h = box.offsetHeight; box.style.top = (window.innerHeight - r.bottom < h + 12 && r.top > h + 12 ? r.top - h - 4 : r.bottom + 4) + 'px';
+}
+document.addEventListener('focusin', ev => { const t = ev.target; if(t && t.matches && t.matches('#siteBody input.e.unit[data-f="unit"], .xsheet [data-lf="unit"]')) show(t); });
+document.addEventListener('focusout', ev => { if(inp && ev.target === inp) setTimeout(() => { if(inp && document.activeElement !== inp) close(); }, 120); });
+document.addEventListener('keydown', ev => { if(inp && ev.key === 'Escape'){ close(); } }, true);
+window.addEventListener('scroll', () => { if(inp) show(inp); }, true);
+const css = document.createElement('style');
+css.textContent = '#xUnitSug{position:fixed;z-index:900;display:flex;flex-wrap:wrap;gap:4px;padding:6px;background:var(--surface,#fff);color:var(--ink,#222);border:1px solid var(--line,#ccd);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.28)}' +
+  '#xUnitSug button{font:inherit;font-size:13px;padding:5px 10px;border-radius:8px;border:1px solid rgba(127,127,127,.3);background:transparent;color:inherit;cursor:pointer}#xUnitSug button:hover{background:color-mix(in srgb,var(--acc,#2a9) 16%,transparent)}#xUnitSug button.on{background:color-mix(in srgb,var(--brand,#5EC8D2) 22%,transparent);font-weight:700}' +
+  '@media (pointer:coarse){#xUnitSug button{padding:9px 13px;font-size:15px}}';
+document.head.appendChild(css);
+})();
+/* 2026-11-04「こういう途中でも行足せるように」：行の右のボタンに「＋」。押すとその行のすぐ下に手で打つ行が入って、品名の欄に入る（Shift+押す で上に） */
+(function(){
+function addAt(refId, above){
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  try{ const a = document.activeElement; if(a && a.matches && a.matches('#siteBody input, #siteBody select')) a.blur(); }catch(e){}   /* 入力中の欄があれば先に決めておく（描き直しの途中で change が走ると表が古いまま残る） */
+  const ref = S.lines.find(x => x.id === refId); if(!ref) return; const sh = sheetById(ref.sheet); if(!sh) return;
+  const l = { id: uid(), sheet: sh.id, manual: true, name: '', qty: 1, unit: '台', kb: '月極', lu: 0, su: 0, bu: 0, la: 0, sa: 0, ba: 0, days: 30, sdays: 0, den: '', kanri: '' };
+  /* 期間は上の行（手入力）と同じにしておく */
+  if(ref.manual && !ref.head){ ['kashi', 'start', 'end'].forEach(f => { if(ref[f]) l[f] = ref[f]; }); if(ref.cont) l.cont = ref.cont; if(l.start && l.end) daysFromPeriod(l); }
+  const i = S.lines.indexOf(ref); S.lines.splice(above ? i : i + 1, 0, l);
+  save(); drawSites();
+  const go = () => { const n = document.querySelector('#siteBody tr[data-id="' + l.id + '"] input.e[data-f="name"]'); if(n && document.activeElement !== n){ n.scrollIntoView({ block: 'center' }); n.focus(); } };
+  setTimeout(go, 40); setTimeout(go, 250);
+}
+function btns(){
+  document.querySelectorAll('#siteBody table.ln tr[data-id] .lnbtn').forEach(g => {
+    if(g.querySelector('[data-act="addb"]')) return;
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.act = 'addb'; b.textContent = '＋'; b.title = 'この下に行を足す（手で打つ行）。Shift を押しながらで、この上に';
+    const up = g.querySelector('[data-act="up"]'); if(up) g.insertBefore(b, up); else g.prepend(b);
+  });
+}
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('#siteBody [data-act="addb"]'); if(!b) return; ev.stopPropagation(); ev.preventDefault(); const tr = b.closest('tr[data-id]'); if(tr) addAt(tr.dataset.id, ev.shiftKey); }, true);
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ btns(); }catch(e){} return r; };
+{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; btns(); }); }).observe(document.body, { childList: true, subtree: true }); }
+const css = document.createElement('style'); css.textContent = '#siteBody .lnbtn [data-act="addb"]{font-weight:800;color:var(--brand,#5EC8D2)}'; document.head.appendChild(css);
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -13745,7 +13921,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 23:20';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-04 23:57';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
