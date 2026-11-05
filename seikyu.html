@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 10:37-->
+<!--BUILD:2026-11-05 11:17-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2986,7 +2986,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 10:37';
+const BUILD = '2026-11-05 11:17';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -14181,6 +14181,53 @@ window.addEventListener('click', ev => { const b = ev.target.closest && ev.targe
   const was = l.name; l.name = x.xnm; save(); try{ drawChecks(); }catch(e){} try{ drawSites(); }catch(e){} toast('品名を「' + was + '」→「' + x.xnm + '」に直した（↶ でもどせる）', 4000); }, true);
 })();
 
+/* 請求ナビ Web：返却の欄を［継続｜返却日］でえらぶ（ext3n.js）
+   2026-11-05「継続は勝手に出るようにするか プルダウンで選べるようにするか 考えて」
+   ・返却の欄の前にプルダウン［継続｜返却 ▸ 日付］。継続をえらぶと返却日は空・「継続」。返却をえらぶと日付の欄（はじめは終了日）
+   ・日極・月極で、終了日が締め日（月末）まで・返却日も継続も空の行は、自動で「継続」（手で足した行・直した行も） */
+(function(){
+const rent = l => l && (l.kb === '日極' || l.kb === '月極');
+const day = v => String(v || '').slice(0, 10);
+function autoCont(){
+  const sd = day(S.meta && S.meta.seikyuDate); if(!sd) return 0; let n = 0;
+  (S.lines || []).forEach(l => { if(l.head || !rent(l) || !day(l.start) || !day(l.end)) return; if(day(l.retd) || String(l.cont || '').trim()) return; if(day(l.end) >= sd){ l.cont = '継続'; if('ret' in l) l.ret = '継続'; n++; } });
+  return n;
+}
+const _sv = save; save = function(){ try{ if(S.built) autoCont(); }catch(e){} return _sv.apply(this, arguments); };
+function paint(){
+  document.querySelectorAll('#siteBody table.ln tr[data-id] input.e[data-f="retd"]').forEach(inp => {
+    const tr = inp.closest('tr[data-id]'), l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
+    const span = inp.parentElement; if(!span || span.querySelector('select[data-xret]')) return;
+    const isCont = !day(l.retd);
+    span.querySelectorAll('small').forEach(s => { if(/継続/.test(s.textContent)) s.remove(); });
+    const sel = document.createElement('select'); sel.dataset.xret = l.id; sel.className = 'xret';
+    sel.innerHTML = '<option value="c"' + (isCont ? ' selected' : '') + '>継続</option><option value="r"' + (isCont ? '' : ' selected') + '>返却</option>';
+    sel.title = '継続（まだ返っていない）か、返却日を入れるか';
+    inp.before(sel);
+    inp.placeholder = '月/日'; inp.title = '返却日（10/31・1031 のように）';
+    if(isCont) inp.classList.add('xret-off'); else inp.classList.remove('xret-off');
+  });
+}
+document.addEventListener('change', ev => {
+  const s = ev.target; if(!s || !s.matches || !s.matches('select[data-xret]')) return;
+  ev.stopPropagation();
+  const l = S.lines.find(x => x.id === s.dataset.xret); if(!l) return;
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  try{ if(typeof undoMark === 'function') undoMark(); }catch(e){}
+  if(s.value === 'c'){ l.retd = ''; l.cont = '継続'; if('ret' in l) l.ret = '継続'; save(); drawSites(); toast('「' + l.name + '」を継続にした', 2200); }
+  else {
+    const to = day(l.end) || day(S.meta && S.meta.seikyuDate);
+    l.retd = to; l.cont = ''; if('ret' in l) l.ret = to; save(); drawSites();
+    setTimeout(() => { const i = document.querySelector('#siteBody tr[data-id="' + l.id + '"] input.e[data-f="retd"]'); if(i){ i.focus(); try{ i.select(); }catch(e){} } }, 30);
+    toast('返却日を ' + to.slice(5).replace('-', '/') + '（終了日）にした。ちがう日なら打ちかえて', 3500);
+  }
+}, true);
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paint(); }catch(e){ console.warn(e); } return r; };
+const css = document.createElement('style');
+css.textContent = '#siteBody select.xret{font:inherit;font-size:12px;padding:1px 2px;margin-right:3px;border-radius:6px;background:transparent;color:inherit;border:1px solid rgba(127,127,127,.4)}#siteBody input.e.xret-off{display:none}';
+document.head.appendChild(css);
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -14686,7 +14733,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 10:37';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 11:17';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
