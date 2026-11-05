@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 22:56-->
+<!--BUILD:2026-11-05 23:59-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2990,7 +2990,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 22:56';
+const BUILD = '2026-11-05 23:59';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7441,14 +7441,16 @@ function markPaper(B, sheets){
   const ids = new Set(sheets.map(s => s.id)), done = x => { try{ return window.seikyuExt.chkDone ? window.seikyuExt.chkDone(x) : false; }catch(e){ return false; } };
   const by = {};
   c.forEach(x => { if(!x.id || (x.sh && !ids.has(x.sh)) || done(x)) return; (by[x.id] = by[x.id] || []).push(x); });
-  Object.keys(by).forEach(id => B.querySelectorAll('.xlid[data-lid="' + id + '"]').forEach(m => {
+  const lidEl = new Map(); B.querySelectorAll('.xlid').forEach(m => { const k = m.dataset.lid; (lidEl.get(k) || lidEl.set(k, []).get(k)).push(m); });   /* 2026-11-05 速く：行ごとに全ページを探さない */
+  Object.keys(by).forEach(id => (lidEl.get(id) || []).forEach(m => {
     const rk = x => x.never ? 0 : x.lv === 'warn' ? 1 : /^本物/.test(x.t) ? 2 : 3;   /* 書き込みは大事な順（本物とのちがいは「日極で31日」などより先） */
     const xs = by[id].slice().sort((a, b) => rk(a) - rk(b)), warn = xs.some(x => x.lv === 'warn' || x.never);
     m.classList.add(warn ? 'xflag' : 'xinfo');
     m.insertAdjacentHTML('beforeend', '<span class="xnote' + (warn ? '' : ' i') + '" title="' + esc(xs.map(x => x.t + (x.s ? '　' + x.s : '')).join('\n')) + '">' + (xs.some(x => x.never) ? '絶対ダメ：' : '') + esc([...new Set(xs.map(x => x.t.replace(/：[^：]*$/, '')))].join('・')) + '</span>');
   }));
   /* 指定用紙の空の欄 */
-  [...B.querySelectorAll('.xp *')].filter(e => e.textContent.replace(/\s/g, '') === MISS && ![...e.children].some(ch => ch.textContent.replace(/\s/g, '') === MISS)).forEach(e => e.classList.add('xmissv'));
+  /* 2026-11-05 速く：⚠未入力 があるページだけ調べる（前は全ページの7万個の字を1つずつ見ていた） */
+  B.querySelectorAll('.xp').forEach(pg => { if(pg.textContent.replace(/\s/g, '').indexOf(MISS) < 0) return; [...pg.querySelectorAll('*')].filter(e => e.textContent.replace(/\s/g, '') === MISS && ![...e.children].some(ch => ch.textContent.replace(/\s/g, '') === MISS)).forEach(e => e.classList.add('xmissv')); });
   /* 行のない気になること（現場ごと）は上の帯に */
   const top = c.filter(x => !x.id && x.sh && ids.has(x.sh) && !done(x) && (x.lv === 'warn' || x.never) && !/^指定用紙の/.test(x.t));
   B.querySelectorAll('.xpvwarn').forEach(x => x.remove());
@@ -9024,9 +9026,11 @@ function afterMark(B, sheets){
   B.querySelectorAll('.xsysd').forEach(x => x.remove());
   const pages = [...B.children].filter(e => e.classList && e.classList.contains('xp'));
   if(!pages.length) return;
+  /* 2026-11-05 速く：どの行がどのページにあるかを先に1回だけ調べる（前は現場ごとに全ページを見ていた） */
+  const pgOf = new Map(), pIdx = new Map(); pages.forEach((p, i) => { pIdx.set(p, i); p.querySelectorAll('.xlid').forEach(m => pgOf.set(m.dataset.lid, p)); });
   sheets.forEach(sh => {
     const ids = new Set(linesOf(sh).map(l => l.id));
-    let last = null; pages.forEach(p => { if([...p.querySelectorAll('.xlid')].some(m => ids.has(m.dataset.lid))) last = p; });
+    let last = null; ids.forEach(id => { const p = pgOf.get(id); if(p && (!last || pIdx.get(p) > pIdx.get(last))) last = p; });
     if(!last && sheets.length === 1) last = pages[pages.length - 1];
     if(!last) return;
     /* 指定用紙など、同じ現場のあとのページがあれば、その後ろ */
@@ -9034,7 +9038,7 @@ function afterMark(B, sheets){
     /* 請求書の下の空いている行に重ねて出す（入らなければ紙の下） */
     const pr = last.getBoundingClientRect(), sc = pr.width / (last.offsetWidth || pr.width) || 1;
     const ms = [...last.querySelectorAll('.xlid')].filter(m => ids.has(m.dataset.lid));
-    const tots = [...last.querySelectorAll('*')].filter(e => !e.children.length && /\*{4}御買上計\*{4}/.test(e.textContent));
+    const tots = []; { const tw = document.createTreeWalker(last, NodeFilter.SHOW_TEXT); let tn; while((tn = tw.nextNode())){ const e = tn.parentElement; if(e && !e.children.length && tots.indexOf(e) < 0 && /\*{4}御買上計\*{4}/.test(e.textContent)) tots.push(e); } }
     let bottom = 0, rowH = 0; ms.concat(tots).forEach(m => { const r = m.getBoundingClientRect(); if(r.height){ bottom = Math.max(bottom, r.bottom); rowH = Math.max(rowH, Math.min(r.height, 60)); } });
     if(!tots.length && bottom) bottom += rowH;   /* 御買上計の行のぶん */
     const free = (pr.bottom - bottom) / sc;   /* 紙の中の空き（紙の大きさで） */
@@ -14798,7 +14802,7 @@ D + ' body{background:#0A0A0C!important;background-image:radial-gradient(1100px 
 L + ' body{background:#F6F3EC!important;background-image:radial-gradient(1100px 420px at 50% -220px,rgba(156,122,53,.10),transparent 70%)!important}',
 /* 後ろの飾り（#lux-bg の青緑のにじみ）を黒と金に */
 D + ' #lux-bg{background:linear-gradient(#0D0C0B 0%,#0A0A0C 100%)!important}',
-D + ' #lux-bg > i{background:radial-gradient(42% 36% at 18% 10%,rgba(201,164,92,.10),transparent 62%),radial-gradient(36% 32% at 86% 6%,rgba(201,164,92,.07),transparent 64%)!important}',
+D + ' #lux-bg > .lxaur{background:radial-gradient(42% 36% at 18% 10%,rgba(201,164,92,.10),transparent 62%),radial-gradient(36% 32% at 86% 6%,rgba(201,164,92,.07),transparent 64%)!important}',
 /* 前月との増減の棒：増えた＝金・減った＝赤のまま */
 'html:not(.xclassic) .xdc-b i.up{background:linear-gradient(90deg,' + GD + ',' + G2 + ')!important}html:not(.xclassic) .xdc-v.up{color:' + G2 + '!important}',
 L + ' .xdc-v.up{color:' + GD + '!important}',
@@ -14834,7 +14838,8 @@ L + ' .kpi:nth-child(2) .v{color:' + GD + '}',
 'html:not(.xclassic) .site.on .nm, html:not(.xclassic) .site.on b{color:' + G2 + '!important}',
 L + ' .site.on .nm, ' + L + ' .site.on b{color:#6E5520!important}',
 /* 進み具合のバー */
-'html:not(.xclassic) #siteList .site .bar i, html:not(.xclassic) #siteList .site [class*="bar"] > i, html:not(.xclassic) [class*="prog"] i, html:not(.xclassic) .xprog i, html:not(.xclassic) .xpbar i{background:linear-gradient(90deg,' + GD + ',' + G2 + ')!important}',
+/* 2026-11-05 [class*=…] はやめた：<html> のクラスが変わるたびに 紙の字（<i>）が全部 計算し直しになっていた */
+'html:not(.xclassic) #siteList .site .bar > i, html:not(.xclassic) .xb-bar > i, html:not(.xclassic) .xpk-bar > i, html:not(.xclassic) .xq-p > i, html:not(.xclassic) .xprog > i, html:not(.xclassic) .xpbar > i{background:linear-gradient(90deg,' + GD + ',' + G2 + ')!important}',
 /* ---- 現場の表 ---- */
 'html:not(.xclassic) table.ln th{color:var(--ink3)!important;letter-spacing:.06em;font-weight:700;border-bottom:1px solid rgba(201,164,92,.35)!important}',
 'html:not(.xclassic) table.ln tbody tr[data-id]:hover td{background:rgba(201,164,92,.045)}',
@@ -15713,7 +15718,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 22:56';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 23:59';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -16054,10 +16059,10 @@ var CSS = [
 'html:not(.lux-dark) #lux-bg, html:not(.lux-dark) #lux-cv, html:not(.lux-dark) #lux-wx{display:none}',
 '#lux-bg{background:linear-gradient(180deg,#071015 0%,#05090C 100%)}',
 /* オーロラは大きめの板を transform だけで動かす（描き直しなし・GPU） */
-'#lux-bg i{position:absolute; left:-25%; top:-25%; width:150%; height:150%; background:' + AUR + '; will-change:transform; transition:filter 1.2s ease, opacity 1.2s ease}',
-'html.lux-m-max:not(.lux-lite) #lux-bg i, html.lux-m-std:not(.lux-lite) #lux-bg i{animation:luxAur 36s ease-in-out infinite alternate}',
+'#lux-bg .lxaur{position:absolute; left:-25%; top:-25%; width:150%; height:150%; background:' + AUR + '; will-change:transform; transition:filter 1.2s ease, opacity 1.2s ease}',
+'html.lux-m-max:not(.lux-lite) #lux-bg .lxaur, html.lux-m-std:not(.lux-lite) #lux-bg .lxaur{animation:luxAur 36s ease-in-out infinite alternate}',
 '@keyframes luxAur{0%{transform:translate3d(0,0,0) rotate(0deg) scale(1)}50%{transform:translate3d(4%,3%,0) rotate(4deg) scale(1.06)}100%{transform:translate3d(-3%,5%,0) rotate(-3deg) scale(1.02)}}',
-'html.lux-flash #lux-bg i{filter:brightness(1.9) saturate(1.4)}',
+'html.lux-flash #lux-bg .lxaur{filter:brightness(1.9) saturate(1.4)}',
 'html.lux.lux-dark .wq-home{background:' + AUR + ', linear-gradient(180deg,#071015 0%,#05090C 100%) !important; background-attachment:fixed !important}',
 '#lux-prog{position:fixed; left:0; top:0; height:2px; width:100%; transform-origin:0 50%; transform:scaleX(0); background:linear-gradient(90deg,#3FC1C9,#E3C77F 60%,#F6E7B5); box-shadow:0 0 10px rgba(227,199,127,.7); z-index:2147483000; pointer-events:none}',
 'html.lux-m-off #lux-prog, html:not(.lux-dark) #lux-prog{display:none}',
@@ -16169,7 +16174,7 @@ var DARK2 = [
 ].join('\n');
 function inject(){
   var st = document.createElement('style'); st.id = 'lux-css'; st.textContent = CSS + (SMALL ? '\n@media screen{' + DARK2 + '}' : ''); document.head.appendChild(st);
-  var bg = document.createElement('div'); bg.id = 'lux-bg'; bg.innerHTML = '<i></i>'; document.body.insertBefore(bg, document.body.firstChild);
+  var bg = document.createElement('div'); bg.id = 'lux-bg'; bg.innerHTML = '<i class="lxaur"></i>'; document.body.insertBefore(bg, document.body.firstChild);
   var pr = document.createElement('div'); pr.id = 'lux-prog'; document.body.appendChild(pr);
   copyDarkMedia();
 }
@@ -16580,7 +16585,7 @@ PAPER + '{word-break:normal;line-break:auto;overflow-wrap:normal;text-wrap:wrap;
 'html.lux [draggable="true"]{cursor:grab}',
 'html.lux [draggable="true"]:active{cursor:grabbing}',
 'html.lux :is(button,.btn,input,select,textarea):disabled, html.lux [aria-disabled="true"]{cursor:not-allowed}',
-'html.lx-busy, html.lx-busy *{cursor:progress !important}',
+'html.lx-busy, html.lx-busy body{cursor:progress !important}',
 /* L20 押せる範囲を広く */
 '.lx-hit{position:relative}',
 '.lx-hit::after{content:"";position:absolute;inset:-8px;border-radius:inherit}',
@@ -17294,6 +17299,240 @@ try{
 })();
 
 window.WQLUX2 = { shake:shake, band:band, mark:mark, dirty:function(v){ dirty = !!v; title(); }, load:{ start:startLoad, end:endLoad } };
+})();
+
+/* 請求ナビ Web：サクサクに（ext3z.js）
+   2026-11-05「pcでもアプリのように もっと使いやすく サクサクに リニューアルして」
+   ・プレビュー（全現場）と「印刷・PDF」の画面：閉じても中身を捨てずに取っておき、次に開くときは変わったページだけ描き直す
+     （前は開くたびに26枚・7万個の字を全部作り直していた）。紙・印刷・PDFの中身は同じ
+   ・現場を押したとき：上の数字のタイルは表を出したあと（1コマあと）に描く */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const SRC = new WeakMap();
+const PROTO_IH = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+const PROTO_OP = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetParent');
+
+/* HTMLを いちばん上の要素ごとに切り分ける（組み立てずに文字のまま。合わないときは null） */
+const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
+function splitTop(h){
+  const out = [], re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][^\s\/>]*)[^>]*?(\/?)>/g; let m, depth = 0, start = 0, txt = 0;
+  while((m = re.exec(h))){
+    if(m[2] === undefined) continue;
+    if(depth === 0){ const t = h.slice(txt, m.index); if(t.trim()) out.push(t); start = m.index; }
+    if(m[1] === '/') depth--; else if(!(m[3] === '/' || VOID.test(m[2]))) depth++;
+    if(depth < 0) return null;
+    if(depth === 0){ out.push(h.slice(start, re.lastIndex)); txt = re.lastIndex; }
+  }
+  if(depth !== 0) return null;
+  const t = h.slice(txt); if(t.trim()) out.push(t);
+  return out;
+}
+const one = str => { const tpl = document.createElement('template'); PROTO_IH.set.call(tpl, str); const ns = [...tpl.content.childNodes].filter(n => n.nodeType === 1 || (n.nodeType === 3 && n.textContent.trim())); return ns.length === 1 ? ns[0] : null; };
+/* 新しいHTMLとくらべて、同じページはそのまま残し、変わったページだけ入れかえる */
+function patch(B, html){
+  html = String(html == null ? '' : html);
+  const parts = splitTop(html); if(!parts) throw new Error('split');
+  const pool = new Map();
+  [...B.childNodes].forEach(c => { const k = SRC.get(c); if(k == null){ c.remove(); return; } (pool.get(k) || pool.set(k, []).get(k)).push(c); });
+  const want = [], fresh = [];
+  for(const k of parts){
+    const a = pool.get(k);
+    if(a && a.length){ want.push(a.shift()); continue; }
+    const n = one(k); if(!n) throw new Error('one');
+    SRC.set(n, k); want.push(n); if(n.nodeType === 1) fresh.push(n);
+  }
+  pool.forEach(a => a.forEach(c => c.remove()));   /* もう使わないページ */
+  let ref = B.firstChild;
+  want.forEach(n => { if(n === ref){ ref = ref.nextSibling; return; } B.insertBefore(n, ref); });
+  while(ref){ const nx = ref.nextSibling; ref.remove(); ref = nx; }
+  B.__fresh = fresh; B.__patched = (B.__patched || 0) + 1;
+  X.__pvStat = { kept: want.length - fresh.length, fresh: fresh.length };
+}
+/* はじめて開いたときのページにも目印（あとで くらべられるように）。手のあいたときに */
+function keyNow(B, html){
+  const parts = splitTop(String(html || '')); if(!parts) return;
+  const cur = [...B.childNodes].filter(n => n.nodeType === 1 ? !n.matches('.xokL, .xskwarn, .xpvcarry, .xsysd, .xpvwarn') : n.nodeType === 3 && n.textContent.trim());
+  if(cur.length !== parts.length) return;
+  cur.forEach((c, i) => { if(c.nodeType === 1 && !parts[i].startsWith('<' + c.tagName.toLowerCase())) return; SRC.set(c, parts[i]); });
+}
+function patchable(B, getHtml){
+  if(!B || B.__xpatch) return; B.__xpatch = 1;
+  Object.defineProperty(B, 'innerHTML', { configurable: true,
+    get(){ return PROTO_IH.get.call(this); },
+    set(v){ try{ patch(this, v); }catch(e){ console.warn(e); SRC.delete(this); PROTO_IH.set.call(this, v); this.__fresh = null; } } });
+  const idle = window.requestIdleCallback || (f => setTimeout(f, 200));
+  idle(() => { try{ if(![...B.childNodes].some(c => SRC.has(c))) keyNow(B, getHtml()); }catch(e){} });
+}
+
+/* 測って縮める（sysFit・fitShrink）のは、入れかえたページだけ */
+const only = list => ({ querySelectorAll(sel){ const out = []; list.forEach(p => { if(!p.isConnected) return; if(p.matches && p.matches(sel)) out.push(p); if(p.querySelectorAll) out.push(...p.querySelectorAll(sel)); }); return out; } });
+['sysFit', 'fitShrink'].forEach(k => { const f = XR[k]; if(typeof f !== 'function') return; XR[k] = function(root){ if(root && root.__fresh && !root.__fullFit) return f.call(this, only(root.__fresh)); return f.apply(this, arguments); }; });
+if(typeof fitPages === 'function'){ fitPages = function(box){
+  if(!box) return;
+  const cs = getComputedStyle(box), w = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2; if(w <= 0) return;
+  box.querySelectorAll('.xp').forEach(p => { const pw = p.classList.contains('port') ? 794 : 1123; const z = Math.min(1, w / pw).toFixed(4); if(p.style.zoom !== z) p.style.zoom = z; });
+}; }
+
+/* プレビュー：閉じても中身はそのまま（見えない・押せない・描かない） */
+const css = document.createElement('style'); css.id = 'xFastPv';
+css.textContent = '#sitePv.spv[hidden]{display:flex!important;content-visibility:hidden;left:-300vw!important;right:300vw!important;pointer-events:none}' +
+  '#tab-paper[hidden]{display:block!important;content-visibility:hidden;height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden;border:0!important}' +
+  '#spvBody > .xp, #pv > .xp{contain:layout}';
+document.head.appendChild(css);
+function hookPv(){
+  const M = document.getElementById('sitePv'), B = document.getElementById('spvBody'); if(!M || !B || B.__xop) return;
+  B.__xop = 1;
+  /* 「プレビューが開いているか」を offsetParent で見ているところがあるので、閉じているときは null を返す */
+  Object.defineProperty(B, 'offsetParent', { configurable: true, get(){ return M.hidden ? null : PROTO_OP.get.call(this); } });
+  patchable(B, () => (typeof curPvHtml === 'function' ? curPvHtml() : ''));
+}
+if(typeof sitePreview === 'function'){ const _sp = sitePreview; sitePreview = function(){
+  const B0 = document.getElementById('spvBody');
+  try{ return _sp.apply(this, arguments); }
+  finally{ const B = document.getElementById('spvBody'); if(B) B.__fresh = null; if(!B0) hookPv(); }
+}; }
+if(typeof closeSitePv === 'function'){ const _cl = closeSitePv; closeSitePv = function(){ const M = document.getElementById('sitePv'); const a = document.activeElement; const r = _cl.apply(this, arguments); try{ if(M && a && M.contains(a)) a.blur(); }catch(e){} return r; }; }
+
+/* 印刷・PDF の画面（#pv）も同じ */
+(function hookPaper(){ const P = document.getElementById('pv'); if(!P){ setTimeout(hookPaper, 500); return; } patchable(P, () => (typeof paperHtml === 'function' ? paperHtml() : '')); })();
+if(typeof drawPaper === 'function'){ const _dp = drawPaper; drawPaper = function(){ try{ return _dp.apply(this, arguments); } finally{ const P = document.getElementById('pv'); if(P) P.__fresh = null; } }; }
+/* 字体があとから読み込まれたとき・印刷の前は全部を測り直す */
+const fullFit = () => ['spvBody', 'pv'].forEach(id => { const B = document.getElementById(id); if(!B || !B.querySelector('.xp')) return; B.__fullFit = 1; try{ XR.fitShrink(B); XR.sysFit(B); }catch(e){} B.__fullFit = 0; });
+try{ document.fonts && document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => setTimeout(() => { const M = document.getElementById('sitePv'); if((M && !M.hidden) || S.tab === 'paper') fullFit(); }, 200)); }catch(e){}
+
+/* ---- 現場を押したとき：数字のタイルは表のあと ---- */
+let inDS = 0, kT = 0, kWant = 0;
+if(typeof drawKpis === 'function'){ const _dk = drawKpis; drawKpis = function(){
+  if(inDS && window.innerWidth > 900){ if(!kWant){ kWant = 1; requestAnimationFrame(() => { kT = setTimeout(() => { if(!kWant) return; kWant = 0; try{ _dk(); }catch(e){ console.warn(e); } }, 0); }); } return; }
+  kWant = 0;
+  return _dk.apply(this, arguments);
+}; }
+if(typeof drawSites === 'function'){ const _ds = drawSites; drawSites = function(){ inDS++; try{ return _ds.apply(this, arguments); } finally{ inDS--; } }; }
+X.flushKpis = () => { if(kWant){ kWant = 0; drawKpis(); } };
+})();
+
+/* 請求ナビ Web：PCをアプリのように（ext4a.js）
+   2026-11-05「pcでもアプリのように もっと使いやすく サクサクに リニューアルして」
+   ・PCの広い画面（901px〜）：左に縦のメニュー（読み込み・現場・チェック・印刷）。スマホの下のボタンと同じ考え
+   ・上の帯は1段に（得意先・保存の状態・よく使うボタン）。前は3段で 約150px あった
+   ・ロゴ・暗く・前の色にもどす・最新版・web見積 は左のメニューの下へ
+   ・動きをキビキビに：入るときの動き・横すべり・ゆっくり動く背景・浮き上がりをやめる（押したらすぐ出る）
+   「✦ 前の色にもどす」（左の下）で前の見た目にもどる。スマホはそのまま */
+(function(){
+const root = document.documentElement;
+const RW = 84;
+const ICON = {
+  load: '<path d="M12 3v11m0 0-4-4m4 4 4-4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  sites: '<rect x="4" y="3" width="10" height="18" rx="1.5"/><path d="M14 9h4.5A1.5 1.5 0 0 1 20 10.5V21M7.5 7h3M7.5 11h3M7.5 15h3M17 13v.01M17 17v.01"/>',
+  check: '<circle cx="12" cy="12" r="8.5"/><path d="m8.2 12.3 2.6 2.6 5-5.4"/>',
+  paper: '<path d="M7 8V3.8h10V8"/><rect x="3.5" y="8" width="17" height="8.5" rx="2"/><path d="M7 14h10v6.2H7z"/>'
+};
+const LABEL = { load: '読み込み', sites: '現場', check: 'チェック', paper: '印刷・PDF' };
+const svg = d => '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+
+const G = '#C9A45C', G2 = '#E3C98E';
+const A = 'html.xrail';
+const css = document.createElement('style'); css.id = 'xRailCss';
+css.textContent = [
+'#xRail{display:none}',
+A + ' #xRail{display:flex;position:fixed;left:0;top:var(--wqnav-h,42px);bottom:0;width:' + RW + 'px;z-index:40;flex-direction:column;align-items:stretch;gap:4px;padding:10px 8px 12px;background:#0A0A0C;border-right:1px solid rgba(201,164,92,.20);box-sizing:border-box;overflow:hidden auto}',
+A + ':not(.lux-dark) #xRail{background:#FBF8F1;border-right-color:rgba(156,122,53,.28)}',
+A + ' #xRail .xr-logo{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0 10px;margin-bottom:4px;border-bottom:1px solid rgba(201,164,92,.16);color:' + G2 + ';font-weight:800;font-size:11px;letter-spacing:.06em;cursor:default}',
+A + ' #xRail .xr-logo i{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;font-style:normal;font-size:17px;color:#1A1408;background:linear-gradient(135deg,' + G2 + ',' + G + ' 55%,#9C7A35);box-shadow:0 6px 16px -8px rgba(201,164,92,.7)}',
+A + ':not(.lux-dark) #xRail .xr-logo{color:#6E5520}',
+A + ' #xRail .xr-it{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:62px;border:0;border-radius:12px;background:transparent;color:rgba(235,228,214,.66);font:inherit;font-size:11px;font-weight:700;cursor:pointer;transition:background .1s,color .1s}',
+A + ':not(.lux-dark) #xRail .xr-it{color:#6B6455}',
+A + ' #xRail .xr-it:hover{background:rgba(201,164,92,.10);color:' + G2 + '}',
+A + ':not(.lux-dark) #xRail .xr-it:hover{color:#6E5520}',
+A + ' #xRail .xr-it.on{background:linear-gradient(180deg,rgba(201,164,92,.24),rgba(201,164,92,.12));color:' + G2 + '}',
+A + ':not(.lux-dark) #xRail .xr-it.on{color:#5A4415;background:rgba(201,164,92,.22)}',
+A + ' #xRail .xr-it.on::before{content:"";position:absolute;left:-8px;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:' + G + '}',
+A + ' #xRail .xr-it:focus-visible{outline:2px solid ' + G + ';outline-offset:1px}',
+A + ' #xRail .xr-it kbd{position:absolute;top:5px;right:6px;font:600 9px/1 ui-monospace,Menlo,monospace;padding:2px 4px;border-radius:4px;border:1px solid rgba(201,164,92,.28);background:transparent;color:inherit;opacity:.65}',
+A + ' #xRail .xr-it .xr-b{position:absolute;top:4px;left:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10.5px;line-height:18px;font-weight:800;text-align:center;background:#C8432B;color:#fff;box-sizing:border-box}',
+A + ' #xRail .xr-it .xr-b.ok{background:#2E9E5B}',
+A + ' #xRail .xr-it .xr-b.mid{background:#B98A2A}',
+A + ' #xRail .xr-sp{flex:1}',
+A + ' #xRail .xr-low{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid rgba(201,164,92,.16)}',
+A + ' #xRail .xr-low > *{display:flex!important;align-items:center;justify-content:center;width:100%!important;min-height:30px;margin:0!important;padding:4px 2px!important;font-size:10.5px!important;line-height:1.25!important;border-radius:9px!important;text-align:center;white-space:normal!important;box-sizing:border-box;text-decoration:none}',
+A + ' #xRail .xr-ver{font-size:9.5px;text-align:center;opacity:.5;margin-top:2px;line-height:1.3}',
+/* 本体を右へ */
+A + ' body{padding-left:' + RW + 'px}',
+A + ' #wqnav{margin-left:-' + RW + 'px}',
+A + ' #xMini{left:' + RW + 'px!important}',
+/* 上の帯：1段 */
+A + ' .top{flex-wrap:nowrap!important;gap:10px!important;padding-top:8px!important;padding-bottom:8px!important;min-height:0!important;align-items:center}',
+A + ' .top > h1, ' + A + ' .top .tabs > button[data-tab], ' + A + ' .top .tabs > .tabpill{display:none!important}',
+A + ' .top .tabs{margin:0!important;padding:0!important;flex-wrap:nowrap!important;gap:6px!important;border:0!important;background:none!important;box-shadow:none!important}',
+A + ' .top #who{flex:0 0 auto;white-space:nowrap}',
+A + ' .top #saveSt{flex:0 1 auto;min-width:0;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+/* 下の帯（現場の名前）と上の帯で同じボタンが2つ出ないように */
+A + ' #xMini > .xurg, ' + A + ' #xMini > [data-xm="pv"]{display:none!important}',
+A + ' .top > .sp{flex:1 1 0!important;min-width:4px}',
+A + ' .top .tabs .hktop, ' + A + ' .top .tabs .pvtop{white-space:nowrap}',
+/* キビキビ：入る動き・横すべり・ゆっくり動く背景・浮き上がりをやめる */
+A + ' .lux-page, ' + A + ' .lx-swap-l, ' + A + ' .lx-swap-r, ' + A + ' #lux-bg .lxaur{animation:none!important}',
+A + ' .lux-in{animation-duration:.14s!important;animation-delay:0ms!important}',
+A + ' .lux-open{animation-duration:.14s!important}',
+A + ' .lux-glow:hover, ' + A + ' .lux-glow:not(.lux-big):hover:not(:focus-within){translate:none!important}',
+A + ' #xMini, ' + A + ' .top{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
+A + '.lux-dark #xMini{background:#0E0E10!important}',
+A + '.lux-dark .top{background:#0B0B0D!important}',
+A + ' #siteList .site, ' + A + ' .btn, ' + A + ' button{transition-duration:.1s!important}'
+].join('\n');
+document.head.appendChild(css);
+
+/* ---- 左のメニュー ---- */
+const rail = document.createElement('nav'); rail.id = 'xRail'; rail.setAttribute('aria-label', 'メニュー');
+rail.innerHTML = '<div class="xr-logo" title=""><i>請</i>請求ナビ</div>' +
+  ['load', 'sites', 'check', 'paper'].map((k, i) => '<button type="button" class="xr-it" data-xr="' + k + '" title="' + LABEL[k] + '（' + (i + 1) + '）">' + svg(ICON[k]) + '<span>' + LABEL[k] + '</span><kbd>' + (i + 1) + '</kbd></button>').join('') +
+  '<div class="xr-sp"></div><div class="xr-low"></div><div class="xr-ver"></div>';
+document.body.appendChild(rail);
+rail.addEventListener('click', ev => { const b = ev.target.closest('[data-xr]'); if(!b) return; ev.preventDefault(); const t = b.dataset.xr; if(typeof setTab === 'function') setTab(t); sync(); });
+
+function sync(){
+  if(!root.classList.contains('xrail')) return;
+  const cur = (typeof S !== 'undefined' && S.tab) || 'load';
+  rail.querySelectorAll('[data-xr]').forEach(b => {
+    b.classList.toggle('on', b.dataset.xr === cur);
+    const src = document.querySelector('.tabs button[data-tab="' + b.dataset.xr + '"]');
+    b.classList.toggle('xr-dis', !!(src && src.disabled));
+    const c = src && src.querySelector('.cnt'); let x = b.querySelector('.xr-b');
+    if(c && c.textContent.trim()){ if(!x){ x = document.createElement('span'); x.className = 'xr-b'; b.appendChild(x); } x.textContent = c.textContent.trim(); x.className = 'xr-b' + (c.classList.contains('ng') ? '' : c.classList.contains('ok') ? ' ok' : ' mid'); x.title = c.title || ''; }
+    else if(x) x.remove();
+  });
+  const v = document.getElementById('verTxt'); const vv = rail.querySelector('.xr-ver'); if(v && vv) vv.textContent = v.textContent.trim();
+}
+
+/* ---- 上の帯から左の下へ動かす（スマホ・前の色ではもとの場所へ） ---- */
+const MOVE = ['#btnTheme', '#xGoldBtn', '#btnLatest', '.top > a.latest'];
+const home = new Map();
+function moveIn(){
+  const low = rail.querySelector('.xr-low');
+  MOVE.forEach(sel => { const e = document.querySelector(sel); if(!e || e.closest('#xRail')) return; const ph = document.createComment('xrail'); e.parentNode.insertBefore(ph, e); home.set(e, ph); low.appendChild(e); });
+}
+function moveOut(){ home.forEach((ph, e) => { if(ph.parentNode) ph.parentNode.insertBefore(e, ph); ph.remove(); }); home.clear(); }
+
+/* アプリの窓（ホーム画面・PCにインストールしたとき）の上の帯の色も黒に */
+function themeMeta(){ try{ const m = document.querySelector('meta[name="theme-color"]'); if(!m) return; if(!m.dataset.x0) m.dataset.x0 = m.content; const c = root.classList.contains('xclassic') ? m.dataset.x0 : (root.classList.contains('lux-dark') ? '#0B0B0D' : '#FBF8F1'); if(m.content !== c) m.content = c; }catch(e){} }
+let on = null;
+function apply(){
+  themeMeta();
+  const want = window.innerWidth > 900 && !root.classList.contains('xclassic') && !document.body.classList.contains('viewmode');
+  if(want !== on){
+    on = want;
+    root.classList.toggle('xrail', want);
+    if(want) moveIn(); else moveOut();
+    try{ window.dispatchEvent(new Event('resize')); }catch(e){}   /* 上の帯の高さが変わったので、下の帯・一覧の位置を合わせ直す */
+  }
+  if(want){ moveIn(); sync(); }
+}
+let t = 0; const later = () => { clearTimeout(t); t = setTimeout(apply, 30); };
+window.addEventListener('resize', () => { const w = window.innerWidth > 900; if((w && !on) || (!w && on)) later(); });
+new MutationObserver(later).observe(root, { attributes: true, attributeFilter: ['class'] });
+(function watchTabs(){ const T = document.querySelector('.top .tabs'); if(!T){ setTimeout(watchTabs, 400); return; } new MutationObserver(() => { if(on) sync(); }).observe(T, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'disabled'] }); })();
+if(typeof setTab === 'function'){ const _st = setTab; setTab = function(){ const r = _st.apply(this, arguments); try{ sync(); }catch(e){} return r; }; }
+apply(); setTimeout(apply, 0); setTimeout(apply, 800);
 })();
 
 </script>
