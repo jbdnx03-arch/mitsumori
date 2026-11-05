@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-06 00:05-->
+<!--BUILD:2026-11-06 00:22-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2990,7 +2990,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-06 00:05';
+const BUILD = '2026-11-06 00:22';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -14073,12 +14073,12 @@ document.head.appendChild(css);
    ・Esc で閉じない窓（まとめてOK・見積から請求書）→ Esc でいちばん上の窓だけ閉じる（下のプレビューまでは閉じない） */
 (function(){
 const css = document.createElement('style');
-/* 2026-11-05「プレビューですごい左によってるけど大丈夫？」：画面（プレビュー・印刷の画面）は余白をそろえて見やすく。
-   PDFにするとき（#print を画面のまま測る）は本物と同じ左上ぴったり。紙に印刷するときは余白あり */
+/* 2026-11-06「前も言ったけど左にずれすぎじゃない？中央にしてよ」：画面・PDF・紙の印刷 ぜんぶ用紙のまん中に。
+   本物の用紙の線と字は 横 814pt・縦 564pt（1枚目）／552pt（2枚目から）。A4横 841.89×595.28pt の上下左右の余白が同じになる位置 */
+const OA = 'left:13.94pt!important;top:15.64pt!important', OB = 'left:13.94pt!important;top:21.64pt!important';
 css.textContent = '[hidden]{display:none!important}' +
-  '.xsys .xsb.oa{left:13.72pt!important;top:7.68pt!important}.xsys .xsb.ob{left:13.72pt!important;top:12.18pt!important}' +
-  '#print .xsys .xsb,#xPdfVec .xsys .xsb{left:0!important;top:0!important}' +
-  '@media print{#print .xsys .xsb.oa,.xsys .xsb.oa{left:13.72pt!important;top:7.68pt!important}#print .xsys .xsb.ob,.xsys .xsb.ob{left:13.72pt!important;top:12.18pt!important}}';
+  '.xsys .xsb.oa,#print .xsys .xsb.oa,#xPdfVec .xsys .xsb.oa{' + OA + '}.xsys .xsb.ob,#print .xsys .xsb.ob,#xPdfVec .xsys .xsb.ob{' + OB + '}' +
+  '@media print{#print .xsys .xsb.oa,.xsys .xsb.oa{' + OA + '}#print .xsys .xsb.ob,.xsys .xsb.ob{' + OB + '}}';
 document.head.appendChild(css);
 document.addEventListener('keydown', ev => {
   if(ev.key !== 'Escape' || ev.isComposing) return;
@@ -14368,6 +14368,8 @@ const live = l => l && !l.head && !l.nb && sheetById(l.sheet) && sheetById(l.she
 const dd = (a, b) => (a && b) ? Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5) + 1 : null;
 const addDay = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const isOff = iso => { try{ if(X.isOff) return X.isOff(iso); }catch(e){} const w = new Date(iso + 'T00:00:00').getDay(); return w === 0 || w === 6; };
+const wd = iso => '（' + '日月火水木金土'[new Date(iso + 'T00:00:00').getDay()] + '）';
+const isHol = iso => { const w = new Date(iso + 'T00:00:00').getDay(); return w !== 0 && w !== 6 && isOff(iso); };
 const nextBiz = iso => { let d = iso, n = 0; do{ d = addDay(d, 1); }while(isOff(d) && n++ < 15); return d; };
 const shn = l => (sheetById(l.sheet) || {}).name || '';
 const monthOf = () => day(S.meta && S.meta.seikyuDate).slice(0, 7);
@@ -14392,7 +14394,7 @@ function offReturn(){
     const r = day(l.retd), e = day(l.end); if(!r || !e || r.slice(0, 7) !== ym) return;
     if(!isOff(r) || e !== r) return;
     const nb = nextBiz(r); if(sd && nb > sd) return;   /* 翌営業日が締めのあと（来月）なら今月はこのまま */
-    out.push({ lv: 'info', id: l.id, t: '土日祝の引取：' + l.name, s: shn(l) + '　返却 ' + r.slice(5).replace('-', '/') + 'は会社の休み。決まりでは翌営業日（' + nb.slice(5).replace('-', '/') + '）あつかいなので、請求の終わりも ' + nb.slice(5).replace('-', '/') + ' では？（' + (dd(r, nb) - 1) + '日ぶん）' });
+    out.push({ lv: 'info', id: l.id, t: '土日祝の引取：' + l.name, s: shn(l) + '　返却 ' + r.slice(5).replace('-', '/') + wd(r) + 'は会社の休み' + (isHol(r) ? '（祝日）' : '') + '。決まりでは翌営業日（' + nb.slice(5).replace('-', '/') + wd(nb) + '）あつかいなので、請求の終わりも ' + nb.slice(5).replace('-', '/') + ' では？（' + (dd(r, nb) - 1) + '日ぶん）' });
   });
   return out;
 }
@@ -15718,7 +15720,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 00:05';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 00:22';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
