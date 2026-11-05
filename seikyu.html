@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 23:59-->
+<!--BUILD:2026-11-06 00:05-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2990,7 +2990,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 23:59';
+const BUILD = '2026-11-06 00:05';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -15718,7 +15718,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 23:59';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 00:05';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -17533,6 +17533,60 @@ new MutationObserver(later).observe(root, { attributes: true, attributeFilter: [
 (function watchTabs(){ const T = document.querySelector('.top .tabs'); if(!T){ setTimeout(watchTabs, 400); return; } new MutationObserver(() => { if(on) sync(); }).observe(T, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'disabled'] }); })();
 if(typeof setTab === 'function'){ const _st = setTab; setTab = function(){ const r = _st.apply(this, arguments); try{ sync(); }catch(e){} return r; }; }
 apply(); setTimeout(apply, 0); setTimeout(apply, 800);
+})();
+
+/* 請求ナビ Web：代品の単価（ext4b.js）
+   2026-11-06「60kva 45kva代品ってなってるでしょ？ そしたら単価が下がるのが普通。他の60kvaと一緒になってるから これはアラーム出して欲しかったね」
+   品名に「（45KVA代品）」のように 代品 とある行は、代わりにした品（45KVA）の単価になるのがふつう。
+   ・同じ請求（前月も）に 45KVA の行があって、単価がそれとちがう → 要確認（45KVAの単価を出す）
+   ・45KVA の行は無いが、60KVA（代品でない）と同じ単価 → 要確認（代品なのに大きい方の単価のまま）
+   ・どちらも無い → 知らせ（45KVAの単価になっているか見て） */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const SUB = /[(（]\s*([^()（）]*?)\s*代品\s*[)）]?/;
+const nf = s => String(s || '').normalize('NFKC');
+const nk = s => nf(s).replace(/【[^】]*】/g, '').replace(/[(（][^()（）]*代品[^()（）]*[)）]?/g, '').replace(/[\s　]/g, '').toUpperCase();
+const isSub = x => SUB.test(nf(x && x.name));
+const rent = l => l && (l.kb === '日極' || l.kb === '月極');
+const live = l => { if(!l || l.head || l.nb) return false; const sh = sheetById(l.sheet); return !!sh && sh.inKagami !== false && !sh.noBill; };
+const shn = l => (sheetById(l.sheet) || {}).name || '';
+const yenS = v => Math.round(num(v)).toLocaleString('ja-JP');
+const esc2 = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function daihin(){
+  const out = [];
+  const cur = S.lines.filter(l => !l.head && rent(l) && num(l.lu) > 0);
+  const prev = []; S.sheets.forEach(sh => { if(sh.prev && Array.isArray(sh.prev.lines)) sh.prev.lines.forEach(x => { if(x && !x.head && rent(x) && num(x.lu) > 0) prev.push(x); }); });
+  S.lines.forEach(l => {
+    if(!live(l) || !rent(l) || !(num(l.lu) > 0)) return;
+    const nm = nf(l.name); const m = SUB.exec(nm); if(!m) return;
+    const sub = m[1].replace(/[\s　]/g, '').toUpperCase(); if(!sub) return;
+    const base = nk(nm);
+    /* 「60KVA発電機」の 60KVA を 45KVA にかえたものが 代わりの品 */
+    let target = '';
+    const um = /^(\d+(?:\.\d+)?)(.+)$/.exec(sub);
+    if(um){ const re = new RegExp('\\d+(?:\\.\\d+)?' + esc2(um[2])); if(re.test(base)) target = base.replace(re, sub); }
+    if(!target && base.indexOf(sub) < 0) target = '';
+    const same = (x, name) => x !== l && x.kb === l.kb && !isSub(x) && (nk(x.name) === name || (name.length >= 4 && nk(x.name).indexOf(name) === 0));
+    const lu = num(l.lu);
+    const tg = target ? cur.filter(x => same(x, target)).concat(prev.filter(x => same(x, target))) : [];
+    const bs = cur.filter(x => same(x, base)).concat(prev.filter(x => same(x, base)));
+    const label = sub + 'の代品';
+    if(tg.length){
+      const ps = [...new Set(tg.map(x => num(x.lu)))].sort((a, b) => a - b);
+      if(ps.indexOf(lu) < 0) out.push({ lv: 'warn', id: l.id, t: '代品の単価：' + nm.replace(/【[^】]*】/g, ''), s: shn(l) + '　' + label + 'なのに単価 ' + yenS(lu) + '（' + l.kb + '）。' + sub + ' の単価は ' + ps.map(yenS).join('／') + '。' + sub + 'の単価にするのがふつう（わざとならOK）' });
+      return;
+    }
+    if(bs.some(x => num(x.lu) === lu)){
+      out.push({ lv: 'warn', id: l.id, t: '代品の単価：' + nm.replace(/【[^】]*】/g, ''), s: shn(l) + '　' + label + 'なのに、代品でない ' + (base || '同じ品') + ' と同じ単価 ' + yenS(lu) + '（' + l.kb + '）のまま。' + sub + 'の単価に下げるのがふつう（わざとならOK）' });
+      return;
+    }
+    out.push({ lv: 'info', id: l.id, t: '代品の単価：' + nm.replace(/【[^】]*】/g, ''), s: shn(l) + '　' + label + '。単価 ' + yenS(lu) + '（' + l.kb + '）は ' + sub + ' の単価になっている？' });
+  });
+  return out;
+}
+X.daihinChecks = daihin;
+if(typeof checks === 'function'){ const _c = checks; checks = function(){ const r = _c.apply(this, arguments); try{ r.push(...daihin()); }catch(e){ console.warn(e); } return r; }; }
 })();
 
 </script>
