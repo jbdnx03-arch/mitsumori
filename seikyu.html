@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 21:04-->
+<!--BUILD:2026-11-05 22:56-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2990,7 +2990,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 21:04';
+const BUILD = '2026-11-05 22:56';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -14503,8 +14503,8 @@ document.addEventListener('keydown', ev => {
 
 /* ---------- E15 お知らせ欄を全現場に ---------- */
 function noticeBtn(){
-  const i = document.getElementById('xNotice'); if(!i || i.parentElement.querySelector('[data-xnall]')) return;
-  i.insertAdjacentHTML('afterend', '<button type="button" class="btn sm" data-xnall="1" style="margin-left:6px" title="この文を、請求する全部の現場のお知らせ欄に入れる">全現場に同じ文</button>');
+  const i = document.getElementById('xNotice'); const f = i && i.closest('.xnote-f'); if(!i || (f || i.parentElement).querySelector('[data-xnall]')) return;
+  (i.closest('label') || i).insertAdjacentHTML('afterend', '<button type="button" class="btn sm" data-xnall="1" title="この文を、請求する全部の現場のお知らせ欄に入れる">全現場に同じ文</button>');
 }
 document.addEventListener('click', async ev => {
   const b = ev.target.closest && ev.target.closest('[data-xnall]'); if(!b) return; ev.preventDefault(); ev.stopPropagation();
@@ -15061,6 +15061,110 @@ if(typeof askDialog === 'function'){
 }
 })();
 
+/* 請求ナビ Web：使いやすく・かっこよく（黒×金のまま、並びと形を整える）（ext3y.js）
+   2026-11-05「色合いはこれでOK もっと使いやすいように デザインをかっこよくおしゃれに変えられる？」
+   ・上の数字のタイルを1列（6つ）に小さくまとめて、現場の一覧と明細がすぐ見えるように（前は一覧が画面の下のほうから始まっていた）
+   ・進み具合の「まだ」の現場のボタンは たたんで「まだ n ▾」で開く
+   ・現場の見出しのボタン：よく使うもの（完了して次へ・未完了/完了・要確認を順に・えらぶ・並べて直す・次の要確認）だけ出して、のこりは「その他 ▾」の中へ
+   ・明細の表：入力の枠は指をのせた時・入力中だけ、金額の列を金で太く、行の線を細く
+   ・広い画面ではもっと広く使う
+   「✦ 前の色にもどす」で前の見た目にもどる（PCの広い画面だけ。スマホはそのまま） */
+(function(){
+const root = document.documentElement;
+const P = 'html:not(.xclassic)';
+const W = '@media (min-width:901px){';
+const css = document.createElement('style'); css.id = 'xProLayout';
+css.textContent = [
+W,
+/* 広く使う */
+P + ' #tab-sites, ' + P + ' #tab-check, ' + P + ' #tab-load, ' + P + ' #tab-paper{max-width:1680px;margin-left:auto;margin-right:auto;padding-left:24px;padding-right:24px}',
+/* 探す欄：細い帯に */
+P + ' #xsearch{padding:8px 12px!important;margin-bottom:10px!important;display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
+P + ' #xsearch #xq{height:32px;border-radius:10px}',
+/* 数字のタイル：1列6つ・小さく */
+P + ' #tab-sites #kpis{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;margin-bottom:12px}',
+P + ' #tab-sites #kpis .kpi{padding:10px 14px 10px 16px!important;min-height:0!important}',
+P + ' #tab-sites #kpis .kpi .k{font-size:10.5px!important;margin-bottom:2px}',
+P + ' #tab-sites #kpis .kpi .v{font-size:21px!important;line-height:1.15!important;white-space:nowrap}',
+P + ' #tab-sites #kpis .kpi .v small{font-size:11px!important}',
+P + ' #tab-sites #kpis .kpi .s{font-size:10.5px!important;line-height:1.45;opacity:.85}',
+P + ' #tab-sites #kpis .kpi:not(.xprogk) > .s{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}',
+P + ' #tab-sites #kpis .kpi:not(.xprogk):hover > .s{-webkit-line-clamp:unset;overflow:visible}',
+P + ' #tab-sites #kpis{align-items:start}',
+P + ' #tab-sites #kpis .kpi .xdiffp{font-size:10.5px!important;line-height:1.5}',
+P + ' #tab-sites #kpis .kpi.xprogk .xpk-rest{display:none!important}',
+P + ' #tab-sites #kpis .kpi.xprogk.xopen .xpk-rest{display:flex!important}',
+P + ' #tab-sites #kpis .kpi .xpk-bar{height:5px!important;margin:6px 0!important}',
+/* 一覧と明細を上からならべる */
+P + ' #tab-sites .main{grid-template-columns:290px minmax(0,1fr)!important;gap:16px!important}',
+P + ' #tab-sites #siteList{position:sticky!important;align-self:start;top:var(--xslTop,120px)!important;max-height:calc(100vh - var(--xslTop,120px) - 12px)!important;margin-top:0!important;border-radius:16px!important}',
+P + ' #siteList .site{padding:9px 10px 9px 12px!important;margin-bottom:6px!important}',
+/* 現場の見出し：ボタンをまとめる */
+P + ' #shead .xbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px!important}',
+P + ' #shead .xbar .xmore-wrap{position:relative;display:inline-flex}',
+P + ' #shead .xbar .xmore{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:30;min-width:240px;padding:8px;border-radius:14px;background:var(--surface,#131316);border:1px solid rgba(201,164,92,.45);box-shadow:0 20px 50px -14px rgba(0,0,0,.85);flex-direction:column;gap:4px}',
+P + ' #shead .xbar .xmore-wrap.on .xmore{display:flex}',
+P + ' #shead .xbar .xmore .btn{width:100%;justify-content:flex-start;text-align:left}',
+P + ' #shead .xbar [data-xmore]{font-weight:700}',
+/* 明細の表 */
+P + ' table.ln tbody tr[data-id] td{border-bottom:1px solid rgba(127,127,127,.12)!important}',
+P + ' table.ln input.e{border-color:transparent!important;background:transparent!important;transition:border-color .15s,background .15s}',
+P + ' table.ln tr[data-id]:hover input.e{border-color:rgba(127,127,127,.35)!important}',
+P + ' table.ln input.e:focus{border-color:#C9A45C!important;background:rgba(201,164,92,.06)!important}',
+P + ' #siteBody table.ln tbody tr[data-id] td:nth-child(9){font-weight:800;color:#E3C98E;font-variant-numeric:tabular-nums}',
+P + ' html:not(.lux-dark) #siteBody table.ln tbody tr[data-id] td:nth-child(9){color:#6E5520}',
+P + ' [data-xnall]{white-space:nowrap;flex:0 0 auto}',
+'}',
+/* スマホ・せまい画面：進み具合のボタンだけたたむ */
+'@media (max-width:900px){' + P + ' #kpis .kpi.xprogk .xpk-rest{display:none!important}' + P + ' #kpis .kpi.xprogk.xopen .xpk-rest{display:flex!important}}',
+P + ' .xpk-tog{margin-left:6px;font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid rgba(201,164,92,.5);background:transparent;color:inherit;cursor:pointer}'
+].join('\n');
+document.head.appendChild(css);
+
+/* ---- 進み具合の「まだ n ▾」 ---- */
+function progTog(){
+  const k = document.querySelector('#kpis .kpi.xprogk'); if(!k) return;
+  const rest = k.querySelector('.xpk-rest'); if(!rest) return;
+  const n = rest.querySelectorAll('button').length; let t = k.querySelector('.xpk-tog');
+  if(!n){ if(t) t.remove(); return; }
+  if(!t){ t = document.createElement('button'); t.type = 'button'; t.className = 'xpk-tog'; (k.querySelector('.s') || k).appendChild(t); }
+  t.textContent = 'まだの現場 ' + n + (k.classList.contains('xopen') ? ' ▴' : ' ▾');
+}
+document.addEventListener('click', ev => { const t = ev.target.closest && ev.target.closest('.xpk-tog'); if(!t) return; ev.preventDefault(); ev.stopPropagation(); const k = t.closest('.kpi'); k.classList.toggle('xopen'); try{ localStorage.setItem('seikyu.progOpen', k.classList.contains('xopen') ? '1' : '0'); }catch(e){} progTog(); }, true);
+
+/* ---- 現場の見出し：「その他 ▾」 ---- */
+const KEEP = /完了して次へ|要確認を順に|えらぶ|並べて直す|次の要確認|プレビュー/;
+function sortBar(){
+  if(root.classList.contains('xclassic') || window.innerWidth <= 900) return unsort();
+  const bar = document.querySelector('#shead .xbar'); if(!bar) return;
+  let wrap = bar.querySelector(':scope > .xmore-wrap'), box = wrap && wrap.querySelector('.xmore');
+  const kids = [...bar.children].filter(c => c !== wrap && c.tagName === 'BUTTON' && !c.classList.contains('xdn') && !c.dataset.x3u && !KEEP.test(c.textContent) && !c.closest('.xdoneseg') && !c.classList.contains('xshseg'));
+  if(!kids.length) return;
+  if(!wrap){ wrap = document.createElement('span'); wrap.className = 'xmore-wrap'; wrap.innerHTML = '<button type="button" class="btn sm" data-xmore="1">その他 ▾</button><div class="xmore"></div>'; bar.appendChild(wrap); box = wrap.querySelector('.xmore'); }
+  kids.forEach(c => box.appendChild(c));
+  bar.appendChild(wrap);
+  wrap.querySelector('[data-xmore]').textContent = 'その他（' + box.children.length + '）▾';
+}
+function unsort(){ const bar = document.querySelector('#shead .xbar'); const wrap = bar && bar.querySelector('.xmore-wrap'); if(!wrap) return; [...wrap.querySelector('.xmore').children].forEach(c => bar.insertBefore(c, wrap)); wrap.remove(); }
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-xmore]');
+  document.querySelectorAll('#shead .xmore-wrap.on').forEach(w => { if(!b || w !== b.closest('.xmore-wrap')) w.classList.remove('on'); });
+  if(b){ ev.preventDefault(); ev.stopPropagation(); b.closest('.xmore-wrap').classList.toggle('on'); return; }
+  const inMore = ev.target.closest && ev.target.closest('#shead .xmore');
+  if(inMore) setTimeout(() => document.querySelectorAll('#shead .xmore-wrap.on').forEach(w => w.classList.remove('on')), 50);
+}, true);
+document.addEventListener('keydown', ev => { if(ev.key === 'Escape') document.querySelectorAll('#shead .xmore-wrap.on').forEach(w => w.classList.remove('on')); });
+let t1 = 0;
+function slTop(){ const M = document.getElementById('xMini'); let base = 0, h = 48; if(M){ base = parseFloat(M.style.top || getComputedStyle(M).top) || 0; if(M.offsetHeight) h = M.offsetHeight; } if(!base){ const T = document.querySelector('.top'); if(T) base = T.getBoundingClientRect().bottom; } const v = Math.round(base + h + 12); if(v > 40 && v < 420) root.style.setProperty('--xslTop', v + 'px'); }
+const later = () => { clearTimeout(t1); t1 = setTimeout(() => { try{ slTop(); sortBar(); progTog(); const k = document.querySelector('#kpis .kpi.xprogk'); if(k && localStorage.getItem('seikyu.progOpen') === '1' && !k.classList.contains('xopen')){ k.classList.add('xopen'); progTog(); } }catch(e){} }, 60); };
+const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); later(); return r; };
+if(typeof drawKpis === 'function'){ const _dk = drawKpis; drawKpis = function(){ const r = _dk.apply(this, arguments); later(); return r; }; }
+(function watch(){ const H = document.getElementById('shead'); if(!H){ setTimeout(watch, 600); return; } new MutationObserver(later).observe(H, { childList: true, subtree: true }); })();
+(function watchK(){ const K = document.getElementById('kpis'); if(!K){ setTimeout(watchK, 600); return; } new MutationObserver(later).observe(K, { childList: true }); })();
+window.addEventListener('resize', later);
+new MutationObserver(later).observe(root, { attributes: true, attributeFilter: ['class'] });
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -15609,7 +15713,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 21:04';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 22:56';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
