@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 16:18-->
+<!--BUILD:2026-11-05 16:24-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1935,7 +1935,7 @@ function drawKpis(){
   const T = totals(), m = S.meta;
   const hand = S.lines.filter(l => l.carried || l.edited).length;
   /* 2026-11-05「何で(税抜)消えた？」：大きい数字に（税抜）も。請求しない現場のシステムの分は税込でも外す（前は税込と税抜で＋−が逆になっていた） */
-  const gd = T.gross - num(m.sysNet) - num(m.sysTax) + num(T.noBillG);
+  const gd = T.gross - num(m.sysNet) - num(m.sysTax);
   const diffTxt = T.diff === 0 ? 'システムと同じ' : '税抜 ' + (T.diff > 0 ? '＋' : '−') + yen(Math.abs(T.diff)) + '（手直し・外した現場のぶん）';
   $('#kpis').innerHTML =
     '<div class="kpi"><div class="k">システムの合計（CSV）税込</div><div class="v">' + yen(num(m.sysNet) + num(m.sysTax)) + '</div><div class="s">税抜 ' + yen(m.sysNet) + '（消費税 ' + yen(m.sysTax) + '）</div></div>' +
@@ -2990,7 +2990,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 16:18';
+const BUILD = '2026-11-05 16:24';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -7339,12 +7339,13 @@ drawKpis = function(){
     const tile = [...document.querySelectorAll('#kpis .kpi')].find(k => /システムとの差/.test(k.textContent)); if(!tile) return;
     tile.querySelectorAll('.xdiffp').forEach(x => x.remove());
     let man = 0, n = 0, ed = 0, nb = 0, off = 0;
-    let nbS = 0; S.sheets.forEach(sh => { if(sh.noBill){ nbS++; return; } if(!sh.inKagami){ off += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } const d = diffParts(sh); man += d.manAmt; n += d.manN; ed += d.edAmt; nb += d.nbAmt; });
+    let nbS = 0, nbA = 0; S.sheets.forEach(sh => { if(sh.noBill){ nbS++; nbA += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } if(!sh.inKagami){ off += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } const d = diffParts(sh); man += d.manAmt; n += d.manN; ed += d.edAmt; nb += d.nbAmt; });
     const sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(taxIn(v))) + '<small>（税抜 ' + (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(v)) + '）</small>', parts = [];
     if(n) parts.push('手打ち <b>' + sg(man) + '</b>（' + n + '行）'); if(ed) parts.push('手直し <b>' + sg(ed) + '</b>'); if(nb) parts.push('出さない <b>' + sg(-nb) + '</b>'); if(off) parts.push('鑑から外した現場 <b>' + sg(-off) + '</b>');
     /* 2026-11-05 内わけの合計が上の差と合うように。合わない分は「その他」（消した行・CSVの合計とのずれなど） */
-    { const T = totals(), rest = T.diff - (man + ed - nb - off); if(Math.abs(rest) >= 1) parts.push('その他 <b>' + sg(rest) + '</b>'); }
-    if(nbS) parts.push('<span style="opacity:.75">請求しない現場 ' + nbS + ' は数えない</span>');
+    if(nbA) parts.push('請求しない現場 <b>' + sg(-nbA) + '</b>（' + nbS + '）');
+    { const T = totals(), rest = T.diff - (man + ed - nb - off - nbA); if(Math.abs(rest) >= 1) parts.push('その他 <b>' + sg(rest) + '</b>'); }
+
     if(parts.length) tile.insertAdjacentHTML('beforeend', '<div class="xdiffp" style="margin:4px 0 0">うち（税込）' + parts.join('／') + '</div>');
   }catch(e){}
 };
@@ -14083,7 +14084,7 @@ X.noBill = id => nb(sheetById(id));
 const nbSys = () => S.sheets.filter(nb).reduce((a, s) => { try{ return a + sheetSys(s); }catch(e){ return a; } }, 0);
 /* 全体のシステム差：請求しない現場のシステムの金額は、はじめから請求しないものとして外す */
 if(typeof totals === 'function'){ const _t = totals; totals = function(){ try{ (S.sheets || []).forEach(s => { if(s.noBill && s.inKagami) s.inKagami = false; }); }catch(e){}   /* 請求しないのに鑑に入っていると、差を二重に数えていた */
-  const T = _t.apply(this, arguments); try{ const k = nbSys(); if(k){ T.diff = T.diff + k; T.noBillSys = k; T.noBillG = S.sheets.filter(nb).reduce((a, s) => { try{ const v = sheetSys(s); return a + v + tax(v); }catch(e){ return a; } }, 0); } }catch(e){} return T; }; }
+  const T = _t.apply(this, arguments); try{ const k = nbSys(); if(k){ /* 2026-11-05「余計におかしくなった」：システムとの差は いつも 鑑 − システム（請求しない現場の分も差に入れる。内わけで「請求しない現場」と出す） */ T.noBillSys = k; T.noBillG = S.sheets.filter(nb).reduce((a, s) => { try{ const v = sheetSys(s); return a + v + tax(v); }catch(e){ return a; } }, 0); } }catch(e){} return T; }; }
 /* チェック：請求しない現場の分は出さない */
 if(typeof checks === 'function'){ const _c = checks; checks = function(){ const r = _c.apply(this, arguments); try{ if(!S.sheets.some(nb)) return r; const ids = new Set(S.sheets.filter(nb).map(s => s.id));
   return r.filter(x => !(x && ((x.sh && ids.has(x.sh)) || (x.id && (() => { const l = S.lines.find(z => z.id === x.id); return l && ids.has(l.sheet); })())))); }catch(e){ return r; } }; }
@@ -14987,7 +14988,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 16:18';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 16:24';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
