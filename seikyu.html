@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 15:29-->
+<!--BUILD:2026-11-05 16:03-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2988,7 +2988,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 15:29';
+const BUILD = '2026-11-05 16:03';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -13687,31 +13687,69 @@ document.addEventListener('click', ev => { const b = ev.target.closest && ev.tar
   const e = S.ext = S.ext || {}; e.siteDone = e.siteDone || {}; delete e.siteDone[b.dataset.xunlock]; if(e.seen) delete e.seen[b.dataset.xunlock];
   bypass++; try{ save(); }finally{ bypass--; } drawSites(); toast('ロックを外した（未完了）。直したらもう一度「完了」でロック', 3500); }, true);
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paint(); }catch(e){} return r; };
-/* ---- CSVで更新：ロックした現場の金額が変わるなら聞く ---- */
+/* ---- CSVで更新：ロックした現場の金額が変わるなら聞く ----
+   2026-11-05「勝どきのスマートフォンが400,000→200,000に変わるだけなのに、他のも変わるから更新しますか？が出て、更新しないにしたら何も変わらなかった」
+   ・CSVの中身（システムの金額）が変わっていないロックの現場は、聞かずに前のまま（更新のあとの窓や、版のちがいで計算が変わっても）
+   ・CSVが変わったロックの現場だけ、現場ごとにチェックで聞く（変わった品名と金額つき）。チェックを外した現場だけ前のまま（ロックのまま）
+   ・前は「やめる」で更新ぜんぶを取り消していた → ほかの現場の更新はそのまま */
 const netOfLines = (lines, id) => lines.filter(l => l.sheet === id && !l.nb && !l.head).reduce((a, l) => { try{ return a + lineAmt(l); }catch(e){ return a; } }, 0);
+const sysOfLines = (lines, id) => lines.filter(l => l.sheet === id).reduce((a, l) => { try{ return a + sysAmt(l); }catch(e){ return a; } }, 0);
+const sysByName = (lines, id) => { const m = new Map(); lines.filter(l => l.sheet === id && l.sys && !l.dup).forEach(l => { const k = l.sys.name || l.name; m.set(k, (m.get(k) || 0) + sysAmt(l)); }); return m; };
+function restoreSite(o, sh){
+  const olds = JSON.parse(JSON.stringify(o.lines)).map(l => { l.sheet = sh.id; return l; });
+  const ids = new Set(olds.map(l => l.id));
+  let at = S.lines.findIndex(l => l.sheet === sh.id); if(at < 0) at = S.lines.length;
+  const rest = S.lines.filter(l => l.sheet !== sh.id && !ids.has(l.id));
+  const before = S.lines.slice(0, at).filter(l => l.sheet !== sh.id && !ids.has(l.id)).length;
+  S.lines = rest.slice(0, before).concat(olds, rest.slice(before));
+}
 if(typeof updateFromCsv === 'function'){
   const _u = updateFromCsv;
   updateFromCsv = async function(x){
     let w = null; try{ w = await loadWork(x); }catch(e){}
-    const lockedOld = w && w.ext && w.ext.siteDone ? Object.keys(w.ext.siteDone).filter(id => id !== '__kagami').map(id => { const s = (w.sheets || []).find(z => z.id === id); return s ? { name: s.name, code: s.code, net: netOfLines(w.lines || [], id) } : null; }).filter(Boolean) : [];
+    const lockedOld = w && w.ext && w.ext.siteDone ? Object.keys(w.ext.siteDone).filter(id => id !== '__kagami').map(id => { const s = (w.sheets || []).find(z => z.id === id); return s ? { id, name: s.name, code: s.code, net: netOfLines(w.lines || [], id), sys: sysOfLines(w.lines || [], id), byName: sysByName(w.lines || [], id), lines: (w.lines || []).filter(l => l.sheet === id) } : null; }).filter(Boolean) : [];
     bypass++; let r; try{ r = await _u.apply(this, arguments); }finally{ bypass--; }
     try{
       if(!lockedOld.length || !w) return r;
-      const ch = [];
-      lockedOld.forEach(o => { const sh = S.sheets.find(s => s.name === o.name && String(s.code) === String(o.code)) || S.sheets.find(s => String(s.code) === String(o.code)); if(!sh) return; const n = netOfLines(S.lines, sh.id); if(n !== o.net) ch.push({ o, sh, n }); });
-      if(!ch.length) return r;
-      /* 2026-11-05 更新のあとに出るほかの窓（出さない品・前月とちがう など）と重ならないよう、窓が閉じてから聞く */
-      { let calm = 0; for(let i = 0; i < 300 && calm < 4; i++){ await new Promise(z => setTimeout(z, 200)); calm = document.querySelector('.dlg') ? 0 : calm + 1; } }
-      const v = await askDialog('ロックしている現場の金額が変わります',
-        '完了にしてロックしている現場の金額が、新しいCSVで変わります。<table class="xlog" style="margin-top:8px"><tr><th>現場</th><th class="n">いま</th><th class="n">更新すると</th><th class="n">差</th></tr>' +
-        ch.map(c => '<tr><td>' + esc(c.sh.name) + '</td><td class="n">' + yen(c.o.net) + '</td><td class="n"><b>' + yen(c.n) + '</b></td><td class="n">' + (c.n - c.o.net > 0 ? '+' : '') + yen(c.n - c.o.net) + '</td></tr>').join('') + '</table><p style="margin-top:8px">変わってよければ「更新する」（その現場は未完了にもどる）。やめると、更新する前のままにもどします。</p>',
-        [{ t: '変わってよい・更新する', v: 'ok', primary: true }, { t: '更新をやめる（前のまま）', v: 'no', k: 'N' }]);
-      if(v === 'ok'){ const e = S.ext = S.ext || {}; e.siteDone = e.siteDone || {}; ch.forEach(c => { delete e.siteDone[c.sh.id]; }); bypass++; try{ save(); }finally{ bypass--; } drawSites(); toast(ch.length + ' 現場の金額が変わったので未完了にもどした。見直したらもう一度「完了」', 5000); }
-      else { openWork(w); bypass++; try{ save(); }finally{ bypass--; } toast('更新をやめて、前のままにもどした', 4000); }
+      /* 更新のあとに出るほかの窓（前月の引き継ぎ・出さない品など）が閉じてから見る */
+      { let calm = 0; for(let i = 0; i < 600 && calm < 4; i++){ await new Promise(z => setTimeout(z, 200)); calm = document.querySelector('.dlg') ? 0 : calm + 1; } }
+      const ask = [], keep = [];
+      lockedOld.forEach(o => {
+        const sh = S.sheets.find(s => s.name === o.name && String(s.code) === String(o.code)) || S.sheets.find(s => String(s.code) === String(o.code) && s.code && String(s.code) !== '0'); if(!sh) return;
+        const n = netOfLines(S.lines, sh.id); if(n === o.net) return;
+        const sysNow = sysOfLines(S.lines, sh.id);
+        if(sysNow === o.sys){ keep.push({ o, sh }); return; }          /* CSVは同じ → 聞かずに前のまま */
+        const bn = sysByName(S.lines, sh.id), what = [];
+        new Set([...o.byName.keys(), ...bn.keys()]).forEach(k => { const a = o.byName.get(k) || 0, b = bn.get(k) || 0; if(a !== b) what.push(k + '（' + yen(a) + ' → ' + yen(b) + '）'); });
+        ask.push({ o, sh, n, what });
+      });
+      keep.forEach(c => restoreSite(c.o, c.sh));
+      let upd = [], stay = [];
+      if(ask.length){
+        const v = await askDialog('ロックしている現場の金額が、CSVで変わります',
+          'CSVのシステムの金額が変わった、完了（ロック）の現場です。更新する現場にチェック（未完了にもどる）。チェックを外した現場は前のまま・ロックのまま。<table class="xlog" style="margin-top:8px"><tr><th></th><th>現場</th><th>CSVで変わった品</th><th class="n">いま</th><th class="n">更新すると</th></tr>' +
+          ask.map((c, i) => '<tr><td><input type="checkbox" class="xlkpick" data-i="' + i + '" checked></td><td><b>' + esc(c.sh.name) + '</b></td><td style="font-size:12px">' + esc(c.what.slice(0, 4).join('・') || '―') + (c.what.length > 4 ? ' ほか' + (c.what.length - 4) : '') + '</td><td class="n">' + yen(c.o.net) + '</td><td class="n"><b>' + yen(c.n) + '</b>（' + (c.n - c.o.net > 0 ? '+' : '') + yen(c.n - c.o.net) + '）</td></tr>').join('') + '</table>' +
+          (keep.length ? '<p style="margin-top:8px;opacity:.8">CSVが変わっていないロックの現場（' + esc(keep.map(c => c.sh.name).join('・')) + '）は、前のままにした。</p>' : ''),
+          [{ t: 'チェックした現場を更新する', v: 'ok', primary: true, k: 'Y' }, { t: 'ロックの現場はぜんぶ前のまま', v: 'no', k: 'N' }]);
+        const picked = new Set(window.__xlkPicked || ask.map((c, i) => i)); window.__xlkPicked = null;
+        ask.forEach((c, i) => { if(v === 'ok' && picked.has(i)) upd.push(c); else stay.push(c); });
+        stay.forEach(c => restoreSite(c.o, c.sh));
+        const e = S.ext = S.ext || {}; e.siteDone = e.siteDone || {}; upd.forEach(c => { delete e.siteDone[c.sh.id]; });
+      }
+      if(keep.length || ask.length){
+        bypass++; try{ save(); }finally{ bypass--; } drawSites();
+        const m = [];
+        if(upd.length) m.push(upd.map(c => c.sh.name).join('・') + ' を更新して未完了にもどした');
+        if(stay.length) m.push(stay.map(c => c.sh.name).join('・') + ' は前のまま（ロック）');
+        if(keep.length) m.push('CSVが同じロックの現場 ' + keep.length + ' は前のまま');
+        toast(m.join('。') + '。ほかの現場は更新した', 6000);
+      }
     }catch(e){ console.warn(e); }
     return r;
   };
 }
+/* 窓のチェックをおぼえる（askDialog は押したボタンしか返さないので） */
+document.addEventListener('change', ev => { const t = ev.target; if(!t || !t.classList || !t.classList.contains('xlkpick')) return; window.__xlkPicked = [...document.querySelectorAll('.xlkpick')].filter(c => c.checked).map(c => +c.dataset.i); }, true);
 const css = document.createElement('style');
 css.textContent = '.xlockbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 10px;padding:9px 14px;border-radius:12px;background:rgba(46,139,87,.14);border:1.5px solid rgba(46,139,87,.55);font-size:13px}.xlockbar b{color:#2E8B57;font-size:14px}.xlockbar span{opacity:.8}.xlockbar .btn{margin-left:auto}' +
   '#siteBody.xsitelock table.ln input.e, #siteBody.xsitelock table.ln select{pointer-events:none;opacity:.75}#siteBody.xsitelock table.ln .lnbtn button, #siteBody.xsitelock table.ln .lnbtn select, #siteBody.xsitelock .xgrip{opacity:.3;pointer-events:none}#siteBody.xsitelock #addLine, #siteBody.xsitelock #addAdj, #siteBody.xsitelock #addHead{opacity:.35;pointer-events:none}';
@@ -14937,7 +14975,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 15:29';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 16:03';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
