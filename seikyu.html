@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 11:48-->
+<!--BUILD:2026-11-05 13:43-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2988,7 +2988,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 11:48';
+const BUILD = '2026-11-05 13:43';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -11477,7 +11477,7 @@ function paint(){
     const bh = Math.round(b.getBoundingClientRect().height); if(bh && sec.style.paddingTop !== bh + 'px') sec.style.paddingTop = bh + 'px';
   }catch(e){}
 }
-let t = 0; const later = () => { if(t) return; t = requestAnimationFrame(() => { t = 0; paint(); }); };
+let t = 0; const later = () => { if(t) return; t = requestAnimationFrame(() => { t = 0; paint(); }); }; window.seikyuExt.miniPaint = later;
 window.addEventListener('scroll', later, { passive: true }); document.addEventListener('scroll', later, { passive: true, capture: true }); window.addEventListener('resize', later);
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); later(); return r; };
 const _st = setTab; setTab = function(){ const r = _st.apply(this, arguments); later(); return r; };
@@ -14264,6 +14264,68 @@ checks = function(){
 const ob = X.checksBump; X.checksBump = () => { bump(); if(ob) ob(); };
 })();
 
+/* 請求ナビ Web：数字を直したときは、その行だけ書きかえる（ext3p.js）
+   2026-11-05「重くなってきたから軽くして」→「（行だけ書きかえる作り）お願い」
+   ・数量・日数・サポート日数・単価（賃貸・サポート・基本料）・品名・開始・終了 を直したときは、表を全部作り直さず
+     その行の欄・金額と、上の合計・一覧のその現場・数字のタイルだけ書きかえる（築地で 0.5秒 → ほぼ一瞬）
+   ・行の注意書き（前月は○○ など）や見出しの小計は、表から出たとき（ほかを押した・1.5秒さわらない）にまとめて描き直す
+   ・区分・返却・貸出日・伝票・管理・出す出さない・行の移動・足す・消す は今までどおり全部描き直す */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const LIGHT = new Set(['qty', 'days', 'sdays', 'lu', 'su', 'bu', 'name', 'start', 'end']);
+let dirty = false, idleT = 0;
+function inTable(el){ return !!(el && el.closest && el.closest('#siteBody table.ln')); }
+function full(){ dirty = false; clearTimeout(idleT); try{ drawSites(); }catch(e){ console.warn(e); } }
+function later(){ clearTimeout(idleT); idleT = setTimeout(() => { if(!dirty) return; if(inTable(document.activeElement)) { later(); return; } full(); }, 1500); }
+function light(tr, l){
+  const sh = sheetById(l.sheet); if(!sh || sh.id !== S.cur) return false;
+  const ls = linesOf(sh), i = ls.indexOf(l); if(i < 0) return false;
+  const others = S.sheets.filter(s => s.id !== sh.id);
+  const tb = document.createElement('tbody'); tb.innerHTML = lineRow(l, i, others); const nt = tb.firstElementChild; if(!nt) return false;
+  if(nt.cells.length !== tr.cells.length || nt.cells.length < 10) return false;
+  /* 欄の値と「CSVとちがう」の色 */
+  nt.querySelectorAll('input[data-f], select[data-f]').forEach(n => {
+    const o = tr.querySelector((n.tagName === 'SELECT' ? 'select' : 'input') + '[data-f="' + n.dataset.f + '"]'); if(!o) return;
+    if(o !== document.activeElement && o.value !== n.value) o.value = n.value;
+    o.classList.toggle('chg', n.classList.contains('chg'));
+  });
+  /* 金額の欄 */
+  const amtN = nt.cells[8], amtO = tr.cells[8]; if(amtN && amtO && amtO.innerHTML !== amtN.innerHTML) amtO.innerHTML = amtN.innerHTML;
+  /* 行の色（手直し・手入力など）。x… と bksel はほかの機能の印なので残す */
+  const keep = [...tr.classList].filter(c => /^x|^bksel$/.test(c)); tr.className = nt.className; keep.forEach(c => tr.classList.add(c));
+  /* 上の合計 */
+  const net = sheetNet(sh); let sys = 0; try{ sys = sheetSys(sh); }catch(e){}
+  const tot = document.querySelector('#shead .tot');
+  if(tot) tot.innerHTML = '<span class="muted">今回 税込</span><b>' + yen(net + tax(net)) + '</b><span class="muted">（税抜 ' + yen(net) + '・消費税 ' + yen(tax(net)) + '）</span><span class="muted">システム（CSV）</span><span>' + yti(sys) + '</span><span class="muted">差</span><span>' + (net - sys ? yti(net - sys, true) : '0') + '</span>';
+  /* 一覧のこの現場 */
+  const card = document.querySelector('#siteList .site[data-id="' + sh.id + '"]');
+  if(card){ const t2 = card.querySelector('.t span:last-child'); if(t2) t2.innerHTML = ytiH(net);
+    if(!sh.noBill) card.querySelectorAll('.b > span:not(.tag)').forEach(s => { if(/^(システム差|システムどおり)/.test(s.textContent.trim())) s.innerHTML = (net - sys) ? 'システム差 ' + yti(net - sys, true) : 'システムどおり'; }); }
+  try{ drawHead(); }catch(e){} try{ drawKpis(); }catch(e){}
+  try{ if(X.miniPaint) X.miniPaint(); }catch(e){}   /* 上の細い帯（税込・システム差） */
+  try{ if(X.selHint) X.selHint(); }catch(e){}
+  return true;
+}
+if(typeof onLineInput === 'function'){
+  const _oli = onLineInput;
+  onLineInput = function(ev){
+    const t = ev && ev.target, f = t && t.dataset && t.dataset.f, tr = t && t.closest && t.closest('tr[data-id]');
+    if(!ev || ev.type !== 'change' || !LIGHT.has(f) || !tr || S.tab !== 'sites' || !inTable(t)) return _oli.apply(this, arguments);
+    const l = S.lines.find(x => x.id === tr.dataset.id); if(!l || l.head) return _oli.apply(this, arguments);
+    const real = window.drawSites; let asked = false;
+    window.drawSites = function(){ asked = true; };
+    let r; try{ r = _oli.apply(this, arguments); }finally{ window.drawSites = real; }
+    if(asked){ let ok = false; try{ ok = light(tr, l); }catch(e){ console.warn(e); } if(ok){ dirty = true; later(); } else full(); }
+    return r;
+  };
+}
+/* 表から出たら（表の外を押した・ほかのところに入った）まとめて描き直す */
+document.addEventListener('focusout', ev => { if(!dirty) return; const to = ev.relatedTarget; if(to && inTable(to)) return; setTimeout(() => { if(dirty && !inTable(document.activeElement)) full(); }, 250); }, true);   /* Tab で次の欄へ移るとき（いったん blur）を待つ */
+/* ほかのところで描き直したら、まとめての描き直しはいらない */
+const _ds = drawSites; drawSites = function(){ dirty = false; clearTimeout(idleT); return _ds.apply(this, arguments); };
+X.lightFlush = () => { if(dirty) full(); };
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -14769,7 +14831,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 11:48';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 13:43';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -15805,7 +15867,7 @@ function scan(r){
   if(!r || !r.querySelectorAll || inPaper(r)) return;
   try{
     /* L20 小さいボタンの押せる範囲 */
-    var bs = r.matches && r.matches(HIT_SEL) ? [r] : []; bs = bs.concat(Array.prototype.slice.call(r.querySelectorAll(HIT_SEL))); bs = bs.filter(function(b){ return !(b.closest && b.closest('table.ln tbody, #spvBody, .xp, .pp')); });   /* 2026-11-04 軽く：明細の行ボタン（数百個）は測らない */
+    var bs = r.matches && r.matches(HIT_SEL) ? [r] : []; bs = bs.concat(Array.prototype.slice.call(r.querySelectorAll(HIT_SEL))); bs = bs.filter(function(b){ return !(b.closest && b.closest('table.ln tbody, #spvBody, .xp, .pp, #kpis, #siteList')); });   /* 2026-11-05 数字のタイル・現場の一覧は描き直しが多いので測らない */   /* 2026-11-04 軽く：明細の行ボタン（数百個）は測らない */
     if(bs.length < 400) requestAnimationFrame(function(){ bs.forEach(function(b){ if(b.__lxh || inPaper(b)) return; b.__lxh = 1; var rc = b.getBoundingClientRect(); if(!rc.width || (rc.width >= 34 && rc.height >= 30)) return; var cs = getComputedStyle(b, '::after'); if(cs && cs.content && cs.content !== 'none') return; if(getComputedStyle(b).position === 'static') b.classList.add('lx-hit'); else { b.classList.add('lx-hit'); } }); });
     /* L100 アイコンだけのボタンに名前 */
     r.querySelectorAll('button:not([aria-label])').forEach(function(b){ var t = String(b.textContent || '').trim(); if((!t || t.length <= 1) && b.title) b.setAttribute('aria-label', b.title); });
