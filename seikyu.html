@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 11:17-->
+<!--BUILD:2026-11-05 11:48-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -745,6 +745,8 @@ const XR = (function(){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 "use strict";
+/* 2026-11-05 軽く：動きをやり直すときに画面全体の計算（offsetWidth）をさせない。2コマあとにクラスをつける */
+window.__raf2 = f => requestAnimationFrame(() => requestAnimationFrame(f));
 /* ====================== 小さな道具 ====================== */
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -2986,7 +2988,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 11:17';
+const BUILD = '2026-11-05 11:48';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6032,7 +6034,7 @@ drawChecks = function(){
   toast = function(m, ms){ const t = $('#toast'); t.classList.remove('out'); t.textContent = m; t.hidden = false; clearTimeout(window.__toastT); window.__toastT = setTimeout(() => { t.classList.add('out'); setTimeout(() => { t.hidden = true; t.classList.remove('out'); }, 180); }, ms || 2600); };
   /* 保存の印：保存するたびに点がぴょこっと */
   const _ss = showSaveSt;
-  showSaveSt = function(t, bad){ _ss(t, bad); const e = $('#saveSt'); if(!e) return; e.classList.remove('tick'); void e.offsetWidth; e.classList.add('tick'); };
+  showSaveSt = function(t, bad){ _ss(t, bad); const e = $('#saveSt'); if(!e) return; e.classList.remove('tick'); __raf2(() => e.classList.add('tick')); };
   /* 数字のタイル：値が変わったら数字が転がる */
   /* 数字の文字を1つの文字ノードにまとめる（見た目の部品がカンマを別の部品に分けていても、数字が二重にならないように） */
   const flatNum = el => { const ns = []; for(const n of Array.from(el.childNodes)){ if(n.nodeType === 3 || (n.nodeType === 1 && n.classList && (n.classList.contains('lx-comma') || n.classList.contains('lx-yen')))) ns.push(n); else break; }
@@ -6062,7 +6064,15 @@ drawChecks = function(){
     if(!vt){ _ds(); stagger(); return; }
     document.startViewTransition(() => { _ds(); stagger(); });
   };
-  const stagger = () => { $$('#siteList .site').forEach((b, i) => { b.style.animationDelay = Math.min(i * 28, 400) + 'ms'; b.classList.add('in'); }); };
+  /* 2026-11-05「重くなってきた」：一覧が同じなら、描き直すたびに全部の現場をふわっと出し直さない（毎回 26 個の動き＋影の変化で重かった）。
+     明細の行の出てくる動きも、現場を切りかえたときだけ */
+  let lastSig = '', lastCurA = null;
+  const stagger = () => { const L = $('#siteList'), B = $('#siteBody'); const sig = S.sheets.map(s => s.id).join();
+    const same = sig === lastSig; lastSig = sig; if(L) L.classList.toggle('xnoanim', same);
+    if(B){ B.classList.toggle('xnoanim', lastCurA === S.cur); lastCurA = S.cur; }
+    if(same) return;
+    $$('#siteList .site').forEach((b, i) => { b.style.animationDelay = Math.min(i * 28, 400) + 'ms'; b.classList.add('in'); }); };
+  { const st = document.createElement('style'); st.textContent = '#siteList.xnoanim .site{opacity:1;transform:none;animation:none!important;transition:none!important}#siteBody.xnoanim > .card,#siteBody.xnoanim table.ln .why,#siteBody.xnoanim table.ln .sub{animation:none!important}'; document.head.appendChild(st); }
   /* チェック：直した・このままでいい で、消える行がすっと抜けて下が詰まる */
   const _dc = drawChecks;
   let vtBusy = false;
@@ -6076,7 +6086,7 @@ drawChecks = function(){
   /* 明細：金額が変わった行の金額がぽんと */
   let before = null;
   $('#siteBody').addEventListener('change', ev => { const tr = ev.target.closest && ev.target.closest('tr[data-id]'); if(!tr) return; const l = S.lines.find(x => x.id === tr.dataset.id); before = l ? { id: l.id, amt: lineAmt(l), sh: sheetNet(sheetById(l.sheet)) } : null;
-    setTimeout(() => { if(!before) return; const l2 = S.lines.find(x => x.id === before.id); const tr2 = $('tr[data-id="' + before.id + '"]'); if(l2 && tr2 && lineAmt(l2) !== before.amt){ const td = tr2.children[8]; if(td){ td.classList.remove('amt-pop'); void td.offsetWidth; td.classList.add('amt-pop'); } const tb = $('#shead .tot b'); if(tb){ tb.classList.remove('amt-pop'); void tb.offsetWidth; tb.classList.add('amt-pop'); } } before = null; }, 60); }, true);
+    setTimeout(() => { if(!before) return; const l2 = S.lines.find(x => x.id === before.id); const tr2 = $('tr[data-id="' + before.id + '"]'); if(l2 && tr2 && lineAmt(l2) !== before.amt){ const td = tr2.children[8]; if(td){ td.classList.remove('amt-pop'); __raf2(() => td.classList.add('amt-pop')); } const tb = $('#shead .tot b'); if(tb){ tb.classList.remove('amt-pop'); __raf2(() => tb.classList.add('amt-pop')); } } before = null; }, 60); }, true);
   /* ボタン：押した所から波紋 */
   document.addEventListener('pointerdown', ev => { const b = ev.target.closest('.btn, .tabs button, .site'); if(!b || reduce()) return; const r = b.getBoundingClientRect(); const s = document.createElement('span'); s.className = 'ripple'; const d = Math.max(r.width, r.height) * 1.6; s.style.cssText = 'width:' + d + 'px;height:' + d + 'px;left:' + (ev.clientX - r.left - d / 2) + 'px;top:' + (ev.clientY - r.top - d / 2) + 'px'; b.appendChild(s); setTimeout(() => s.remove(), 520); }, true);
 })();
@@ -6135,7 +6145,7 @@ drawChecks = function(){
   /* プレビューの 前・次：紙が横に流れる */
   let pvDir = 0;
   const _step = stepSitePv; stepSitePv = function(d){ pvDir = d; _step(d); pvDir = 0; };
-  const _sp = sitePreview; sitePreview = function(all){ _sp(all); const B = $('#spvBody'); if(B && pvDir){ B.classList.remove('fl', 'fr'); void B.offsetWidth; B.classList.add(pvDir > 0 ? 'fl' : 'fr'); } };
+  const _sp = sitePreview; sitePreview = function(all){ _sp(all); const B = $('#spvBody'); if(B && pvDir){ B.classList.remove('fl', 'fr'); __raf2(() => B.classList.add(pvDir > 0 ? 'fl' : 'fr')); } };
   /* 次の要確認へ：その行にスポットライト */
   new MutationObserver(ms => { ms.forEach(m => { const tr = m.target; if(tr.classList && tr.classList.contains('flash') && !tr.classList.contains('spot')){ tr.classList.add('spot'); setTimeout(() => tr.classList.remove('spot'), 1600); } }); }).observe($('#siteBody'), { attributes: true, attributeFilter: ['class'], subtree: true });
   /* 行を足した・消した：行がすっと入る・抜ける（対応ブラウザ） */
@@ -6205,7 +6215,7 @@ drawChecks = function(){
     if(/を消した。/.test(String(m))){ t.textContent = String(m).replace(/。.*$/, ''); const b = document.createElement('button'); b.className = 'xtoastbtn'; b.type = 'button'; b.textContent = '↶ もどす'; b.onclick = () => { undo(); t.hidden = true; }; t.appendChild(b); clearTimeout(window.__toastT); window.__toastT = setTimeout(() => { t.classList.add('out'); setTimeout(() => { t.hidden = true; t.classList.remove('out'); }, 180); }, 6000); }
   };
   /* 明るい／暗いのボタン：押すとくるっと */
-  document.addEventListener('click', ev => { const b = ev.target.closest('#btnTheme'); if(!b) return; b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); }, true);
+  document.addEventListener('click', ev => { const b = ev.target.closest('#btnTheme'); if(!b) return; b.classList.remove('spin'); __raf2(() => b.classList.add('spin')); }, true);
 })();
 /* ------------------------------------------------------------------
    N96：CSVを入れたら、どの得意先・どの締めの分かを見て「これを更新します。いいですか？」と聞く
@@ -6346,8 +6356,8 @@ drawChecks = function(){
     const pr = _tk(f);   /* 読めたかは状態の文字で見る（N96 の「更新します？」が閉じるのを待たない） */
     for(let i = 0; i < 60; i++){ await new Promise(r => setTimeout(r, 50)); if(($('#stCsv') || {}).textContent !== st0) break; }
     const d = $('#dropCsv'); if(!d) return pr;
-    if(/^✓/.test($('#stCsv').textContent || '')){ d.classList.remove('got'); void d.offsetWidth; d.classList.add('got'); const b = $('#btnBuild'); if(b && !b.disabled){ b.classList.remove('ready'); void b.offsetWidth; b.classList.add('ready'); setTimeout(() => b.classList.remove('ready'), 1800); } }
-    else { d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake'); setTimeout(() => d.classList.remove('shake'), 500); }
+    if(/^✓/.test($('#stCsv').textContent || '')){ d.classList.remove('got'); __raf2(() => d.classList.add('got')); const b = $('#btnBuild'); if(b && !b.disabled){ b.classList.remove('ready'); __raf2(() => b.classList.add('ready')); setTimeout(() => b.classList.remove('ready'), 1800); } }
+    else { d.classList.remove('shake'); __raf2(() => d.classList.add('shake')); setTimeout(() => d.classList.remove('shake'), 500); }
     return pr;
   };
   /* 6) 明細を直したら、現場の合計が前の値から転がる・差額がふわっと浮かぶ */
@@ -6367,7 +6377,7 @@ drawChecks = function(){
   }, true);
   /* 7) トースト：残り時間の細い線 */
   const _tt = toast;
-  toast = function(m, ms){ _tt(m, ms); const t = $('#toast'); if(!t) return; const d = t.querySelector('.xtoastbtn') ? 6000 : (ms || 2600); t.style.setProperty('--dur', d + 'ms'); t.classList.remove('bar'); void t.offsetWidth; t.classList.add('bar'); };
+  toast = function(m, ms){ _tt(m, ms); const t = $('#toast'); if(!t) return; const d = t.querySelector('.xtoastbtn') ? 6000 : (ms || 2600); t.style.setProperty('--dur', d + 'ms'); t.classList.remove('bar'); __raf2(() => t.classList.add('bar')); };
   /* 8) タブの件数の札：数が変わったら転がる */
   const cntObs = new MutationObserver(() => {
     $$('.tabs .cnt').forEach(c => { if(c.__rolling) return; const v = numOf(c.textContent); if(isNaN(v)) return; const old = c.dataset.v == null ? NaN : +c.dataset.v; c.dataset.v = v; if(isNaN(old) || old === v || reduce() || !c.firstChild || c.firstChild.nodeType !== 3) return;
@@ -6376,7 +6386,7 @@ drawChecks = function(){
   if(tabs) cntObs.observe(tabs, { childList: true, subtree: true, characterData: true });
   /* 9) クラウドに送れたら、保存の印に「☁ クラウドにも」がすっと出る */
   const _pc = pushCloud;
-  pushCloud = async function(){ const n0 = pendList().length; const r = await _pc.apply(this, arguments); if(n0 && !pendList().length && !cloudErr){ const e = $('#saveSt'); if(e){ e.classList.remove('cloud'); void e.offsetWidth; e.classList.add('cloud'); setTimeout(() => e.classList.remove('cloud'), 2400); } } return r; };
+  pushCloud = async function(){ const n0 = pendList().length; const r = await _pc.apply(this, arguments); if(n0 && !pendList().length && !cloudErr){ const e = $('#saveSt'); if(e){ e.classList.remove('cloud'); __raf2(() => e.classList.add('cloud')); setTimeout(() => e.classList.remove('cloud'), 2400); } } return r; };
   /* 10) 作業のカード・数字のタイル：PCでなぞると、ほんの少し傾く */
   if(window.matchMedia && window.matchMedia('(hover:hover)').matches){
     document.addEventListener('pointermove', ev => { const c = ev.target.closest && ev.target.closest('.wc, .kpi'); if(!c || reduce() || ev.pointerType === 'touch') return; const r = c.getBoundingClientRect(); const x = (ev.clientX - r.left) / r.width - .5, y = (ev.clientY - r.top) / r.height - .5; c.style.setProperty('--rx', (-y * 2.2).toFixed(2) + 'deg'); c.style.setProperty('--ry', (x * 2.2).toFixed(2) + 'deg'); c.classList.add('tilt'); });
@@ -7130,7 +7140,7 @@ async function kindOf(f){
 }
 /* 欄の下に出す一言（トーストは画面の下で見落としやすいので、ボタンの横にも出す） */
 function say(t, bad){ document.querySelectorAll('[data-x3="msg"]').forEach(e => { e.textContent = t; e.style.color = bad ? 'var(--ng,#E5484D)' : ''; e.style.fontWeight = bad ? '700' : ''; }); }
-function nudgeChk(){ document.querySelectorAll('[data-x3="chk"]').forEach(i => { const l = i.closest('label'); if(!l) return; l.classList.remove('x3nudge'); void l.offsetWidth; l.classList.add('x3nudge'); setTimeout(() => l.classList.remove('x3nudge'), 2400); }); }
+function nudgeChk(){ document.querySelectorAll('[data-x3="chk"]').forEach(i => { const l = i.closest('label'); if(!l) return; l.classList.remove('x3nudge'); __raf2(() => l.classList.add('x3nudge')); setTimeout(() => l.classList.remove('x3nudge'), 2400); }); }
 let pendUnk = [];
 let adding = null;
 function addFiles(files, hint){ const pr = (adding || Promise.resolve()).then(() => addFiles0(files, hint)).catch(e => { console.error(e); say('PDFを入れられなかった：' + (e && e.message || e), true); }); adding = pr; pr.then(() => { if(adding === pr) adding = null; }); return pr; }
@@ -7296,7 +7306,7 @@ function siteChecks(){
     + (mine.length ? '<ul>' + mine.map(x => '<li data-id="' + esc(x.id || '') + '"><span class="tag ' + (x.never ? 'ng' : x.lv === 'warn' ? 'ng' : '') + '">' + (x.never ? '絶対ダメ' : x.lv === 'warn' ? '要確認' : '気になる') + '</span><span>' + esc(x.t) + (x.s ? '<br><span class="s">' + esc(x.s) + '</span>' : '') + '</span></li>').join('') + '</ul>' : '');
   head.appendChild(d);
   d.addEventListener('toggle', () => { openSite[S.cur] = d.open; });
-  d.onclick = ev => { const li = ev.target.closest('li[data-id]'); if(!li || !li.dataset.id) return; const tr = document.querySelector('tr[data-id="' + li.dataset.id + '"]'); if(tr){ tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); } };
+  d.onclick = ev => { const li = ev.target.closest('li[data-id]'); if(!li || !li.dataset.id) return; const tr = document.querySelector('tr[data-id="' + li.dataset.id + '"]'); if(tr){ tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); tr.classList.remove('flash'); __raf2(() => tr.classList.add('flash')); } };
 }
 /* ---- 現場の合計：システムとの差の内わけ（手打ちでいくら増えたか・手直し・出さない） ---- */
 function diffParts(sh){
@@ -7975,7 +7985,7 @@ function goLine(id, keepDock){
   setTimeout(() => {
     const tr = document.querySelector('#siteBody tr[data-id="' + id + '"]'); if(!tr) return;
     tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    tr.classList.remove('flash', 'xgo'); void tr.offsetWidth; tr.classList.add('flash', 'xgo');
+    tr.classList.remove('flash', 'xgo'); __raf2(() => tr.classList.add('flash', 'xgo'));
     setTimeout(() => tr.classList.remove('xgo'), 2600);
   }, 80);
 }
@@ -9012,7 +9022,7 @@ function afterMark(B, sheets){
     const bar = document.querySelector('#sitePv .spv-bar'); if(!bar) return;
     let t = document.getElementById('spvDiff');
     if(!t){ t = document.createElement('button'); t.type = 'button'; t.id = 'spvDiff'; t.className = 'xpvdiff'; const ref = document.getElementById('spvMk') || document.getElementById('spvSk') || document.getElementById('spvSw') || document.getElementById('spvT'); ref.insertAdjacentElement('afterend', t);
-      t.addEventListener('click', ev => { ev.stopPropagation(); const one = document.querySelector('#spvBody .xsysd:not(.ok)') || document.querySelector('#spvBody .xsysd'); if(one && !ev.shiftKey){ one.scrollIntoView({ block: 'center', behavior: 'smooth' }); one.classList.remove('xsd-fl'); void one.offsetWidth; one.classList.add('xsd-fl'); } }); }
+      t.addEventListener('click', ev => { ev.stopPropagation(); const one = document.querySelector('#spvBody .xsysd:not(.ok)') || document.querySelector('#spvBody .xsysd'); if(one && !ev.shiftKey){ one.scrollIntoView({ block: 'center', behavior: 'smooth' }); one.classList.remove('xsd-fl'); __raf2(() => one.classList.add('xsd-fl')); } }); }
     const d = sheets.reduce((a, sh) => a + sheetNet(sh) - sheetSys(sh), 0);
     t.innerHTML = 'システムとのずれ <b>' + (d ? sg(d) : 'なし ✓') + '</b>'; t.classList.toggle('ok', !d);
     t.title = 'Web の税抜 − システム（CSV）。押すと請求書の下の内わけへ';
@@ -9031,7 +9041,7 @@ document.addEventListener('click', ev => {
   if(b){
     if(!docked && typeof closeSitePv === 'function') closeSitePv();
     S.cur = b.dataset.sh; if(S.tab !== 'sites') setTab('sites'); else drawSites();
-    setTimeout(() => { const t = document.querySelector('#shead .tot'); if(!t) return; t.scrollIntoView({ block: 'center', behavior: 'smooth' }); t.classList.remove('xsd-fl'); void t.offsetWidth; t.classList.add('xsd-fl'); }, 120);
+    setTimeout(() => { const t = document.querySelector('#shead .tot'); if(!t) return; t.scrollIntoView({ block: 'center', behavior: 'smooth' }); t.classList.remove('xsd-fl'); __raf2(() => t.classList.add('xsd-fl')); }, 120);
   }
 }, true);
 const st = document.createElement('style');
@@ -9275,7 +9285,7 @@ function siteHead(){
 function stepSite(d){
   const i = S.sheets.findIndex(s => s.id === S.cur), j = i + d; if(j < 0 || j >= S.sheets.length) return false;
   S.cur = S.sheets[j].id; buzz(); drawSites();
-  const B = document.getElementById('siteBody'); if(B){ B.classList.remove('xslide-l', 'xslide-r'); void B.offsetWidth; B.classList.add(d > 0 ? 'xslide-l' : 'xslide-r'); }
+  const B = document.getElementById('siteBody'); if(B){ B.classList.remove('xslide-l', 'xslide-r'); __raf2(() => B.classList.add(d > 0 ? 'xslide-l' : 'xslide-r')); }
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' }); return true;
 }
 function openSiteList(){
@@ -9480,7 +9490,7 @@ function clickAct(id, a){
   const b = document.querySelector('#siteBody tr[data-id="' + id + '"] [data-act="' + a + '"]');
   if(b){ b.click(); setTimeout(() => flashRow(id), 120); } else toast('この行ではできない', 2000);
 }
-function flashRow(id){ const tr = document.querySelector('#siteBody tr[data-id="' + id + '"]'); if(tr){ tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); } }
+function flashRow(id){ const tr = document.querySelector('#siteBody tr[data-id="' + id + '"]'); if(tr){ tr.classList.remove('flash'); __raf2(() => tr.classList.add('flash')); } }
 X.lineSheet = lineSheet;
 /* 押す・長押し（スマホ） */
 let lp = null, lpMoved = false, lpFired = false;
@@ -10265,7 +10275,7 @@ const lidAt = (pg, x, y) => { let hit = null; pg.querySelectorAll('.xlid').forEa
 const back = document.createElement('div'); back.id = 'xPvBack'; back.hidden = true;
 back.innerHTML = '<button type="button" class="xpb-go">‹ プレビューにもどる</button><button type="button" class="xpb-x" aria-label="閉じる">✕</button>';
 (document.body || root).appendChild(back);
-function showBack(st){ backSt = st; back.hidden = false; back.classList.remove('in'); void back.offsetWidth; back.classList.add('in'); }
+function showBack(st){ backSt = st; back.hidden = false; back.classList.remove('in'); __raf2(() => back.classList.add('in')); }
 function hideBack(){ back.hidden = true; backSt = null; }
 back.addEventListener('click', ev => {
   if(ev.target.closest('.xpb-x')){ hideBack(); return; }
@@ -10282,7 +10292,7 @@ function goBack(st){
   const put = () => { const Bd = document.getElementById('spvBody'); if(!Bd) return;
     const m = st.lid && (st.li && Bd.querySelector('.xsysd li[data-lid="' + st.lid + '"]') || Bd.querySelector('.xlid[data-lid="' + st.lid + '"]'));
     if(m){ const r = m.getBoundingClientRect(), br = Bd.getBoundingClientRect(); Bd.scrollTop += (r.top - br.top) - (Bd.clientHeight / 2 - r.height / 2);
-      m.classList.remove('xpb-fl'); void m.offsetWidth; m.classList.add('xpb-fl'); setTimeout(() => m.classList.remove('xpb-fl'), 2200); }
+      m.classList.remove('xpb-fl'); __raf2(() => m.classList.add('xpb-fl')); setTimeout(() => m.classList.remove('xpb-fl'), 2200); }
     else Bd.scrollTop = st.top; };
   requestAnimationFrame(put); setTimeout(put, 250);
 }
@@ -13054,7 +13064,7 @@ function pick(i){
   /* 入力欄に名前を入れてから離す（離したときの change で打ちかけの字にもどらないように） */
   try{ c.inp.value = e.name; c.inp.blur(); }catch(err){}
   save(); drawSites();
-  setTimeout(() => { const tr = document.querySelector('#siteBody tr[data-id="' + l.id + '"]'); if(!tr) return; tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); const q = tr.querySelector('[data-f="qty"]'); if(q && !matchMedia('(pointer: coarse)').matches){ try{ q.focus(); q.select(); }catch(err){} } }, 40);
+  setTimeout(() => { const tr = document.querySelector('#siteBody tr[data-id="' + l.id + '"]'); if(!tr) return; tr.classList.remove('flash'); __raf2(() => tr.classList.add('flash')); const q = tr.querySelector('[data-f="qty"]'); if(q && !matchMedia('(pointer: coarse)').matches){ try{ q.focus(); q.select(); }catch(err){} } }, 40);
   toast('「' + e.name + '」' + (e.kb ? '（' + e.kb + '）' : '') + 'を入れた。数量・期間をたしかめてね（↶ でもどせる）', 2600);
 }
 /* どの欄で出すか */
@@ -13214,7 +13224,7 @@ function addItem(nm, from, opt){
   const ref = ls[at]; if(ref) S.lines.splice(S.lines.indexOf(ref) + 1, 0, l); else S.lines.push(l);
   if(from && opt.learn !== false) togSet(from.name, l.name, 'add', kb);
   save(); drawSites();
-  setTimeout(() => { const tr = document.querySelector('#siteBody tr[data-id="' + l.id + '"]'); if(tr){ tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); } }, 40);
+  setTimeout(() => { const tr = document.querySelector('#siteBody tr[data-id="' + l.id + '"]'); if(tr){ tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); tr.classList.remove('flash'); __raf2(() => tr.classList.add('flash')); } }, 40);
   toast('「' + l.name.slice(0, 20) + '」を足した' + (e ? '（' + kb + (e.lu || e.bu ? '・' + yen(e.lu || e.bu) : '') + '）' : '（単価は入れてね）') + '。↶ でもどせる', 3200);
 }
 X.togPick = e => { const ps = parents(), sel = document.getElementById('xTogOya'), reg = document.getElementById('xTogReg');
@@ -13959,7 +13969,12 @@ document.head.appendChild(css);
    ・Esc で閉じない窓（まとめてOK・見積から請求書）→ Esc でいちばん上の窓だけ閉じる（下のプレビューまでは閉じない） */
 (function(){
 const css = document.createElement('style');
-css.textContent = '[hidden]{display:none!important}@media print{.xsys .xsb.oa{left:13.72pt!important;top:7.68pt!important}.xsys .xsb.ob{left:13.72pt!important;top:12.18pt!important}}';
+/* 2026-11-05「プレビューですごい左によってるけど大丈夫？」：画面（プレビュー・印刷の画面）は余白をそろえて見やすく。
+   PDFにするとき（#print を画面のまま測る）は本物と同じ左上ぴったり。紙に印刷するときは余白あり */
+css.textContent = '[hidden]{display:none!important}' +
+  '.xsys .xsb.oa{left:13.72pt!important;top:7.68pt!important}.xsys .xsb.ob{left:13.72pt!important;top:12.18pt!important}' +
+  '#print .xsys .xsb,#xPdfVec .xsys .xsb{left:0!important;top:0!important}' +
+  '@media print{#print .xsys .xsb.oa,.xsys .xsb.oa{left:13.72pt!important;top:7.68pt!important}#print .xsys .xsb.ob,.xsys .xsb.ob{left:13.72pt!important;top:12.18pt!important}}';
 document.head.appendChild(css);
 document.addEventListener('keydown', ev => {
   if(ev.key !== 'Escape' || ev.isComposing) return;
@@ -13988,6 +14003,7 @@ function once(){
 if(typeof build === 'function'){ const _b = build; build = function(){ const r = _b.apply(this, arguments); try{ if(S.ext) delete S.ext.codeOrd; once(); }catch(x){ console.warn(x); } return r; }; }
 if(typeof openWork === 'function'){ const _o = openWork; openWork = function(){ const r = _o.apply(this, arguments); const go = () => { try{ once(); }catch(x){ console.warn(x); } }; if(r && typeof r.then === 'function') r.then(() => setTimeout(go, 120)); else setTimeout(go, 120); return r; }; }
 })();
+/* （2026-11-05 表の列の幅を決める案は、せまい画面で品名の欄がつぶれたのでやめた） */
 
 /* 請求ナビ Web：この現場は請求しない（ext3k.js）
    2026-11-05「この現場は請求しない みたいなボタンが欲しい」（三貴 神田通信機㈱：行を全部 ② に移して、残りは出さない行だけ）
@@ -14226,6 +14242,26 @@ const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, argumen
 const css = document.createElement('style');
 css.textContent = '#siteBody select.xret{font:inherit;font-size:12px;padding:1px 2px;margin-right:3px;border-radius:6px;background:transparent;color:inherit;border:1px solid rgba(127,127,127,.4)}#siteBody input.e.xret-off{display:none}';
 document.head.appendChild(css);
+})();
+
+/* 請求ナビ Web：チェックの使いまわし（いちばん外側）（ext3o.js・2026-11-05「重くなってきたから軽くして」）
+   ext2z の使いまわしの外に、あとから足したチェック（請求しない・打ちまちがい）がかぶさっていて、毎回ぜんぶ計算しなおしていた
+   → いちばん外で、中身が変わっていない間（0.4秒）は前の結果を使う。保存・入力・元に戻す・やり直す・開く・作るで作り直す */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+let ver = 0, cache = null;
+const bump = () => { ver++; cache = null; };
+['save', 'openWork', 'build', 'undo'].forEach(fn => { if(typeof window[fn] === 'function'){ const o = window[fn]; window[fn] = function(){ bump(); const r = o.apply(this, arguments); bump(); return r; }; } });
+if(X.redo){ const o = X.redo; X.redo = function(){ bump(); const r = o.apply(this, arguments); bump(); return r; }; }
+document.addEventListener('input', bump, true); document.addEventListener('change', bump, true);
+const _ck = checks;
+checks = function(){
+  const k = ver + '|' + S.workId + '|' + (S.lines ? S.lines.length : 0) + '|' + (S.sheets ? S.sheets.length : 0);
+  const now = performance.now();
+  if(cache && cache.k === k && now - cache.t < 400) return cache.v.slice();
+  const v = _ck.apply(this, arguments); cache = { k, v: v.slice(), t: now }; return v;
+};
+const ob = X.checksBump; X.checksBump = () => { bump(); if(ob) ob(); };
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -14733,7 +14769,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 11:17';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 11:48';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -15882,11 +15918,11 @@ var dirtyAt = 0;
 /* ---------- L16 確定で金の下線 ---------- */
 document.addEventListener('change', function(ev){
   var t = ev.target; if(!moving() || !t || !t.matches || !t.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]), textarea') || inPaper(t)) return;
-  t.classList.remove('lx-commit'); void t.offsetWidth; t.classList.add('lx-commit'); clearTimeout(t.__lxc); t.__lxc = setTimeout(function(){ t.classList.remove('lx-commit'); }, 900);
+  t.classList.remove('lx-commit'); __raf2(() => t.classList.add('lx-commit')); clearTimeout(t.__lxc); t.__lxc = setTimeout(function(){ t.classList.remove('lx-commit'); }, 900);
 }, true);
 
 /* ---------- L18 エラーは小さく揺れる ---------- */
-function shake(el){ if(!el || !moving()) return; el.classList.remove('lx-shake'); void el.offsetWidth; el.classList.add('lx-shake'); setTimeout(function(){ el.classList.remove('lx-shake'); }, 420); }
+function shake(el){ if(!el || !moving()) return; el.classList.remove('lx-shake'); __raf2(() => el.classList.add('lx-shake')); setTimeout(function(){ el.classList.remove('lx-shake'); }, 420); }
 document.addEventListener('invalid', function(ev){ shake(ev.target); }, true);
 
 /* ---------- L17・L28・L31・L55・L67・L89 押したとき ---------- */
@@ -15917,7 +15953,7 @@ document.addEventListener('click', function(ev){
   if(SAVE_RE.test(tx)){
     dirty = false; title(); buzz(); tick('save');
     /* L89 合計の下に金の線 */
-    document.querySelectorAll('.tot.grand, .grandmini').forEach(function(g){ if(inPaper(g) || !moving()) return; g.classList.remove('lx-sealed'); void g.offsetWidth; g.classList.add('lx-sealed'); setTimeout(function(){ g.classList.remove('lx-sealed'); }, 1300); });
+    document.querySelectorAll('.tot.grand, .grandmini').forEach(function(g){ if(inPaper(g) || !moving()) return; g.classList.remove('lx-sealed'); __raf2(() => g.classList.add('lx-sealed')); setTimeout(function(){ g.classList.remove('lx-sealed'); }, 1300); });
     /* L17 ボタンの文字が✓に変わって戻る */
     if(moving() && !b.__lxok && b.children.length <= 2){
       var html = b.innerHTML, w = b.getBoundingClientRect().width; b.__lxok = 1;
@@ -16123,7 +16159,7 @@ function prefetch(){
   function look(el){
     if(!el || inPaper(el)) return; var v = val(el); if(v == null) return;
     var p = last.get(el); last.set(el, v); if(p == null || p === v || !moving()) return;
-    el.classList.remove('lx-nup', 'lx-ndn'); void el.offsetWidth; el.classList.add(v > p ? 'lx-nup' : 'lx-ndn');
+    el.classList.remove('lx-nup', 'lx-ndn'); __raf2(() => el.classList.add(v > p ? 'lx-nup' : 'lx-ndn'));
     clearTimeout(el.__lxn2); el.__lxn2 = setTimeout(function(){ el.classList.remove('lx-nup', 'lx-ndn'); }, 900);
   }
   var st = document.createElement('style');
@@ -16226,6 +16262,9 @@ function stickyTables(){
   try{
     /* 2026-11-04 軽く：まだ印のない表がなければ何もしない（毎回の位置の計算で重くなっていた） */
     var cand = Array.prototype.filter.call(document.querySelectorAll('table'), function(tb){ return !tb.__lxsk && tb.tHead && tb.rows.length >= 16 && !inPaper(tb); }); if(!cand.length) return;
+    /* 2026-11-05 軽く：請求ナビの現場の表は描き直すたびに新しい表になる。前に測った値（上の高さ・背景）を使いまわして、画面全体の計算を毎回させない */
+    var site = cand.filter(function(tb){ return tb.closest && tb.closest('#siteBody'); });
+    if(site.length && stickyTables.__site && Date.now() - stickyTables.__site.at < 20000){ var c0 = stickyTables.__site; site.forEach(function(tb){ tb.__lxsk = 1; tb.style.setProperty('--lx-thbg', c0.bg); tb.style.setProperty('--lx-st', c0.st); tb.classList.add('lx-sticky'); }); cand = cand.filter(function(tb){ return site.indexOf(tb) < 0; }); if(!cand.length) return; }
     var top = 0; ['#wqnav', '.top', '.topbar', '.quickbar', '.toolbar'].forEach(function(s){ var e = document.querySelector(s); if(!e) return; var cs = getComputedStyle(e); if((cs.position === 'sticky' || cs.position === 'fixed') && e.getBoundingClientRect().top <= 1) top = Math.max(top, e.getBoundingClientRect().bottom); });
     cand.forEach(function(tb){
       tb.__lxsk = 1;
@@ -16234,6 +16273,7 @@ function stickyTables(){
       if(bg === 'transparent') bg = root.classList.contains('lux-dark') ? '#0E171B' : '#FFFFFF';
       tb.style.setProperty('--lx-thbg', bg); tb.style.setProperty('--lx-st', (sc && sc !== document.body) ? '0px' : Math.round(top) + 'px');
       if(getComputedStyle(tb).borderCollapse === 'collapse' || true) tb.classList.add('lx-sticky');
+      if(tb.closest && tb.closest('#siteBody')) stickyTables.__site = { bg: bg, st: (sc && sc !== document.body) ? '0px' : Math.round(top) + 'px', at: Date.now() };
     });
   }catch(e){}
 }
