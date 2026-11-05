@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 16:03-->
+<!--BUILD:2026-11-05 16:18-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1934,11 +1934,13 @@ function drawHead(){
 function drawKpis(){
   const T = totals(), m = S.meta;
   const hand = S.lines.filter(l => l.carried || l.edited).length;
+  /* 2026-11-05「何で(税抜)消えた？」：大きい数字に（税抜）も。請求しない現場のシステムの分は税込でも外す（前は税込と税抜で＋−が逆になっていた） */
+  const gd = T.gross - num(m.sysNet) - num(m.sysTax) + num(T.noBillG);
   const diffTxt = T.diff === 0 ? 'システムと同じ' : '税抜 ' + (T.diff > 0 ? '＋' : '−') + yen(Math.abs(T.diff)) + '（手直し・外した現場のぶん）';
   $('#kpis').innerHTML =
     '<div class="kpi"><div class="k">システムの合計（CSV）税込</div><div class="v">' + yen(num(m.sysNet) + num(m.sysTax)) + '</div><div class="s">税抜 ' + yen(m.sysNet) + '（消費税 ' + yen(m.sysTax) + '）</div></div>' +
     '<div class="kpi"><div class="k">鑑の合計 税込</div><div class="v">' + yen(T.gross) + '</div><div class="s">税抜 ' + yen(T.net) + '（消費税 ' + yen(T.tax) + '）</div></div>' +
-    '<div class="kpi ' + (T.diff === 0 ? 'ok' : '') + '"><div class="k">システムとの差 税込</div><div class="v">' + (T.diff === 0 ? '0' : (T.gross - num(m.sysNet) - num(m.sysTax) > 0 ? '+' : '') + yen(T.gross - num(m.sysNet) - num(m.sysTax))) + '</div><div class="s">' + diffTxt + '</div></div>' +
+    '<div class="kpi ' + (T.diff === 0 ? 'ok' : '') + '"><div class="k">システムとの差 税込</div><div class="v">' + (T.diff === 0 ? '0' : (gd > 0 ? '+' : '') + yen(gd) + '<small class="xti" style="font-size:.5em;font-weight:700;opacity:.75;margin-left:4px">（税抜 ' + (T.diff > 0 ? '+' : '−') + yen(Math.abs(T.diff)) + '）</small>') + '</div><div class="s">' + diffTxt + '</div></div>' +
     '<div class="kpi"><div class="k">現場・行</div><div class="v">' + S.sheets.length + '<small style="font-size:12px"> 現場</small></div><div class="s">' + S.lines.length + ' 行（手直し ' + hand + '）</div></div>';
 }
 function drawSites(){
@@ -2988,7 +2990,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 16:03';
+const BUILD = '2026-11-05 16:18';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3900,7 +3902,7 @@ async function updateFromCsv(x){
   window.__keepExt = null; prevData = keepPrev;
   S.workId = w.id; S.status = w.status || 'draft'; S.printedAt = w.printedAt || ''; S.trash = w.trash || [];
   /* シートの設定・行の決めごとを写す */
-  S.sheets.forEach(sh => { const o = (w.sheets || []).find(s => s.code === sh.code && s.name === sh.name) || (w.sheets || []).find(s => s.code === sh.code); if(o){ sh.inKagami = o.inKagami; sh.memo = o.memo || ''; sh.siteName = sh.siteName || o.siteName; sh.prevManual = o.prevManual || sh.prevManual; if(o.movedOut) sh.movedOut = o.movedOut; } });   /* movedOut：ほかの現場へ移した行の「あと」（ext3d） */
+  S.sheets.forEach(sh => { const o = (w.sheets || []).find(s => s.code === sh.code && s.name === sh.name) || (w.sheets || []).find(s => s.code === sh.code); if(o){ sh.inKagami = o.inKagami; if(o.noBill) sh.noBill = true; sh.memo = o.memo || '';   /* 2026-11-05 請求しない（noBill）も更新で消えていた */ sh.siteName = sh.siteName || o.siteName; sh.prevManual = o.prevManual || sh.prevManual; if(o.movedOut) sh.movedOut = o.movedOut; } });   /* movedOut：ほかの現場へ移した行の「あと」（ext3d） */
   const byKey = {}; oldLines.forEach(l => { if(l.key && !l.dup && !l.manual) (byKey[l.key] = byKey[l.key] || []).push(l); });
   /* 今の行と前の行を1対1で合わせる（同じキーが何本かあれば、CSVの中身が同じもの → 同じ並び） */
   const used = new Set(), sysSig = x => x && x.sys ? [num(x.sys.qty), num(x.sys.la) + num(x.sys.sa) + num(x.sys.ba), String(x.sys.name || '')].join('|') : '';
@@ -3912,7 +3914,7 @@ async function updateFromCsv(x){
     const same1 = o => String(o.site || '') === String(l.site || '');
     const o = c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx && same1(o)) || c.find(o => sysSig(o) === sysSig(l) && same1(o)) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && same1(o)) || c.find(o => sysSig(o) === sysSig(l) && o.csvIx === l.csvIx) || c.find(o => o.sys && l.sys && String(o.sys.name) === String(l.sys.name) && o.sys.qty === l.sys.qty) || null; if(o) used.add(o); return o; };
   const pair = new Map(), idMap = {}; S.lines.filter(l => l.key && l.sys && !l.dup && !l.manual).forEach(l => { const o = oldOf(l); if(o) pair.set(l, o); });
-  pair.forEach((o, l) => { ['nbDec','luDec','suggDec','memo','pxDec','rule'].forEach(k => { if(o[k] != null && l[k] == null) l[k] = o[k]; }); if(o.nb && !l.nb && o.nbDec){ l.nb = true; } });
+  pair.forEach((o, l) => { ['nbDec','luDec','suggDec','memo','pxDec','rule','movedFrom','movedFromId','userMoved'].forEach(k => { if(o[k] != null && l[k] == null) l[k] = o[k]; }); if(o.nb && !l.nb && o.nbDec){ l.nb = true; } });
   /* 手で直した行：直した欄だけ前のまま、直していない欄（期間・日数など）は新しいCSVの値にして計算し直す */
   const F = ['name','qty','lu','su','bu','kb','start','end','days','sdays','retd','kashi'];
   pair.forEach((o, l) => {
@@ -3931,7 +3933,7 @@ async function updateFromCsv(x){
   const genericKey = l => { const kp = String(l.key || '').split('|'); return !kp[0] && !kp[3]; };
   pair.forEach((o, l) => { const nm = oldName(o.sheet); const t0 = S.sheets.find(s => s.name === nm);
     /* 運賃・軽油（伝票も貸出日もない行）を、CSVの現場とちがう現場へ動かすのは前の版の組みちがいなので、まねしない（まとめた現場はべつ） */
-    const t = t0 && genericKey(l) && !o.mergedFrom && !o.userMoved && l.site && String(t0.code) !== String(l.site) ? null : t0; if(t && t.id !== l.sheet && (o.userMoved || o.mergedFrom || String(t.code) === String(l.site || ''))){   /* 自分で移した行・まとめた行・同じ現場コードのページだけ（前の版で組みちがえて移った行は、CSVの現場にもどす） */ S.lines.filter(x => x === l || (x.dup && x.key === l.key && x.sheet === l.sheet)).forEach(x => { x.sheet = t.id; }); } });
+    const t = t0 && genericKey(l) && !o.mergedFrom && !o.userMoved && !o.movedFromId && l.site && String(t0.code) !== String(l.site) ? null : t0; if(t && t.id !== l.sheet && (o.userMoved || o.movedFromId || o.mergedFrom || String(t.code) === String(l.site || ''))   /* 2026-11-05 ドラッグ・≡・まとめて移すで移した行は userMoved が付かず、更新でCSVの現場にもどっていた（渋谷⇄南麻布1・西池袋⇄昭島）→ ext3d の movedFromId も「自分で移した」 */){   /* 自分で移した行・まとめた行・同じ現場コードのページだけ（前の版で組みちがえて移った行は、CSVの現場にもどす） */ S.lines.filter(x => x === l || (x.dup && x.key === l.key && x.sheet === l.sheet)).forEach(x => { x.sheet = t.id; }); } });
   const rank = new Map(); const oi = new Map(oldLines.map((l, i) => [l, i]));
   pair.forEach((o, l) => rank.set(l, oi.get(o)));
   const oldMan = oldLines.filter(l => l.manual);
@@ -7337,9 +7339,12 @@ drawKpis = function(){
     const tile = [...document.querySelectorAll('#kpis .kpi')].find(k => /システムとの差/.test(k.textContent)); if(!tile) return;
     tile.querySelectorAll('.xdiffp').forEach(x => x.remove());
     let man = 0, n = 0, ed = 0, nb = 0, off = 0;
-    S.sheets.forEach(sh => { if(!sh.inKagami){ off += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } const d = diffParts(sh); man += d.manAmt; n += d.manN; ed += d.edAmt; nb += d.nbAmt; });
+    let nbS = 0; S.sheets.forEach(sh => { if(sh.noBill){ nbS++; return; } if(!sh.inKagami){ off += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } const d = diffParts(sh); man += d.manAmt; n += d.manN; ed += d.edAmt; nb += d.nbAmt; });
     const sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(taxIn(v))) + '<small>（税抜 ' + (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(v)) + '）</small>', parts = [];
     if(n) parts.push('手打ち <b>' + sg(man) + '</b>（' + n + '行）'); if(ed) parts.push('手直し <b>' + sg(ed) + '</b>'); if(nb) parts.push('出さない <b>' + sg(-nb) + '</b>'); if(off) parts.push('鑑から外した現場 <b>' + sg(-off) + '</b>');
+    /* 2026-11-05 内わけの合計が上の差と合うように。合わない分は「その他」（消した行・CSVの合計とのずれなど） */
+    { const T = totals(), rest = T.diff - (man + ed - nb - off); if(Math.abs(rest) >= 1) parts.push('その他 <b>' + sg(rest) + '</b>'); }
+    if(nbS) parts.push('<span style="opacity:.75">請求しない現場 ' + nbS + ' は数えない</span>');
     if(parts.length) tile.insertAdjacentHTML('beforeend', '<div class="xdiffp" style="margin:4px 0 0">うち（税込）' + parts.join('／') + '</div>');
   }catch(e){}
 };
@@ -13699,7 +13704,9 @@ function restoreSite(o, sh){
   const olds = JSON.parse(JSON.stringify(o.lines)).map(l => { l.sheet = sh.id; return l; });
   const ids = new Set(olds.map(l => l.id));
   let at = S.lines.findIndex(l => l.sheet === sh.id); if(at < 0) at = S.lines.length;
-  const rest = S.lines.filter(l => l.sheet !== sh.id && !ids.has(l.id));
+  /* 前のままにもどす行が、更新でほかの現場に入っていたら（移した行がCSVの現場にもどっていた）そちらは消す */
+  const want = new Map(); olds.forEach(l => { if(l.key && l.sys && !l.manual){ const k = l.key + '|' + (l.sys.name || ''); want.set(k, (want.get(k) || 0) + 1); } });
+  const rest = S.lines.filter(l => { if(l.sheet === sh.id || ids.has(l.id)) return false; if(l.key && l.sys && !l.manual && !(X.siteLocked && X.siteLocked(l.sheet))){ const k = l.key + '|' + (l.sys.name || ''), n = want.get(k) || 0; if(n > 0){ want.set(k, n - 1); return false; } } return true; });
   const before = S.lines.slice(0, at).filter(l => l.sheet !== sh.id && !ids.has(l.id)).length;
   S.lines = rest.slice(0, before).concat(olds, rest.slice(before));
 }
@@ -13713,14 +13720,18 @@ if(typeof updateFromCsv === 'function'){
       if(!lockedOld.length || !w) return r;
       /* 更新のあとに出るほかの窓（前月の引き継ぎ・出さない品など）が閉じてから見る */
       { let calm = 0; for(let i = 0; i < 600 && calm < 4; i++){ await new Promise(z => setTimeout(z, 200)); calm = document.querySelector('.dlg') ? 0 : calm + 1; } }
+      const kmap = lines => { const m = new Map(); lines.forEach(l => { if(!l.key || !l.sys || l.dup || l.manual) return; const v = m.get(l.key) || { amt: 0, qty: 0, name: String(l.sys.name || l.name) }; v.amt += sysAmt(l); v.qty += num(l.sys.qty); m.set(l.key, v); }); return m; };
+      const oldK = kmap(w.lines || []), newK = kmap(S.lines), chgKeys = new Set();
+      new Set([...oldK.keys(), ...newK.keys()]).forEach(k => { const a = oldK.get(k), b = newK.get(k); if(!a || !b || a.amt !== b.amt || a.qty !== b.qty) chgKeys.add(k); });
       const ask = [], keep = [];
       lockedOld.forEach(o => {
         const sh = S.sheets.find(s => s.name === o.name && String(s.code) === String(o.code)) || S.sheets.find(s => String(s.code) === String(o.code) && s.code && String(s.code) !== '0'); if(!sh) return;
         const n = netOfLines(S.lines, sh.id); if(n === o.net) return;
-        const sysNow = sysOfLines(S.lines, sh.id);
-        if(sysNow === o.sys){ keep.push({ o, sh }); return; }          /* CSVは同じ → 聞かずに前のまま */
-        const bn = sysByName(S.lines, sh.id), what = [];
-        new Set([...o.byName.keys(), ...bn.keys()]).forEach(k => { const a = o.byName.get(k) || 0, b = bn.get(k) || 0; if(a !== b) what.push(k + '（' + yen(a) + ' → ' + yen(b) + '）'); });
+        /* CSVの中身が変わった行（同じキーでシステムの金額がちがう・増えた・消えた）がこの現場にあるときだけ聞く。行がほかの現場へ動いただけなら前のまま */
+        const mine = new Set(o.lines.concat(S.lines.filter(l => l.sheet === sh.id)).filter(l => l.key && l.sys && !l.dup).map(l => l.key));
+        const ks = [...mine].filter(k => chgKeys.has(k));
+        if(!ks.length){ keep.push({ o, sh }); return; }
+        const what = ks.map(k => { const a = oldK.get(k), b = newK.get(k); return (b || a).name + '（' + yen(a ? a.amt : 0) + ' → ' + yen(b ? b.amt : 0) + '）'; });
         ask.push({ o, sh, n, what });
       });
       keep.forEach(c => restoreSite(c.o, c.sh));
@@ -14071,7 +14082,8 @@ const nb = sh => !!(sh && sh.noBill);
 X.noBill = id => nb(sheetById(id));
 const nbSys = () => S.sheets.filter(nb).reduce((a, s) => { try{ return a + sheetSys(s); }catch(e){ return a; } }, 0);
 /* 全体のシステム差：請求しない現場のシステムの金額は、はじめから請求しないものとして外す */
-if(typeof totals === 'function'){ const _t = totals; totals = function(){ const T = _t.apply(this, arguments); try{ const k = nbSys(); if(k){ T.diff = T.diff + k; T.noBillSys = k; } }catch(e){} return T; }; }
+if(typeof totals === 'function'){ const _t = totals; totals = function(){ try{ (S.sheets || []).forEach(s => { if(s.noBill && s.inKagami) s.inKagami = false; }); }catch(e){}   /* 請求しないのに鑑に入っていると、差を二重に数えていた */
+  const T = _t.apply(this, arguments); try{ const k = nbSys(); if(k){ T.diff = T.diff + k; T.noBillSys = k; T.noBillG = S.sheets.filter(nb).reduce((a, s) => { try{ const v = sheetSys(s); return a + v + tax(v); }catch(e){ return a; } }, 0); } }catch(e){} return T; }; }
 /* チェック：請求しない現場の分は出さない */
 if(typeof checks === 'function'){ const _c = checks; checks = function(){ const r = _c.apply(this, arguments); try{ if(!S.sheets.some(nb)) return r; const ids = new Set(S.sheets.filter(nb).map(s => s.id));
   return r.filter(x => !(x && ((x.sh && ids.has(x.sh)) || (x.id && (() => { const l = S.lines.find(z => z.id === x.id); return l && ids.has(l.sheet); })())))); }catch(e){ return r; } }; }
@@ -14975,7 +14987,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 16:03';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 16:18';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
