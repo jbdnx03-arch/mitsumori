@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 15:12-->
+<!--BUILD:2026-11-05 15:29-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2988,7 +2988,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 15:12';
+const BUILD = '2026-11-05 15:29';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -10609,16 +10609,31 @@ function layer(B){
   if(!B || !B.isConnected) return;
   let L = B.querySelector(':scope > .xokL'); if(!L){ L = document.createElement('div'); L.className = 'xokL'; B.appendChild(L); }
   if(getComputedStyle(B).position === 'static') B.style.position = 'relative';
-  const Br = B.getBoundingClientRect(), seen = new Set(); let h = '';
+  const Br = B.getBoundingClientRect(), seen = new Set(), pages = new Map(); let h = '';
   B.querySelectorAll('.xp .xlid.xflag, .xp .xlid.xinfo, .xp .xlid.xokd').forEach(m => {
     const lid = m.dataset.lid, r = m.getBoundingClientRect(); if(!r.height || seen.has(lid + '@' + Math.round(r.top))) return; seen.add(lid + '@' + Math.round(r.top));
     const pg = m.closest('.xp').getBoundingClientRect(), ng = m.classList.contains('xflag'), ok = m.classList.contains('xokd') || (!ng && !m.classList.contains('xinfo') && lineOk(lid));   /* 行が黄色・赤なら丸も「!」（2026-11-01 管理番号を消したら行は黄色・丸は緑のままだった） */
     const sz = Math.max(16, Math.min(26, Math.round(r.height * 1.15)));
     const top = r.top - Br.top + B.scrollTop + r.height / 2 - sz / 2, left = Math.min(pg.right - Br.left + B.scrollLeft + 5, B.scrollWidth - sz - 3);
+    { const pe = m.closest('.xp'); let G = pages.get(pe); if(!G){ G = { lids: [], top: 1e9, bot: 0, left: left, sz: sz, allOk: true }; pages.set(pe, G); } if(G.lids.indexOf(lid) < 0) G.lids.push(lid); G.top = Math.min(G.top, top); G.bot = Math.max(G.bot, top + sz); if(!ok) G.allOk = false; }
     h += '<button type="button" class="xokb2' + (ok ? ' on' : ng ? ' ng' : '') + '" data-xok2="' + esc(lid) + '" style="top:' + Math.round(top) + 'px;left:' + Math.round(left) + 'px;width:' + sz + 'px;height:' + sz + 'px;font-size:' + Math.round(sz * .55) + 'px" title="' + (touch() ? '押すと OK／もう一度でアラームにもどる' : 'ダブルクリックで OK／もう一度ダブルクリックでアラームにもどる') + '" aria-label="' + (ok ? 'OK（押すとアラームにもどす）' : 'OKにする') + '">' + (ok ? '✓' : '!') + '</button>';
   });
+  /* 2026-11-05「一括チェックできるようにして」：ページの丸の列のすぐ下に「全部OK」（押すと そのページの ! を全部 OK。全部 OK なら「全部もどす」） */
+  ALL.length = 0;
+  pages.forEach(G => { if(G.lids.length < 2) return; const i = ALL.push(G.lids) - 1, w = 92, t = G.bot + 6;   /* 丸の列のすぐ下（表の下の空いた所）。上だと前の行の金額にかぶる */
+    h += '<button type="button" class="xokall' + (G.allOk ? ' on' : '') + '" data-xokall="' + i + '" data-v="' + (G.allOk ? '0' : '1') + '" style="top:' + Math.round(t) + 'px;left:' + Math.round(Math.max(G.left + G.sz - w, Math.min(G.left - 4, B.scrollWidth - w - 4))) + 'px;width:' + w + 'px" title="' + (G.allOk ? 'このページの ✓ を全部アラームにもどす' : 'このページの ! を全部 OK にする') + '">' + (G.allOk ? '↺ 全部もどす' : '✓ 全部OK（' + G.lids.length + '）') + '</button>'; });
   L.innerHTML = h;
 }
+const ALL = [];
+function okAll(b){
+  if(typeof RO === 'function' && RO()){ toast('読むだけの作業なので変えられない'); return; }
+  const lids = ALL[+b.dataset.xokall] || [], v = b.dataset.v === '1'; if(!lids.length) return;
+  lids.forEach(lid => X.pvOk.setOk(lid, v)); buzz();
+  const B = b.closest('#xDockBody, #spvBody'), docked = !!b.closest('#xDockBody');
+  X.pvOk.repaint(docked, lids); afterToggle(); if(B) layer(B);
+  toast(v ? 'このページの ' + lids.length + ' 行を OK にした（緑の✓）' : 'このページの ' + lids.length + ' 行をアラームにもどした', 2200);
+}
+window.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('.xokall'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault(); okAll(b); }, true);
 const relayout = () => ['spvBody', 'xDockBody'].forEach(id => { const B = document.getElementById(id); if(B && B.offsetParent !== null) layer(B); });
 const _am = X.afterMark;
 X.afterMark = function(B){ const r = _am ? _am.apply(this, arguments) : undefined; try{ if(B && (B.id === 'spvBody' || B.id === 'xDockBody')){ layer(B); requestAnimationFrame(() => layer(B)); setTimeout(() => layer(B), 300); } }catch(e){ console.warn(e); } return r; };
@@ -10630,6 +10645,7 @@ function toggleLine(b){
   X.pvOk.setOk(lid, v); buzz();
   const docked = !!b.closest('#xDockBody');
   X.pvOk.repaint(docked, [lid]); afterToggle();
+  try{ const B = b.closest('#xDockBody, #spvBody'); if(B) layer(B); }catch(e){}
   toast(v ? 'OK にした（緑の✓）' : 'アラームにもどした', 1400);
 }
 window.addEventListener('click', ev => { if(document.documentElement.classList.contains('xselmode')) return; const b = ev.target.closest && ev.target.closest('.xokb2'); if(!b) return; ev.stopImmediatePropagation(); ev.preventDefault(); if(touch()) toggleLine(b); else pcHint(); }, true);
@@ -10760,6 +10776,7 @@ const st = document.createElement('style');
 st.textContent =
 '#spvBody{padding-right:46px!important}#xDockBody{padding-right:42px!important}@media (max-width:760px){#spvBody{padding-right:34px!important}}' +
 '.xokL{position:absolute;left:0;top:0;width:0;height:0;z-index:6}' +
+'.xokall{position:absolute;z-index:3;height:24px;border-radius:12px;border:1.5px solid #E0A020;background:#E0A020;color:#2A1A00;font:800 12px/1 system-ui,-apple-system,sans-serif;cursor:pointer;padding:0 8px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)}.xokall:hover{filter:brightness(1.08)}.xokall.on{background:#E8F7EC;border-color:#2E9E5B;color:#1E6B3D}@media print{.xokall{display:none!important}}' +
 '.xokb2{position:absolute;border-radius:50%;border:2px solid #E0A020;background:#FFF6D6;color:#8A5A00;font-weight:900;line-height:1;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 2px 6px rgba(0,0,0,.25);-webkit-tap-highlight-color:transparent;user-select:none}' +
 '.xokb2::after{content:"";position:absolute;inset:-8px}' +
 '.xokb2.ng{border-color:#D23B3B;background:#FDE2E2;color:#A01F1F}.xokb2.on{border-color:#2E8B57;background:#2E8B57;color:#fff}.xokb2:active{transform:scale(.92)}' +
@@ -14920,7 +14937,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 15:12';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 15:29';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
