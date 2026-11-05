@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 19:55-->
+<!--BUILD:2026-11-05 20:05-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2990,7 +2990,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 19:55';
+const BUILD = '2026-11-05 20:05';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -14508,6 +14508,126 @@ css.textContent = '.xpvcarry{display:flex;flex-wrap:wrap;align-items:center;gap:
 document.head.appendChild(css);
 })();
 
+/* 請求ナビ Web：画面のデザインを「黒×金」に（ext3t.js）
+   2026-11-05「デザインをもっと見やすいように おしゃれに変えてみて」→ 全部の画面・高級感（黒×金）
+   ・画面だけ。紙（請求書・鑑）・印刷・PDF は本物どおりのまま（.xp / .pp / #print / #xPdfVec にはさわらない）
+   ・色を減らして、金はだいじなところ（いまの現場・押すボタン・合計）だけ。差・要確認・ダメは今までどおり 黄・赤・緑
+   ・数字は桁区切りのカンマをはっきり、表の数字は等幅
+   ・「前の色にもどす」：上の帯の ✦ ボタン（この端末に覚える） */
+(function(){
+const KEY = 'seikyu.classicColor';
+const root = document.documentElement;
+try{ if(localStorage.getItem(KEY) === '1') root.classList.add('xclassic'); }catch(e){}
+const G = '#C9A45C', G2 = '#E3C98E', GD = '#9C7A35';
+const D = 'html.lux-dark:not(.xclassic)', L = 'html:not(.lux-dark):not(.xclassic)';
+const css = document.createElement('style'); css.id = 'xGoldTheme';
+css.textContent = [
+/* ---- 色 ---- */
+D + '{--bg:#0A0A0C;--surface:#131316;--ink:#F3EFE6;--ink2:#CFC8B8;--ink3:#8F897D;--line:#2B2924;--brand:' + G + ';--brand2:' + G2 + ';--soft:rgba(201,164,92,.10);' +
+  '--warn:#F0A04B;--warnbg:#2E2414;--ng:#EF7B6C;--ngbg:#33191A;--ok:#7CCB9A;--okbg:#14261B;--hand:#C9A6F2;--handbg:#241C33;' +
+  '--acc:' + G + ';--acc2:' + G2 + ';--acc-soft:rgba(201,164,92,.10);--c-load:' + G + ';--c-sites:' + G + ';--c-check:' + G + ';--c-paper:' + G + ';' +
+  '--grad-top:linear-gradient(100deg,#08080A 0%,#121110 55%,#1E1810 100%);--shadow:0 1px 0 rgba(255,255,255,.03) inset,0 10px 30px -18px rgba(0,0,0,.9);--shadow2:0 18px 50px -20px rgba(0,0,0,.95);--r:14px;' +
+  '--lx-gold:' + G + ';--lx-teal:' + G + '}',
+L + '{--bg:#F6F3EC;--surface:#FFFFFF;--ink:#1C1A16;--ink2:#4D473C;--ink3:#8A8273;--line:#E6DFD1;--brand:' + GD + ';--brand2:#6E5520;--soft:#F4ECDA;' +
+  '--acc:' + GD + ';--acc2:#B8923F;--acc-soft:#F4ECDA;--c-load:' + GD + ';--c-sites:' + GD + ';--c-check:' + GD + ';--c-paper:' + GD + ';' +
+  '--grad-top:linear-gradient(100deg,#15130F 0%,#231E14 60%,#3A2E17 100%);--lx-gold:' + GD + ';--lx-teal:' + GD + '}',
+/* タブごとの色（body[data-tab] で青緑・紫などに上書きされていた）も金に */
+D + ' body[data-tab]{--acc:' + G + ';--acc2:' + G2 + ';--acc-soft:rgba(201,164,92,.10)}',
+L + ' body[data-tab]{--acc:' + GD + ';--acc2:#B8923F;--acc-soft:#F4ECDA}',
+/* 背景のにじみ（青緑）をやめて、上にうすい金 */
+'html.lux.lux-dark:not(.xclassic){background:#0A0A0C!important}',
+D + ' body{background:#0A0A0C!important;background-image:radial-gradient(1100px 420px at 50% -220px,rgba(201,164,92,.10),transparent 70%)!important}',
+L + ' body{background:#F6F3EC!important;background-image:radial-gradient(1100px 420px at 50% -220px,rgba(156,122,53,.10),transparent 70%)!important}',
+/* 後ろの飾り（#lux-bg の青緑のにじみ）を黒と金に */
+D + ' #lux-bg{background:linear-gradient(#0D0C0B 0%,#0A0A0C 100%)!important}',
+D + ' #lux-bg > i{background:radial-gradient(42% 36% at 18% 10%,rgba(201,164,92,.10),transparent 62%),radial-gradient(36% 32% at 86% 6%,rgba(201,164,92,.07),transparent 64%)!important}',
+/* 前月との増減の棒：増えた＝金・減った＝赤のまま */
+'html:not(.xclassic) .xdc-b i.up{background:linear-gradient(90deg,' + GD + ',' + G2 + ')!important}html:not(.xclassic) .xdc-v.up{color:' + G2 + '!important}',
+L + ' .xdc-v.up{color:' + GD + '!important}',
+/* ---- 文字：数字は等幅・カンマ ---- */
+'html:not(.xclassic) body{font-feature-settings:"palt" 0;letter-spacing:.01em}',
+'html:not(.xclassic) .kpi .v, html:not(.xclassic) table.ln td, html:not(.xclassic) .site .a, html:not(.xclassic) #xMini, html:not(.xclassic) .xselbar{font-variant-numeric:tabular-nums}',
+'html:not(.xclassic) .lx-comma{font-size:inherit!important;opacity:.75!important;margin:0!important;color:var(--ink2)!important;-webkit-text-fill-color:var(--ink2)!important}',
+/* ---- 上の帯 ---- */
+'html:not(.xclassic) .top{background:var(--grad-top)!important;border-bottom:1px solid rgba(201,164,92,.28);box-shadow:0 8px 30px -14px rgba(0,0,0,.8)!important}',
+'html:not(.xclassic) .tabs button{border-radius:10px}',
+'html:not(.xclassic) .tabs button.on{background:linear-gradient(180deg,' + G2 + ',' + G + ')!important;color:#17130B!important;box-shadow:0 4px 14px -4px rgba(201,164,92,.55)!important}',
+'html:not(.xclassic) .tabs button.on *{color:#17130B!important}',
+/* ---- ボタン ---- */
+'html:not(.xclassic) .btn.primary{background:linear-gradient(180deg,' + G2 + ',' + G + ')!important;border-color:' + G + '!important;color:#17130B!important;box-shadow:0 6px 18px -8px rgba(201,164,92,.6)}',
+'html:not(.xclassic) .btn.primary:hover{filter:brightness(1.06)}',
+'html:not(.xclassic) .btn.primary kbd, html:not(.xclassic) .btn.primary small{color:#17130B!important;border-color:rgba(23,19,11,.35)!important;background:transparent!important}',
+D + ' .btn:not(.primary):not(.ghost){background:#18181B;border-color:#2E2B25;color:var(--ink)}',
+D + ' .btn:not(.primary):not(.ghost):hover{border-color:rgba(201,164,92,.55);color:' + G2 + '}',
+'html:not(.xclassic) .btn.on, html:not(.xclassic) .xshseg .btn.on{box-shadow:inset 0 0 0 1.5px ' + G + '}',
+/* ---- カード・数字のタイル ---- */
+'html:not(.xclassic) .card, html:not(.xclassic) .kpi{border-radius:16px!important;border:1px solid var(--line)!important;box-shadow:var(--shadow)!important}',
+D + ' .card, ' + D + ' .kpi{background:linear-gradient(180deg,#16161A,#121215)!important}',
+'html:not(.xclassic) .kpi{border-left:1px solid var(--line)!important;position:relative;overflow:hidden}',
+'html:not(.xclassic) .kpi::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:3px;background:' + G + ';opacity:.85}',
+'html:not(.xclassic) .kpi.ok::before{background:var(--ok)}',
+'html:not(.xclassic) .kpi .k{letter-spacing:.08em;text-transform:none;color:var(--ink3)!important;font-weight:600}',
+'html:not(.xclassic) .kpi .v{font-weight:800;letter-spacing:.01em;color:var(--ink)}',
+'html:not(.xclassic) .kpi:nth-child(2) .v{color:' + G2 + '}',
+L + ' .kpi:nth-child(2) .v{color:' + GD + '}',
+/* ---- 現場の一覧 ---- */
+'html:not(.xclassic) .site{border-radius:12px!important;transition:border-color .2s,background .2s}',
+'html:not(.xclassic) .site.on{border-color:' + G + '!important;background:linear-gradient(90deg,rgba(201,164,92,.14),rgba(201,164,92,.03))!important;box-shadow:inset 3px 0 0 ' + G + '}',
+'html:not(.xclassic) .site.on .nm, html:not(.xclassic) .site.on b{color:' + G2 + '!important}',
+L + ' .site.on .nm, ' + L + ' .site.on b{color:#6E5520!important}',
+/* 進み具合のバー */
+'html:not(.xclassic) #siteList .site .bar i, html:not(.xclassic) #siteList .site [class*="bar"] > i, html:not(.xclassic) [class*="prog"] i, html:not(.xclassic) .xprog i, html:not(.xclassic) .xpbar i{background:linear-gradient(90deg,' + GD + ',' + G2 + ')!important}',
+/* ---- 現場の表 ---- */
+'html:not(.xclassic) table.ln th{color:var(--ink3)!important;letter-spacing:.06em;font-weight:700;border-bottom:1px solid rgba(201,164,92,.35)!important}',
+'html:not(.xclassic) table.ln tbody tr[data-id]:hover td{background:rgba(201,164,92,.045)}',
+'html:not(.xclassic) table.ln input.e:focus, html:not(.xclassic) .fld input:focus{border-color:' + G + '!important;box-shadow:0 0 0 3px rgba(201,164,92,.18)!important}',
+'html:not(.xclassic) #siteBody tr.bksel td.rowno{background:rgba(201,164,92,.22)!important;color:' + G2 + '!important}',
+'html:not(.xclassic) #siteBody tr.bksel td.rowno::before{color:' + G2 + '!important}',
+'html:not(.xclassic) #siteBody tr.bksel td{box-shadow:inset 0 0 0 999px rgba(201,164,92,.07)!important}',
+'html:not(.xclassic) #siteBody tr[data-id]:not(.bksel) td.rowno:hover{background:rgba(201,164,92,.12)!important}',
+'html:not(.xclassic) #siteBody tr[data-id]:not(.bksel) td.rowno:hover::before{color:' + G2 + '!important}',
+'html:not(.xclassic) #siteBody th.xall:hover{background:rgba(201,164,92,.14)!important}',
+'html:not(.xclassic) #siteBody th.xall[data-st="all"], html:not(.xclassic) #siteBody th.xall[data-st="all"] .xall-b, html:not(.xclassic) #siteBody th.xall[data-st="some"] .xall-b{color:' + G2 + '!important}',
+'html:not(.xclassic) #siteBody th.xall[data-st="all"]{background:rgba(201,164,92,.2)!important}',
+/* ---- 選んだ行の帯・細い帯 ---- */
+'html:not(.xclassic) .xselbar{background:rgba(16,16,19,.94)!important;border:1px solid rgba(201,164,92,.5)!important;box-shadow:0 18px 50px -12px rgba(0,0,0,.85)!important;backdrop-filter:blur(10px)}',
+'html:not(.xclassic) .xselbar .xsb-sum{background:rgba(201,164,92,.12)!important}html:not(.xclassic) .xselbar .xsb-sum b{color:' + G2 + '!important}',
+L + ' .xselbar{background:rgba(255,255,255,.96)!important;color:#1C1A16!important}',
+'html:not(.xclassic) #xMini{border-bottom:1px solid rgba(201,164,92,.25)!important}',
+D + ' #xMini{background:rgba(10,10,12,.9)!important;backdrop-filter:blur(10px)}',
+/* ---- プレビューのまわり ---- */
+'html:not(.xclassic) .spv-bar{background:linear-gradient(100deg,#0B0B0D,#17140E 60%,#241C10)!important;border-bottom:1px solid rgba(201,164,92,.3)}',
+'html:not(.xclassic) .spv-bar .btn.primary{background:linear-gradient(180deg,' + G2 + ',' + G + ')!important;color:#17130B!important}',
+D + ' #sitePv, ' + D + ' #spvBody{background:#0E0E10}',
+/* ---- 窓・知らせ ---- */
+'html:not(.xclassic) .dlg{border-radius:18px!important;border:1px solid rgba(201,164,92,.35)!important;box-shadow:0 30px 80px -20px rgba(0,0,0,.9)!important}',
+'html:not(.xclassic) .dlg h3{letter-spacing:.04em}',
+'html:not(.xclassic) .dlg h3::before{background:' + G + '!important}',
+'html:not(.xclassic) #toast, html:not(.xclassic) .toast{border:1px solid rgba(201,164,92,.4)!important}',
+/* タグ（現場の札）：落ちついた色に */
+D + ' .tag{background:rgba(201,164,92,.12);color:' + G2 + '}',
+/* チェック（中は黄・赤・緑のまま） */
+'html:not(.xclassic) .chk li{border-radius:12px}',
+/* 切りかえボタン */
+'.xgoldbtn{font:inherit;font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid rgba(201,164,92,.55);background:transparent;color:#E3C98E;cursor:pointer}.xgoldbtn:hover{background:rgba(201,164,92,.15)}',
+'@media print{.xgoldbtn{display:none!important}}'
+].join('\n');
+(document.head || root).appendChild(css);
+/* 上の帯に「✦ 黒×金／前の色」 */
+function btn(){
+  if(document.getElementById('xGoldBtn')) return;
+  const top = document.querySelector('.top'); if(!top) return;
+  const b = document.createElement('button'); b.type = 'button'; b.id = 'xGoldBtn'; b.className = 'xgoldbtn';
+  const lab = () => { b.textContent = root.classList.contains('xclassic') ? '✦ 黒×金にする' : '✦ 前の色にもどす'; b.title = '画面の色の切りかえ（紙・印刷・PDFは変わらない）'; };
+  lab();
+  b.addEventListener('click', () => { const on = !root.classList.contains('xclassic'); root.classList.toggle('xclassic', on); try{ localStorage.setItem(KEY, on ? '1' : '0'); }catch(e){} lab(); });
+  const anchor = [...top.querySelectorAll('button')].find(x => /暗く|明るく/.test(x.textContent));
+  if(anchor) anchor.after(b); else top.appendChild(b);
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', btn); else btn();
+setTimeout(btn, 800); setTimeout(btn, 2500);
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -15056,7 +15176,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 19:55';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 20:05';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
