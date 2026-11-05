@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 10:25-->
+<!--BUILD:2026-11-05 10:37-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2986,7 +2986,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 10:25';
+const BUILD = '2026-11-05 10:37';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -13008,7 +13008,7 @@ function find(q, selfId){
 }
 /* 2026-11-04 よく一緒に出る品（ext3b）からも使う：品名にいちばん合う候補（区分・単位・単価） */
 window.seikyuExt = window.seikyuExt || {};
-window.seikyuExt.nmLoad = loadSaved;
+window.seikyuExt.nmLoad = loadSaved; window.seikyuExt.nmDict = () => dict('');
 window.seikyuExt.nmAll = function(name, selfId){ const k = nk(name); if(!k) return []; return dict(selfId || '').filter(e => nk(e.name) === k).sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); };
 window.seikyuExt.nmBest = function(name){ const k = nk(name); if(!k) return null; const all = dict('').filter(e => nk(e.name) === k); all.sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); return all[0] || null; };
 /* ---- 下に出す箱 ---- */
@@ -14130,12 +14130,55 @@ function denTypos(){
     const near = known.filter(e => e !== d && e.length === d.length && (d.length >= 6 ? dist(d, e) <= 2 : swap(d, e))).sort((a, b) => (cnt.get(b) || 0) - (cnt.get(a) || 0));
     if(!near.length) return;
     const e = near[0], n = S.lines.filter(x => dv(x) === e).length || pc.get(e) || 0, here = linesOf(sh).filter(x => dv(x) === e).length;
-    out.push({ lv: 'warn', t: '伝票番号の打ちまちがい？：' + l.name + '（' + d + '）', s: sh.name + '　伝票 ' + d + ' はシステムにも、この作業のほかの行にもない番号。' + e + '（' + (here ? 'この現場に ' + here + ' 行・' : '') + 'ぜんぶで ' + n + ' 行）のまちがいでは？　そうなら行の伝票を直して。この品がほんとうに貸し出されているかも確かめて', id: l.id, sh: sh.id, xdenTo: e });
+    out.push({ lv: 'info', t: '伝票番号の打ちまちがい？：' + l.name + '（' + d + '）', s: sh.name + '　伝票 ' + d + ' はシステムにも、この作業のほかの行にもない番号。' + e + '（' + (here ? 'この現場に ' + here + ' 行・' : '') + 'ぜんぶで ' + n + ' 行）のまちがいでは？　そうなら行の伝票を直して。この品がほんとうに貸し出されているかも確かめて', id: l.id, sh: sh.id, xdenTo: e });
   });
   return out;
 }
 X.denTypos = denTypos;
 if(typeof checks === 'function'){ const _c = checks; checks = function(){ const r = _c.apply(this, arguments); try{ r.push(...denTypos()); }catch(e){ console.warn(e); } return r; }; }
+
+/* 2026-11-05「違う違う 3kvadディーゼルインバーター発電機 名前がおかしい。正しくは3KVAディーゼルインバーター発電機」
+   → 手で打った・直した品名が、システム（CSV・前月のシステムの行・これまでの作業の商品番号つきの行）の品名と1〜2字だけちがうなら「品名の打ちまちがい？」。
+     数字だけのちがい（【10日保証】と【30日保証】、20m と 30m など）は見ない。直すボタンつき */
+const nn = t => String(t || '').normalize('NFKC').replace(/[\s　★☆※＊*]/g, '').toUpperCase();
+const noDig = t => t.replace(/[0-9.]+/g, '#');
+/* ちがう字が 英字（型番）か漢字のときだけ（ﾌﾞ/ﾌﾟ・付き/付 のようなかなのゆれは見ない） */
+const diffChars = (a, b) => { const m = new Map(); for(const c of a) m.set(c, (m.get(c) || 0) + 1); for(const c of b) m.set(c, (m.get(c) || 0) - 1); return [...m.entries()].filter(([, v]) => v).map(([c]) => c); };
+const realDiff = (a, b) => diffChars(a, b).some(c => /[A-Z\u4E00-\u9FFF]/.test(c));
+let sysNames = null, sysAt = 0;
+function sysNameList(){
+  if(sysNames && Date.now() - sysAt < 5000) return sysNames;
+  const M = new Map(), add = (nm, w) => { const k = nn(nm); if(!k || k.length < 4 || k.length > 60) return; const e = M.get(k); if(e) e.w += w; else M.set(k, { k, name: String(nm).trim(), w }); };
+  (S.lines || []).forEach(l => { if(l.sys && l.sys.name && !l.manual) add(l.sys.name, 3); });
+  const P = S.prev; if(P) Object.values(P.sysByKey || {}).forEach(l => { if(l && l.name) add(l.name, 2); });
+  try{ (X.nmDict ? X.nmDict() : []).forEach(e => { if(e.shohin) add(e.name, 1); }); }catch(e){}
+  sysNames = [...M.values()]; sysAt = Date.now(); return sysNames;
+}
+function nameTypos(){
+  const L = sysNameList(), have = new Set(L.map(e => e.k)), out = [];
+  if(!L.length) return out;
+  S.lines.forEach(l => {
+    if(l.head || l.nb || !l.name) return;
+    const sh = sheetById(l.sheet); if(!sh || !sh.inKagami) return;
+    const k = nn(l.name); if(k.length < 6 || have.has(k)) return;
+    if(!(l.manual || (l.sys && nn(l.sys.name) !== k))) return;   /* システムのままの品名は見ない */
+    let best = null;
+    L.forEach(e => { if(Math.abs(e.k.length - k.length) > 2) return; if(noDig(e.k) === noDig(k) || !realDiff(k, e.k)) return; const d = dist(k, e.k), lt = diffChars(k, e.k).some(c => /[A-Z]/.test(c)); if(d >= 1 && d <= (lt && k.length >= 12 ? 2 : 1) && (!best || d < best.d || (d === best.d && e.w > best.e.w))) best = { e, d }; });
+    if(!best) return;
+    out.push({ lv: 'warn', t: '品名の打ちまちがい？：' + l.name, s: sh.name + '　システムには「' + best.e.name + '」はあるが「' + l.name + '」はない（' + best.d + ' 字ちがい）。直すなら「品名を直す」', id: l.id, sh: sh.id, xnm: best.e.name });
+  });
+  return out;
+}
+X.nameTypos = nameTypos;
+if(typeof checks === 'function'){ const _c2 = checks; checks = function(){ const r = _c2.apply(this, arguments); try{ r.push(...nameTypos()); }catch(e){ console.warn(e); } return r; }; }
+/* チェックの一覧に「品名を ○○ に直す」 */
+function fixBtns(){ try{ const c = window.__chk || []; document.querySelectorAll('#chkList li[data-i]').forEach(li => { const x = c[+li.dataset.i]; if(!x || !x.xnm || li.querySelector('[data-xnmfix]')) return; const b = li.querySelector('.chk-b') || li; b.insertAdjacentHTML('afterbegin', '<button class="btn sm primary" data-xnmfix="' + li.dataset.i + '">品名を「' + esc(x.xnm) + '」に直す</button>'); }); }catch(e){} }
+if(typeof drawChecks === 'function'){ const _dc = drawChecks; drawChecks = function(){ const r = _dc.apply(this, arguments); setTimeout(fixBtns, 0); return r; }; }
+window.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-xnmfix]'); if(!b) return; ev.preventDefault(); ev.stopImmediatePropagation();
+  const x = (window.__chk || [])[+b.dataset.xnmfix]; if(!x) return; const l = S.lines.find(z => z.id === x.id); if(!l) return;
+  if(X.siteLocked && X.siteLocked(l.sheet)){ toast('完了でロック中の現場。先に「ロックを外す」'); return; }
+  try{ if(typeof undoMark === 'function') undoMark(); }catch(e){}
+  const was = l.name; l.name = x.xnm; save(); try{ drawChecks(); }catch(e){} try{ drawSites(); }catch(e){} toast('品名を「' + was + '」→「' + x.xnm + '」に直した（↶ でもどせる）', 4000); }, true);
 })();
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
@@ -14643,7 +14686,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 10:25';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 10:37';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
