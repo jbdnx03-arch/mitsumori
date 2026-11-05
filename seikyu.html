@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-05 09:53-->
+<!--BUILD:2026-11-05 10:25-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2986,7 +2986,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-05 09:53';
+const BUILD = '2026-11-05 10:25';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8540,10 +8540,19 @@ function cmpSite(sh){
   return res;
 }
 /* 本物（システムの印刷）にない行が、どこから来た行か（2026-10-31「どうして本物にない？前月からの引き継ぎとかって書けない？」） */
+/* 本物のこの現場の行が、Web ではほかの現場にある（移した）：伝票は 貸出伝票か返却伝票（本物は返却した行に返却伝票を出す） */
+function movedOutTo(r, sh){ const d = String(r.den || ''); if(!d) return null; return S.lines.find(l => l.sheet !== sh.id && !l.head && (String(l.den || '') === d || String(l.ret0 || '') === d) && nmK(l.name) === nmK(r.name || '')) || null; }
+function movedFromOf(l, sh){
+  if(l.movedFrom && l.movedFromId !== sh.id) return l.movedFrom;
+  if(l.site && String(l.site) !== String(sh.code)){ const o = S.sheets.find(x => String(x.code) === String(l.site)); return o ? o.name : '現場コード ' + l.site; }
+  return '';
+}
 function originOf(l, sh){
   const base = l.sys && l.sys.name ? l.sys.name : '';
   const bl = (l.dup || l.ovl) ? linesOf(sh).find(b => b !== l && !b.dup && !b.ovl && b.key && b.key === l.key) : null;
   const bn = bl ? bl.name : base;
+  /* 2026-11-05「移動したやつは本物にないじゃなくて どこから移動 の表示でいい」：ほかの現場から移した行 */
+  { const mv = movedFromOf(l, sh); if(mv) return { short: '「' + mv + '」から移した', long: '「' + mv + '」から移した行（本物では「' + mv + '」の請求書にある）。', moved: true }; }
   if(l.ovl) return { short: '前月と同じく重ねた行', long: '前月と同じく、システムの1行「' + bn + '」をもう一度出している（Yours の見出しの下など）。本物では「' + bn + '」の1行だけ。' };
   if(l.dup){
     const n = linesOf(sh).filter(b => b.key && b.key === l.key && !b.ovl).length;
@@ -8586,11 +8595,15 @@ checks = function(){
     if(!S.real) return out;
     const add = [];
     S.sheets.filter(s => s.inKagami).forEach(sh => {
-      const c = cmpSite(sh);
+      let c = cmpSite(sh);
       if(!c){ if(billOf(sh).length) add.push({ lv:'warn', t:'本物の請求書にない現場：' + sh.name, s:'入れた本物のPDF（' + S.real.name + '）に、現場コード ' + sh.code + ' のページがない', sh: sh.id }); return; }
       /* 手で足した行・見出し・重ねた行は、もともと本物（システムの印刷）にない。黄色で知らせるだけ */
-      c.extra.forEach(x => { const o = originOf(x.l, sh), hand = x.l.manual || x.l.ovl || x.l.dup; add.push({ lv: hand ? 'info' : 'warn', t:'本物にない：' + o.short + '：' + x.l.name, s: sh.name + '　本物の請求書にはこの行がない。' + o.long, id: x.l.id, sh: sh.id }); });
+      c.extra.forEach(x => { const o = originOf(x.l, sh), hand = x.l.manual || x.l.ovl || x.l.dup || o.moved; add.push({ lv: hand ? 'info' : 'warn', t:(o.moved ? '⇠ ' + o.short + '：' : '本物にない：' + o.short + '：') + x.l.name, s: sh.name + '　本物の請求書にはこの行がない。' + o.long, id: x.l.id, sh: sh.id }); });
       c.match.filter(x => x.diff.length).forEach(x => { const d = diffTxt(x.w, x.r); add.push({ lv:'info', t:'本物は ' + d.short + '：' + x.l.name, s: sh.name + '　Web → 本物：' + d.long + '　（本物の行：' + [x.r.name, x.r.den, x.r.kanri, x.r.kashi, (x.r.start || '') + '〜' + (x.r.end || ''), x.r.ret || x.r.cont || '', '数量 ' + (x.r.qty || 0), yen(n0(x.r.la) + n0(x.r.sa) + n0(x.r.ba))].filter(Boolean).join('　') + '）', id: x.l.id, sh: sh.id, real: d }); });
+      /* ほかの現場へ移した行は「Webにない」ではなく「○○へ移した」 */
+      { const gone = [], rest = []; c.missing.forEach(r => { const w = movedOutTo(r, sh); if(w) gone.push({ r, to: (sheetById(w.sheet) || {}).name || '' }); else rest.push(r); });
+        if(gone.length){ const tos = [...new Set(gone.map(g => g.to))]; add.push({ lv:'info', t:'⇢ ほかの現場へ移した行 ' + gone.length + '：' + sh.name + ' → ' + tos.join('・'), s: gone.slice(0, 4).map(g => g.r.name + ' → ' + g.to).join('／') + (gone.length > 4 ? ' ほか' : ''), sh: sh.id }); }
+        c = Object.assign({}, c, { missing: rest }); }
       if(c.missing.length) add.push({ lv:'warn', t:'本物にあって Web にない行 ' + c.missing.length + '：' + sh.name, s: c.missing.slice(0, 4).map(r => r.name + ' ' + yen(n0(r.la) + n0(r.sa) + n0(r.ba))).join('／') + (c.missing.length > 4 ? ' ほか' : ''), sh: sh.id });
       if(c.total != null && c.total !== sheetNet(sh)) add.push({ lv:'info', t:'本物と合計がちがう：' + sh.name, s:'本物 ' + yen(c.total) + '・Web ' + yen(sheetNet(sh)) + '（差 ' + (sheetNet(sh) - c.total > 0 ? '+' : '') + yen(sheetNet(sh) - c.total) + '）。手直し・手で足した行のぶんなら、それでいい', sh: sh.id });
     });
@@ -8905,6 +8918,10 @@ drawSite = function(){
     if(!c){ bar.insertAdjacentHTML('beforeend', '<span class="tag xreal">本物：この現場のページなし</span>'); return; }
     const d = c.match.filter(x => x.diff.length).length;
     const io = c.match.map(x => x.i), so = io.slice().sort((a, b) => a - b), same = io.every((v, k) => v === so[k]);
+    /* 2026-11-05 移した行は「ない／Webにない」に数えず「移した」と出す */
+    const mvIn = c.extra.filter(x => movedFromOf(x.l, sh)).length, mvOut = c.missing.filter(r => !!movedOutTo(r, sh)).length;
+    c.extra = c.extra.filter(x => !movedFromOf(x.l, sh)); c.missing = c.missing.filter(r => !!!movedOutTo(r, sh));
+    if(mvIn || mvOut) bar.insertAdjacentHTML('beforeend', '<span class="tag xreal" title="ほかの現場とのあいだで移した行（本物とくらべるときは、ちがいに数えない）">' + [mvIn ? '⇠ 移してきた ' + mvIn : '', mvOut ? '⇢ 移した ' + mvOut : ''].filter(Boolean).join('・') + '</span>');
     const ok = !c.extra.length && !d && !c.missing.length && same;
     bar.insertAdjacentHTML('beforeend', '<span class="tag xreal ' + (ok ? 'ok' : 'ng') + '" title="入れた本物の請求書（' + esc(S.real.name) + '）とくらべた">' + (ok ? '本物と同じ ✓' : '本物：' + [c.extra.length ? 'ない行 ' + c.extra.length : '', d ? 'ちがう ' + d : '', c.missing.length ? 'Webにない ' + c.missing.length : '', same ? '' : '並び'].filter(Boolean).join('・')) + '</span>' +
       (prevOrderDiff(sh) ? '<button class="btn sm xreal primary" type="button" data-xr="prevord" title="前月に手で足した行・見出しを、前月の請求書と同じ場所（前月のどの行のあとか）に置き直す">前月の並びにもどす（' + prevOrderDiff(sh) + '行ちがう）</button>' : '') + (same || sh.prev ? '' : '<button class="btn sm xreal" type="button" data-xr="ord">本物の順にする</button>') + (d ? '<button class="btn sm xreal" type="button" data-xr="apply" title="合った行の品名・伝票・管理・日付・数量・単価・金額を本物に">本物のとおりにする（' + d + '行）</button>' : ''));
@@ -14085,6 +14102,42 @@ css.textContent = '.xselbar .xsb-hint{flex-basis:100%;display:flex;flex-directio
 document.head.appendChild(css);
 })();
 
+/* 請求ナビ Web：伝票番号の打ちまちがいを知らせる（ext3m.js）
+   2026-11-05「この3kvadは明らか間違いでしょ こういうのはアラームしてくれないと」
+   三貴 新富 3KVADﾃﾞｨｰｾﾞﾙｲﾝﾊﾞｰﾀｰ発電機：伝票 784291（どこにもない番号）。まわりの手で足した行は 748211 → 打ちまちがい
+   ・伝票番号が、この作業のほかのどの行にも・システム（CSV）にもない1つだけの番号で、
+     よく使われている番号と1〜2字ちがい（入れかわり・打ちまちがい）なら「要確認」 */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+function dist(a, b){   /* 入れかわりも1つと数える */
+  const m = a.length, n = b.length, d = []; for(let i = 0; i <= m; i++){ d[i] = [i]; } for(let j = 0; j <= n; j++) d[0][j] = j;
+  for(let i = 1; i <= m; i++) for(let j = 1; j <= n; j++){ const c = a[i - 1] === b[j - 1] ? 0 : 1; d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c); if(i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1); }
+  return d[m][n];
+}
+const dv = l => String(l.den || '').trim();
+function denTypos(){
+  const cnt = new Map(), sys = new Set();
+  S.lines.forEach(l => { if(l.head) return; const d = dv(l); if(!/^\d{5,}$/.test(d)) return; cnt.set(d, (cnt.get(d) || 0) + 1); if(l.sys && l.sys.name != null && !l.manual) sys.add(d); if(l.ret0) sys.add(String(l.ret0)); });
+  /* 前月の請求書でよく使っていた番号も（前月に手で足した行の 748211 など） */
+  const pc = new Map(); S.sheets.forEach(sh => ((sh.prev && sh.prev.lines) || sh.prevManual || []).forEach(p => { const d = String(p.den || '').trim(); if(/^\d{5,}$/.test(d)) pc.set(d, (pc.get(d) || 0) + 1); }));
+  const known = [...new Set([...cnt.keys(), ...pc.keys()])].filter(d => sys.has(d) || (cnt.get(d) || 0) >= 2 || (pc.get(d) || 0) >= 2);
+  const out = [];
+  S.lines.forEach(l => {
+    if(l.head || l.nb) return; const d = dv(l); if(!/^\d{5,}$/.test(d) || sys.has(d) || cnt.get(d) !== 1) return;
+    const sh = sheetById(l.sheet); if(!sh || !sh.inKagami) return;
+    const swap = (a, b) => { for(let i = 0; i + 1 < a.length; i++){ if(a[i] !== b[i]){ return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2); } } return false; };
+    /* 5桁（システムの伝票は続き番号なので1字ちがいはふつう）は入れかわりだけ。6桁以上は1〜2字ちがいも */
+    const near = known.filter(e => e !== d && e.length === d.length && (d.length >= 6 ? dist(d, e) <= 2 : swap(d, e))).sort((a, b) => (cnt.get(b) || 0) - (cnt.get(a) || 0));
+    if(!near.length) return;
+    const e = near[0], n = S.lines.filter(x => dv(x) === e).length || pc.get(e) || 0, here = linesOf(sh).filter(x => dv(x) === e).length;
+    out.push({ lv: 'warn', t: '伝票番号の打ちまちがい？：' + l.name + '（' + d + '）', s: sh.name + '　伝票 ' + d + ' はシステムにも、この作業のほかの行にもない番号。' + e + '（' + (here ? 'この現場に ' + here + ' 行・' : '') + 'ぜんぶで ' + n + ' 行）のまちがいでは？　そうなら行の伝票を直して。この品がほんとうに貸し出されているかも確かめて', id: l.id, sh: sh.id, xdenTo: e });
+  });
+  return out;
+}
+X.denTypos = denTypos;
+if(typeof checks === 'function'){ const _c = checks; checks = function(){ const r = _c.apply(this, arguments); try{ r.push(...denTypos()); }catch(e){ console.warn(e); } return r; }; }
+})();
+
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
 const W = {
@@ -14590,7 +14643,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 09:53';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-05 10:25';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
