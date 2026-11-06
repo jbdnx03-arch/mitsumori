@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-06 23:06-->
+<!--BUILD:2026-11-07 00:10-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3002,7 +3002,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-06 23:06';
+const BUILD = '2026-11-07 00:10';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -15755,7 +15755,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 23:06';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 00:10';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -18598,6 +18598,241 @@ function kashiPdfBtn(){
   if(/iPhone|iPad|Android/.test(navigator.userAgent)) return;   /* スマホは「稼働表」がもともとPDF */
   k.insertAdjacentHTML('afterend', '<button class="btn sm" data-x="kashiPdf" title="稼働表（貸出状況照会）を文字PDFで保存（印刷の画面を通さない）">稼働表PDF</button>');
 }
+})();
+
+/* 請求ナビ Web：大リニューアル 第3段階のつづき（ext5d.js）提案 F2・F6・F8・F9・F10・F14・F17
+   F2  よく使うボタンをピン留め：ボタンを右クリック（スマホは長押し）→「上の帯にピン留め」。上の帯にいつも出る。もう一度で外す
+   F6  品名をさがして置きかえ：全現場から、何行・どの現場が変わるか見てから置きかえる（⌘K。↶でもどせる）
+   F8  版を残す：作業を10分ごとに自動で残す（変わったときだけ・作業ごとに最大30）。⌘K「前の版にもどす」で、何行ちがうか見てからもどせる
+   F9  スマホのプレビューを2本指で拡大・縮小（＋−と同じ）
+   F10 スマホの「その他」：よく押す順に並べかえ＋上にさがす欄
+   F14 送付セット：この現場の請求書と稼働表を1つのPDFに（現場の画面の「送付セットPDF」・⌘K）
+   F17 作業をファイルに書き出す／ファイルから戻す（⌘K。毎日の世代バックアップ・クラウドとは別に手元に残せる） */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const LS = (k, v) => { try{ if(v === undefined) return localStorage.getItem(k); if(v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){ return null; } };
+const J = (k, d) => { try{ return JSON.parse(LS(k) || '') || d; }catch(e){ return d; } };
+const esc2 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const cmds = X.cmdExtra = X.cmdExtra || [];
+const css = document.createElement('style'); css.id = 'x5dCss';
+css.textContent = [
+'#x5dPins{display:inline-flex;gap:4px;margin-right:6px;flex-wrap:wrap}#x5dPins button{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+'#x5dPins button.gone{opacity:.35}',
+'.x5dFind{width:100%;box-sizing:border-box;margin:0 0 10px}',
+'.x5dList{max-height:240px;overflow:auto;font-size:12px;border-radius:8px;background:var(--surface2,#f2f2f7);padding:6px 10px}',
+'.x5dList div{padding:2px 0;border-bottom:.5px solid var(--sep,#ddd)}.x5dList b{color:var(--brand)}',
+'.x5dVer{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:.5px solid var(--sep,#ddd);font-size:13px}.x5dVer span{flex:1}'
+].join('\n');
+document.head.appendChild(css);
+
+/* ================= F2 ピン留め ================= */
+const PKEY = 'seikyu.pins';
+const pins = () => J(PKEY, []);
+function selOf(b){
+  if(b.id) return '#' + CSS.escape(b.id);
+  for(const a of ['data-x', 'data-x3u', 'data-xps', 'data-m', 'data-q']){ const v = b.getAttribute(a); if(v) return '[' + a + '="' + v + '"]'; }
+  return null;
+}
+function labelOf(b){ return (b.innerText || b.title || '').replace(/\s+/g, ' ').replace(/[A-Z]$/, '').trim().slice(0, 18); }
+function paintPins(){
+  const tabs = document.querySelector('.top .tabs'); if(!tabs) return;
+  let w = document.getElementById('x5dPins');
+  const P = pins();
+  if(!P.length){ if(w) w.remove(); return; }
+  if(!w){ w = document.createElement('span'); w.id = 'x5dPins'; const nav = document.getElementById('x5cNav'); if(nav) nav.insertAdjacentElement('afterend', w); else tabs.insertBefore(w, tabs.firstChild); }
+  w.innerHTML = P.map((p, i) => '<button type="button" class="btn" data-pin="' + i + '" title="ピン留め：' + esc2(p.l) + '（右クリックで外す）">📌 ' + esc2(p.l) + '</button>').join('');
+  w.querySelectorAll('[data-pin]').forEach(b => { const p = P[+b.dataset.pin]; b.classList.toggle('gone', !document.querySelector(p.s)); });
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('#x5dPins [data-pin]'); if(!b) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const p = pins()[+b.dataset.pin]; const t = p && document.querySelector(p.s);
+  if(t){ t.click(); setTimeout(paintPins, 300); } else toast('いまの画面には「' + (p ? p.l : '') + '」がない（現場の画面などで使えるボタン）', 2600);
+}, true);
+function pinMenu(ev, btn){
+  const s = selOf(btn); if(!s) return false;
+  const P = pins(), i = P.findIndex(p => p.s === s), inBar = !!btn.closest('#x5dPins');
+  ev.preventDefault();
+  if(inBar){ const k = +btn.dataset.pin; P.splice(k, 1); LS(PKEY, JSON.stringify(P)); paintPins(); toast('ピン留めを外した', 1400); return true; }
+  if(i >= 0){ P.splice(i, 1); toast('ピン留めを外した：' + labelOf(btn), 1600); }
+  else { P.push({ s, l: labelOf(btn) || s }); toast('上の帯にピン留め：' + labelOf(btn) + '（右クリックで外す）', 2200); }
+  LS(PKEY, JSON.stringify(P.slice(-8))); paintPins(); return true;
+}
+document.addEventListener('contextmenu', ev => {
+  const b = ev.target.closest && ev.target.closest('#x5dPins [data-pin], #shead button, .top button, #sitePv .spv-bar button, #xPvSide button'); if(!b) return;
+  pinMenu(ev, b);
+}, true);
+let lpT = 0;
+document.addEventListener('touchstart', ev => { const b = ev.target.closest && ev.target.closest('#shead button, #x5dPins [data-pin]'); if(!b) return; clearTimeout(lpT); lpT = setTimeout(() => { pinMenu({ preventDefault(){} }, b); try{ navigator.vibrate && navigator.vibrate(10); }catch(e){} }, 650); }, { passive: true });
+['touchend', 'touchmove', 'touchcancel'].forEach(t => document.addEventListener(t, () => clearTimeout(lpT), { passive: true }));
+
+/* ================= F6 品名をさがして置きかえ ================= */
+async function findReplace(){
+  if(typeof S === 'undefined' || !S.built){ toast('先に作業を開いて'); return; }
+  const html = '<p class="muted" style="margin:0 0 8px">全現場の品名から、さがす字を置きかえる。下に変わる行が出る。金額は変わらない。↶ でもどせる</p>' +
+    '<input class="x5dFind" id="x5dQ" placeholder="さがす字（例：ﾌﾞﾛｯｸ）"><input class="x5dFind" id="x5dR" placeholder="置きかえる字（空なら消す）"><div class="x5dList" id="x5dHits">さがす字を入れて</div>';
+  const st = { q: '', r: '' };
+  const hits = () => !st.q ? [] : S.lines.filter(l => !l.head && String(l.name || '').indexOf(st.q) >= 0 && !(typeof siteLocked === 'function' && siteLocked(sheetById(l.sheet))));
+  const paint = () => { const box = document.getElementById('x5dHits'); if(!box) return; const H = hits();
+    box.innerHTML = !st.q ? 'さがす字を入れて' : !H.length ? '見つからない' : '<div><b>' + H.length + ' 行</b>（' + new Set(H.map(l => l.sheet)).size + ' 現場）</div>' + H.slice(0, 80).map(l => '<div>' + esc2((sheetById(l.sheet) || {}).name || '') + '：' + esc2(l.name) + ' → <b>' + esc2(String(l.name).split(st.q).join(st.r)) + '</b></div>').join(''); };
+  const on = ev => { const t = ev.target; if(t.id === 'x5dQ'){ st.q = t.value; paint(); } if(t.id === 'x5dR'){ st.r = t.value; paint(); } };
+  document.addEventListener('input', on, true);
+  const v = await askDialog('品名をさがして置きかえ', html, [{ t: '置きかえる', v: 'ok', primary: true }, { t: 'やめる', v: null, ghost: true }]);
+  document.removeEventListener('input', on, true);
+  if(v !== 'ok' || !st.q) return;
+  const H = hits(); if(!H.length){ toast('見つからなかった'); return; }
+  try{ if(typeof undoMark === 'function') undoMark(); }catch(e){}
+  H.forEach(l => { l.name = String(l.name).split(st.q).join(st.r); l.edited = true; });
+  save(); drawSites(); toast(H.length + ' 行の品名を置きかえた（↶ でもどせる）', 3000);
+}
+cmds.push(add => add('品名をさがして置きかえ（全現場）', '', findReplace, '現場'));
+
+/* ================= F8 版を残す（10分ごと） ================= */
+const VDB = () => new Promise((ok, ng) => { const r = indexedDB.open('seikyuNaviVer', 1); r.onupgradeneeded = () => r.result.createObjectStore('v'); r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error); });
+const vGet = async id => { const db = await VDB(); return new Promise(ok => { const q = db.transaction('v').objectStore('v').get(id); q.onsuccess = () => ok(q.result || []); q.onerror = () => ok([]); }); };
+const vPut = async (id, arr) => { const db = await VDB(); return new Promise(ok => { const t = db.transaction('v', 'readwrite'); t.objectStore('v').put(arr, id); t.oncomplete = () => ok(); t.onerror = () => ok(); }); };
+let lastSig = '';
+async function keepVersion(force){
+  try{
+    if(typeof S === 'undefined' || !S.built || !S.workId || typeof snapshot !== 'function') return;
+    const o = snapshot(); const body = JSON.stringify([o.sheets, o.lines]); const sig = body.length + ':' + body.slice(-200);
+    if(!force && sig === lastSig) return;
+    lastSig = sig;
+    const arr = await vGet(S.workId);
+    arr.push({ t: Date.now(), o: JSON.parse(JSON.stringify(o)) });
+    while(arr.length > 30) arr.shift();
+    await vPut(S.workId, arr);
+  }catch(e){ console.warn('version', e); }
+}
+setInterval(keepVersion, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if(document.hidden) keepVersion(); });
+const tstr = t => { const d = new Date(t); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+function diffCount(a, b){
+  const m = new Map(a.lines.map(l => [l.id, JSON.stringify([l.name, l.qty, l.lu, l.su, l.bu, l.days, l.sdays, l.kb, l.sheet, l.nb, l.start, l.end, l.retd])]));
+  let ch = 0; const seen = new Set();
+  b.lines.forEach(l => { seen.add(l.id); const s = JSON.stringify([l.name, l.qty, l.lu, l.su, l.bu, l.days, l.sdays, l.kb, l.sheet, l.nb, l.start, l.end, l.retd]); if(m.get(l.id) !== s) ch++; });
+  a.lines.forEach(l => { if(!seen.has(l.id)) ch++; });
+  return ch;
+}
+async function restoreVersion(){
+  if(typeof S === 'undefined' || !S.built || !S.workId){ toast('先に作業を開いて'); return; }
+  const arr = await vGet(S.workId);
+  if(!arr.length){ toast('まだ残した版がない（10分ごとに自動で残る）', 3000); return; }
+  const cur = snapshot();
+  const rows = arr.slice().reverse().map((v, i) => { const net = (v.o.lines || []).filter(l => !l.nb).reduce((a, l) => a + (typeof lineAmt === 'function' ? lineAmt(l) : 0), 0);
+    return '<div class="x5dVer"><span>' + tstr(v.t) + '　<small class="muted">いまと ' + diffCount(cur, v.o) + ' 行ちがう・税抜 ' + Math.round(net).toLocaleString('ja-JP') + '</small></span><button type="button" class="btn sm" data-x5dv="' + (arr.length - 1 - i) + '">この版にもどす</button></div>'; }).join('');
+  let pick = null;
+  const on = ev => { const b = ev.target.closest && ev.target.closest('[data-x5dv]'); if(!b) return; pick = +b.dataset.x5dv; const ok = [...document.querySelectorAll('.dlg button')].find(x => /選んだ版/.test(x.textContent) && !x.dataset.x5dv); ev.preventDefault(); ev.stopPropagation(); if(ok) ok.click(); };
+  document.addEventListener('click', on, true);
+  const v = await askDialog('前の版にもどす', '<p class="muted" style="margin:0 0 8px">10分ごとに自動で残した版（この端末）。もどす前の今の形も版として残すので、また戻せる。</p>' + rows, [{ t: 'やめる', v: null, ghost: true }, { t: '選んだ版にもどす', v: 'ok', primary: true }]);
+  document.removeEventListener('click', on, true);
+  if(v !== 'ok' || pick == null) return;
+  await keepVersion(true);
+  const o = JSON.parse(JSON.stringify(arr[pick].o));
+  try{ openWork(o); save(); try{ X.markDirty && X.markDirty(); }catch(e){} setTab(S.tab || 'sites'); toast(tstr(arr[pick].t) + ' の版にもどした（いまの形も版に残した）', 3500); }catch(e){ console.warn(e); toast('もどせなかった：' + e.message, 4000); }
+}
+cmds.push(add => { add('前の版にもどす（10分ごとの自動の版）', '', restoreVersion, '作業'); add('いまの形を版として残す', '', async () => { await keepVersion(true); toast('いまの形を版として残した', 1800); }, '作業'); });
+
+/* ================= F9 スマホのプレビューを2本指で拡大 ================= */
+let pd0 = 0;
+document.addEventListener('touchstart', ev => { if(ev.touches.length === 2 && ev.target.closest && ev.target.closest('#spvBody')){ pd0 = Math.hypot(ev.touches[0].clientX - ev.touches[1].clientX, ev.touches[0].clientY - ev.touches[1].clientY); } }, { passive: true });
+document.addEventListener('touchmove', ev => {
+  if(ev.touches.length !== 2 || !pd0) return;
+  const d = Math.hypot(ev.touches[0].clientX - ev.touches[1].clientX, ev.touches[0].clientY - ev.touches[1].clientY), r = d / pd0;
+  const step = r > 1.18 ? '0.25' : r < 0.85 ? '-0.25' : null;
+  if(step){ const b = document.querySelector('#xPvZoom [data-z="' + step + '"]'); if(b) b.click(); pd0 = d; }
+}, { passive: true });
+document.addEventListener('touchend', () => { pd0 = 0; }, { passive: true });
+
+/* ================= F10 スマホの「その他」：よく押す順＋さがす ================= */
+const UKEY = 'seikyu.moreUse';
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('.xsheet [data-m], .xsheet [data-m3]'); if(!b) return; const k = b.dataset.m || b.dataset.m3; const U = J(UKEY, {}); U[k] = (U[k] || 0) + 1; LS(UKEY, JSON.stringify(U)); }, true);
+new MutationObserver(() => {
+  const sh = document.querySelector('.xsheet'); if(!sh || sh.__x5d) return;
+  const t = sh.querySelector('.xsheet-h b'); if(!t || t.textContent.trim() !== 'その他') return;
+  sh.__x5d = 1;
+  const U = J(UKEY, {});
+  sh.querySelectorAll('.xm-grid').forEach(g => { const it = [...g.children]; it.sort((a, b) => (U[b.dataset.m || b.dataset.m3] || 0) - (U[a.dataset.m || a.dataset.m3] || 0)); it.forEach(e => g.appendChild(e)); });
+  const body = sh.querySelector('.xsheet-b'); if(!body) return;
+  const q = document.createElement('input'); q.type = 'search'; q.placeholder = 'さがす（例：稼働表・控え）'; q.className = 'x5dFind'; q.style.marginBottom = '10px';
+  body.insertBefore(q, body.firstChild);
+  q.addEventListener('input', () => { const s = q.value.trim(); sh.querySelectorAll('.xm-it').forEach(b => { b.hidden = !!s && b.textContent.indexOf(s) < 0; }); });
+}).observe(document.body, { childList: true, subtree: false });
+
+/* ================= F14 送付セット（請求書＋稼働表を1つのPDF） ================= */
+async function sendSet(){
+  if(typeof S === 'undefined' || !S.built){ toast('先に作業を開いて'); return; }
+  const sh = sheetById(S.cur); if(!sh){ toast('現場をえらんで'); return; }
+  const K = window.KASHI_PAPER; if(!K || !X.kashiVecPdf || !X.vecPdf || !X.pdfPrep){ toast('PDFの部品が読み込めていない'); return; }
+  toast('送付セットPDFを作っています…（請求書＋稼働表）', 60000);
+  let W = null;
+  try{
+    await X.pdfPrep();
+    const L = PDFLib;
+    /* 1. この現場の請求書（くっきりPDFと同じ作り方） */
+    W = document.createElement('div'); W.id = 'xPdfVec'; W.style.cssText = 'position:fixed;left:-30000px;top:0;z-index:-1;background:#fff';
+    W.innerHTML = sitePaperHtml(); document.body.appendChild(W);
+    W.querySelectorAll('.xp,.pp').forEach(e => { e.style.margin = '0'; e.style.boxShadow = 'none'; e.style.zoom = '1'; e.style.transform = 'none'; });
+    W.querySelectorAll('.xlid .xnote, .xskwarn, .xpvwarn, .xsysd').forEach(e => e.remove());
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    XR.fitShrink(W); XR.sysFit(W);
+    await Promise.all([...W.querySelectorAll('img')].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 3000); })));
+    const ps = [...W.children].filter(e => e.classList && (e.classList.contains('xp') || e.classList.contains('pp')));
+    const inv = await X.vecPdf(ps); W.remove(); W = null;
+    /* 2. この現場の稼働表 */
+    let kb = null;
+    const kp = X.kashiPrint; const end = S.meta.seikyuDate;
+    const rows = linesOf(sh).filter(l => !l.nb && !l.head && !l.manual && !l.retd && ['日極', '月極', '出庫'].includes(l.kb) && (+l.qty || 0) > 0 && l.kashi)
+      .map(l => ({ code: l.shohin || '', id: String(l.kanri || ''), name: l.name, date: l.kashi, rem: +l.qty || 0, cust: S.meta.custName || '', site: sh.siteName || sh.name }));
+    if(rows.length){
+      const t0 = new Date(), today = t0.getFullYear() + '-' + String(t0.getMonth() + 1).padStart(2, '0') + '-' + String(t0.getDate()).padStart(2, '0'), base = today < end ? today : end;
+      const opt = K.defaultOpt(), fm = K.fmtGet(S.meta.custName || '');
+      if(fm){ opt.showIds = fm.showIds !== false; opt.showDays = fm.showDays !== false; opt.retCol = !!fm.retCol; opt.atName = String(fm.atName || ''); opt.notes = String(fm.notes || ''); opt.order = Array.isArray(fm.order) ? fm.order.slice() : []; }
+      const custFull = String(opt.atName || '').trim() || K.fullName(S.meta.custName || '');
+      const doc = K.buildDoc({ cust: S.meta.custName || '', site: sh.siteName || sh.name, rows }, base, { order: opt.order });
+      const inner = K.paperHtml(doc, { custFull, site: sh.siteName || sh.name, showIds: opt.showIds !== false, showDays: opt.showDays !== false, retCol: !!opt.retCol, ret: {}, notes: opt.notes, tanto: '' });
+      const r = await X.kashiVecPdf(K.paperDocumentMulti([inner], '貸出状況照会'), '貸出状況照会'); kb = r.bytes;
+    }
+    /* 3. 1つにまとめる */
+    const out = await L.PDFDocument.create();
+    for(const bytes of [inv, kb].filter(Boolean)){ const d = await L.PDFDocument.load(bytes); const pg = await out.copyPages(d, d.getPageIndices()); pg.forEach(p => out.addPage(p)); }
+    out.setTitle('送付セット ' + (sh.siteName || sh.name));
+    const bytes = await out.save({ useObjectStreams: true });
+    const nm = (K.ymd8 ? K.ymd8(end) : end.replace(/-/g, '')) + '_御請求書・貸出状況照会_' + (K.fileSafe ? K.fileSafe(K.fullName(S.meta.custName || '')) : S.meta.custName) + '御中_' + (K.fileSafe ? K.fileSafe(sh.siteName || sh.name) : sh.name) + '.pdf';
+    const t = document.getElementById('toast'); if(t) t.hidden = true;
+    await pdfHand(new Blob([bytes], { type: 'application/pdf' }), nm, out.getPageCount());
+    if(!rows.length) toast('この現場はいま借りている品がないので、請求書だけのPDFにした', 4000);
+  }catch(e){ if(W) W.remove(); console.warn('sendSet', e); toast('送付セットが作れなかった：' + (e && e.message || e), 6000); }
+}
+X.sendSet = sendSet;
+cmds.push(add => add('送付セットPDF（この現場の請求書＋稼働表）', '', sendSet, '印刷・PDF'));
+function setBtn(){ const k = document.querySelector('#shead [data-x="kashi"]'); if(!k || document.querySelector('#shead [data-x5d="set"]')) return; k.insertAdjacentHTML('beforebegin', '<button class="btn sm" data-x5d="set" title="この現場の請求書と稼働表（貸出状況照会）を1つのPDFに">送付セットPDF</button>'); }
+document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('[data-x5d="set"]'); if(!b) return; ev.preventDefault(); ev.stopPropagation(); sendSet(); }, true);
+
+/* ================= F17 ファイルに書き出す／戻す ================= */
+function exportWork(){
+  if(typeof S === 'undefined' || !S.built || typeof snapshot !== 'function'){ toast('先に作業を開いて'); return; }
+  const o = snapshot(); const nm = '請求ナビ_' + (S.meta.custName || '') + '_' + (S.meta.seikyuDate || '') + '締め_' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.json';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: 'seikyu-navi', v: 1, at: new Date().toISOString(), work: o })], { type: 'application/json' })); a.download = nm.replace(/[\\/:*?"<>|]/g, ''); document.body.appendChild(a); a.click(); a.remove();
+  toast('この作業をファイルに書き出した：' + nm, 3500);
+}
+function importWork(){
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = async () => { const f = inp.files && inp.files[0]; if(!f) return;
+    try{ const d = JSON.parse(await f.text()); const o = d && d.work; if(!o || !o.sheets || !o.lines) throw new Error('請求ナビの書き出しファイルではない');
+      const v = await askDialog('ファイルから戻す', '<b>' + esc2((o.meta || {}).custName || '') + '</b>　' + esc2((o.meta || {}).seikyuDate || '') + '締め（' + (o.lines || []).length + ' 行）<br>この作業として開いて保存する。同じ作業が端末にあれば上書きになる（その前の形は版に残す）。', [{ t: '開く', v: 'ok', primary: true }, { t: 'やめる', v: null, ghost: true }]);
+      if(v !== 'ok') return;
+      if(S.built) await keepVersion(true);
+      openWork(o); save(); try{ X.markDirty && X.markDirty(); }catch(e){} setTab('sites'); toast('ファイルから戻した', 2500);
+    }catch(e){ toast('戻せなかった：' + e.message, 4000); } };
+  inp.click();
+}
+cmds.push(add => { add('この作業をファイルに書き出す（バックアップ）', '', exportWork, '作業'); add('書き出したファイルから戻す', '', importWork, '作業'); });
+
+/* 描き直しのあとに、ピン・送付セットのボタンを付ける */
+if(typeof drawSites === 'function'){ const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paintPins(); setBtn(); }catch(e){} return r; }; }
+if(typeof setTab === 'function'){ const _st = setTab; setTab = function(){ const r = _st.apply(this, arguments); try{ paintPins(); }catch(e){} return r; }; }
+setTimeout(paintPins, 800);
 })();
 
 </script>
