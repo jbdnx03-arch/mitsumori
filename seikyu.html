@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-06 11:39-->
+<!--BUILD:2026-11-06 13:58-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3001,7 +3001,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-06 11:39';
+const BUILD = '2026-11-06 13:58';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -15744,7 +15744,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 11:39';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 13:58';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -17885,19 +17885,23 @@ const OPT = () => ({ style: LS('wq.hanko.style', 'human'), dens: LS('wq.hanko.de
 /* 決まった乱数（同じ種なら同じ） */
 function rng(str){ let h = 1779033703 ^ str.length; for(let i = 0; i < str.length; i++){ h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
   let a = h >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+/* 2026-11-06「ハンコのズレは枠の中に」：印のふちが枠の線にかからない範囲だけずらす（31.6pt の印に直したときの pt）。
+   印は丸いので傾けても大きさは変わらない。枠の線から約0.3pt あける（画面で測った） */
+const BOX = { sys: { x: [-1.3, 2.3], y: [-0.7, 3.0] }, tpl: { x: [-1.4, 1.6], y: [-3.1, 3.4] } };
 const INK = { dark: [200, 34, 26], mid: [214, 56, 42], light: [222, 88, 72] };
 /* 2026-11-06 色味：朱色・赤・えんじ・白黒印刷用（黒）。濃さで少し濃く／うすく */
 const COL = { shu: [218, 62, 34], aka: [198, 22, 36], enji: [158, 26, 42], kuro: [34, 34, 34] };
 const inkOf = (col, dens) => { const b = COL[col] || COL.shu; if(dens === 'dark') return b.map(x => Math.round(x * 0.9)); if(dens === 'light') return b.map(x => Math.round(x + (255 - x) * 0.22)); return b.slice(); };
 const REG = X.hkReg = X.hkReg || {};
-function variant(nm, seed){
+function variant(nm, seed, B){
+  B = B || BOX.sys;
   const o = OPT(), V = VEC()[nm]; if(!V) return null;
   const R = rng(seed + '|' + nm + '|' + o.style + '|' + o.dens + '|' + o.kas + '|' + o.col), human = o.style !== 'straight';
   const W = V.w, H = V.h, c0 = inkOf(o.col, o.dens), gray = o.col === 'kuro';
   const jit = n => human ? Math.round((R() * 2 - 1) * n) : 0;
   const v = { nm, W, H, human,
-    rot: human ? +(-3 + (R() * 2 - 1) * 6).toFixed(2) : 0,
-    dx: human ? +((R() * 2 - 1) * 3.2).toFixed(2) : 0, dy: human ? +((R() * 2 - 1) * 3.2).toFixed(2) : 0,
+    rot: human ? +(-3 + (R() * 2 - 1) * 8).toFixed(2) : 0,
+    dx: human ? +(B.x[0] + R() * (B.x[1] - B.x[0])).toFixed(2) : 0, dy: human ? +(B.y[0] + R() * (B.y[1] - B.y[0])).toFixed(2) : 0,
     op: { dark: 0.97, mid: 0.9, light: 0.76 }[o.dens] || 0.9,
     col: (gray ? (g => [g, g, g])(c0[0] + jit(14)) : [c0[0] + jit(8), c0[1] + jit(10), c0[2] + jit(8)]).map(x => Math.max(0, Math.min(255, x))),
     bleed: human ? +(0.5 + R() * 0.9).toFixed(2) : 0,
@@ -17938,7 +17942,7 @@ function wrapPage(fn){
     /* 2026-11-06「1つも一緒じゃないように」：同じ描き出しの中で同じ種・ほぼ同じ押し方があれば、ずらして作り直す */
     const P = pass();
     const map = [];
-    o.hanko = HKS.map(h => { const vv = h.nm && VEC()[h.nm] ? uniq(h.nm, seedBase, P) : null; if(!vv) return h; const id = 'hk' + Math.abs(hash(seedBase + h.nm + JSON.stringify(vv))).toString(36); REG[id] = vv; const u = urlOf(vv); map.push([u, vv, id]); return Object.assign({}, h, { src: u }); });
+    o.hanko = HKS.map(h => { const vv = h.nm && VEC()[h.nm] ? uniq(h.nm, seedBase, P, typeof kind === 'string' ? BOX.sys : BOX.tpl) : null; if(!vv) return h; const id = 'hk' + Math.abs(hash(seedBase + h.nm + JSON.stringify(vv))).toString(36); REG[id] = vv; const u = urlOf(vv); map.push([u, vv, id]); return Object.assign({}, h, { src: u }); });
     let html = fn.apply(this, arguments);
     o.hanko = HKS;
     map.forEach(([u, vv, id]) => {
@@ -17946,8 +17950,9 @@ function wrapPage(fn){
       const st = html.indexOf('style="', at), en = st >= 0 ? html.indexOf('"', st + 7) : -1; if(st < 0 || en < 0) return;
       let css = html.slice(st + 7, en);
       css = css.replace(/rotate\(-?[\d.]+deg\)/, 'rotate(' + vv.rot + 'deg)').replace(/opacity:\s*[\d.]+/, 'opacity:1')
-        .replace(/left:\s*([\d.]+)(pt|px)/, (m0, n, u2) => 'left:' + (+n + vv.dx * (u2 === 'px' ? 4 / 3 : 1)).toFixed(2) + u2)
-        .replace(/top:\s*([\d.]+)(pt|px)/, (m0, n, u2) => 'top:' + (+n + vv.dy * (u2 === 'px' ? 4 / 3 : 1)).toFixed(2) + u2);
+      const wm = /width:\s*([\d.]+)(pt|px)/.exec(css), k = wm ? +wm[1] / 31.6 : 1;   /* 印の大きさに合わせる（ずれは印の大きさの割合） */
+      css = css.replace(/left:\s*([\d.]+)(pt|px)/, (m0, n, u2) => 'left:' + (+n + vv.dx * k).toFixed(2) + u2)
+        .replace(/top:\s*([\d.]+)(pt|px)/, (m0, n, u2) => 'top:' + (+n + vv.dy * k).toFixed(2) + u2);
       html = html.slice(0, st) + 'data-hkv="' + id + '" style="' + css + html.slice(en);
     });
     return html;
@@ -17959,9 +17964,9 @@ let PASS = null, depth = 0;
 function pass(){ if(!PASS){ PASS = { poses: [] }; if(!depth) (window.queueMicrotask || (f => Promise.resolve().then(f)))(() => { if(!depth) PASS = null; }); } return PASS; }
 const MM = 0.3528, RAD = 15.8;   /* 印は 31.6pt 角 */
 const gap = (a, b) => Math.hypot(Math.abs(a.rot - b.rot) * Math.PI / 180 * RAD * MM, Math.hypot(a.dx - b.dx, a.dy - b.dy) * MM);
-function uniq(nm, seed, P){
+function uniq(nm, seed, P, B){
   let best = null, bd = -1;
-  for(let k = 0; k < 40; k++){ const v = variant(nm, k ? seed + '~' + k : seed); if(!v || !v.human) return v;
+  for(let k = 0; k < 40; k++){ const v = variant(nm, k ? seed + '~' + k : seed, B); if(!v || !v.human) return v;
     const d = P.poses.reduce((m, q) => q.nm === nm ? Math.min(m, gap(q, v)) : m, 99);
     if(d > bd){ best = v; bd = d; } if(d >= 0.9) break; }
   if(best) P.poses.push({ nm, rot: best.rot, dx: best.dx, dy: best.dy });
