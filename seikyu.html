@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-06 11:09-->
+<!--BUILD:2026-11-06 11:39-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3001,7 +3001,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-06 11:09';
+const BUILD = '2026-11-06 11:39';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -15744,7 +15744,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 11:09';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 11:39';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -17881,22 +17881,25 @@ window.HANKO_VEC = {"阿久津": {"w": 313, "h": 312, "d": "M139 309.5C138.1 309
 const X = window.seikyuExt = window.seikyuExt || {};
 const VEC = () => window.HANKO_VEC || {};
 const LS = (k, d) => { try{ const v = localStorage.getItem(k); return v == null ? d : v; }catch(e){ return d; } };
-const OPT = () => ({ style: LS('wq.hanko.style', 'human'), dens: LS('wq.hanko.dens', 'mid'), kas: LS('wq.hanko.kas', 'low') });
+const OPT = () => ({ style: LS('wq.hanko.style', 'human'), dens: LS('wq.hanko.dens', 'mid'), kas: LS('wq.hanko.kas', 'low'), col: LS('wq.hanko.col', 'shu') });
 /* 決まった乱数（同じ種なら同じ） */
 function rng(str){ let h = 1779033703 ^ str.length; for(let i = 0; i < str.length; i++){ h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
   let a = h >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const INK = { dark: [200, 34, 26], mid: [214, 56, 42], light: [222, 88, 72] };
+/* 2026-11-06 色味：朱色・赤・えんじ・白黒印刷用（黒）。濃さで少し濃く／うすく */
+const COL = { shu: [218, 62, 34], aka: [198, 22, 36], enji: [158, 26, 42], kuro: [34, 34, 34] };
+const inkOf = (col, dens) => { const b = COL[col] || COL.shu; if(dens === 'dark') return b.map(x => Math.round(x * 0.9)); if(dens === 'light') return b.map(x => Math.round(x + (255 - x) * 0.22)); return b.slice(); };
 const REG = X.hkReg = X.hkReg || {};
 function variant(nm, seed){
   const o = OPT(), V = VEC()[nm]; if(!V) return null;
-  const R = rng(seed + '|' + nm + '|' + o.style + '|' + o.dens + '|' + o.kas), human = o.style !== 'straight';
-  const W = V.w, H = V.h, c0 = INK[o.dens] || INK.mid;
+  const R = rng(seed + '|' + nm + '|' + o.style + '|' + o.dens + '|' + o.kas + '|' + o.col), human = o.style !== 'straight';
+  const W = V.w, H = V.h, c0 = inkOf(o.col, o.dens), gray = o.col === 'kuro';
   const jit = n => human ? Math.round((R() * 2 - 1) * n) : 0;
   const v = { nm, W, H, human,
-    rot: human ? +(-3 + (R() * 2 - 1) * 4.5).toFixed(2) : 0,
-    dx: human ? +((R() * 2 - 1) * 1.1).toFixed(2) : 0, dy: human ? +((R() * 2 - 1) * 1.1).toFixed(2) : 0,
+    rot: human ? +(-3 + (R() * 2 - 1) * 6).toFixed(2) : 0,
+    dx: human ? +((R() * 2 - 1) * 3.2).toFixed(2) : 0, dy: human ? +((R() * 2 - 1) * 3.2).toFixed(2) : 0,
     op: { dark: 0.97, mid: 0.9, light: 0.76 }[o.dens] || 0.9,
-    col: [c0[0] + jit(8), c0[1] + jit(10), c0[2] + jit(8)].map(x => Math.max(0, Math.min(255, x))),
+    col: (gray ? (g => [g, g, g])(c0[0] + jit(14)) : [c0[0] + jit(8), c0[1] + jit(10), c0[2] + jit(8)]).map(x => Math.max(0, Math.min(255, x))),
     bleed: human ? +(0.5 + R() * 0.9).toFixed(2) : 0,
     dbl: human && R() < 0.18 ? { x: +((R() * 2 - 1) * 2.4).toFixed(2), y: +((R() * 2 - 1) * 2.4).toFixed(2), op: 0.16 } : null,
     holes: [] };
@@ -17930,9 +17933,12 @@ function wrapPage(fn){
     const o = opt || {};
     const HKS = Array.isArray(o.hanko) ? o.hanko : null;
     if(!HKS || !HKS.length || !Object.keys(VEC()).length) return fn.apply(this, arguments);
-    const seedBase = [S.workId || (S.meta && S.meta.custCode + '_' + S.meta.seikyuDate) || '', typeof kind === 'string' ? kind : 'x', o.id || '', o.pn || ''].join('|');
+    let ck = ''; try{ ck = String(hash(JSON.stringify([v && v.siteNo, v && v.nameBlock, v && v.sum, v && v.rows ? v.rows.slice(0, 3) : '']))); }catch(e){}
+    let seedBase = [S.workId || (S.meta && S.meta.custCode + '_' + S.meta.seikyuDate) || '', typeof kind === 'string' ? kind : 'x', o.id || '', o.pn || '', ck].join('|');
+    /* 2026-11-06「1つも一緒じゃないように」：同じ描き出しの中で同じ種・ほぼ同じ押し方があれば、ずらして作り直す */
+    const P = pass();
     const map = [];
-    o.hanko = HKS.map(h => { const vv = h.nm && VEC()[h.nm] ? variant(h.nm, seedBase) : null; if(!vv) return h; const id = 'hk' + Math.abs(hash(seedBase + h.nm + JSON.stringify(vv))).toString(36); REG[id] = vv; const u = urlOf(vv); map.push([u, vv, id]); return Object.assign({}, h, { src: u }); });
+    o.hanko = HKS.map(h => { const vv = h.nm && VEC()[h.nm] ? uniq(h.nm, seedBase, P) : null; if(!vv) return h; const id = 'hk' + Math.abs(hash(seedBase + h.nm + JSON.stringify(vv))).toString(36); REG[id] = vv; const u = urlOf(vv); map.push([u, vv, id]); return Object.assign({}, h, { src: u }); });
     let html = fn.apply(this, arguments);
     o.hanko = HKS;
     map.forEach(([u, vv, id]) => {
@@ -17947,6 +17953,24 @@ function wrapPage(fn){
     return html;
   };
 }
+/* 1回の描き出し（請求書ぜんぶ／この現場）の中で、前に押した印と近すぎたら押し直す。
+   近さ＝印のふちが動く量（傾き）と位置のずれを mm にして合わせたもの。0.9mm 以上はなれるまで押し直す（2026-11-06「1mmでもいいから全部ちがう感じに」） */
+let PASS = null, depth = 0;
+function pass(){ if(!PASS){ PASS = { poses: [] }; if(!depth) (window.queueMicrotask || (f => Promise.resolve().then(f)))(() => { if(!depth) PASS = null; }); } return PASS; }
+const MM = 0.3528, RAD = 15.8;   /* 印は 31.6pt 角 */
+const gap = (a, b) => Math.hypot(Math.abs(a.rot - b.rot) * Math.PI / 180 * RAD * MM, Math.hypot(a.dx - b.dx, a.dy - b.dy) * MM);
+function uniq(nm, seed, P){
+  let best = null, bd = -1;
+  for(let k = 0; k < 40; k++){ const v = variant(nm, k ? seed + '~' + k : seed); if(!v || !v.human) return v;
+    const d = P.poses.reduce((m, q) => q.nm === nm ? Math.min(m, gap(q, v)) : m, 99);
+    if(d > bd){ best = v; bd = d; } if(d >= 0.9) break; }
+  if(best) P.poses.push({ nm, rot: best.rot, dx: best.dx, dy: best.dy });
+  return best;
+}
+/* 描き出しの入口で1回ぶんを始める（同じ描き出しなら何度やっても同じ押し方） */
+['paperHtml', 'sitePaperHtml'].forEach(fn => { try{ const f0 = window[fn] || (fn === 'paperHtml' ? (typeof paperHtml === 'function' && paperHtml) : (typeof sitePaperHtml === 'function' && sitePaperHtml)); if(!f0) return;
+  const w = function(){ const top = !depth; if(top) PASS = { poses: [] }; depth++; try{ return f0.apply(this, arguments); } finally{ depth--; if(top) PASS = null; } };
+  if(fn === 'paperHtml') paperHtml = w; else sitePaperHtml = w; }catch(e){ console.warn(e); } });
 function hash(s){ let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
 /* hankoStamps に名前（nm）が入っているので、それで線の印をえらぶ */
 if(typeof XR !== 'undefined'){ if(XR.sysPage) XR.sysPage = wrapPage(XR.sysPage); if(XR.page) XR.page = wrapPage(XR.page); }
@@ -17983,7 +18007,8 @@ X.drawHankoVec = function(page, L, im, k, X0, Y0){
 const SEL = [
   ['style', '押し方', [['human', '人が押した風（ページごとに少しずつ）'], ['straight', 'まっすぐ（いつも同じ）']]],
   ['dens', '濃さ', [['dark', '濃い'], ['mid', 'ふつう'], ['light', 'うすい']]],
-  ['kas', 'かすれ', [['none', 'なし'], ['low', '少し'], ['high', '多め']]]
+  ['kas', 'かすれ', [['none', 'なし'], ['low', '少し'], ['high', '多め']]],
+  ['col', '色', [['shu', '朱色'], ['aka', '赤'], ['enji', 'えんじ（濃い赤）'], ['kuro', '白黒印刷用（黒）']]]
 ];
 if(typeof hankoUI === 'function'){ const _ui = hankoUI; hankoUI = function(){ const o = OPT(); return _ui.apply(this, arguments) + '<span class="xhkopt xhkst">' + SEL.map(([k, lb, ops]) => '<label>' + lb + ' <select data-hkst="' + k + '">' + ops.map(p => '<option value="' + p[0] + '"' + (o[k] === p[0] ? ' selected' : '') + '>' + p[1] + '</option>').join('') + '</select></label>').join(' ') + '</span>'; }; }
 document.addEventListener('change', ev => { const t = ev.target; if(!t || !t.dataset || !t.dataset.hkst) return; ev.stopPropagation();
