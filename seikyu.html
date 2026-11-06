@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-06 08:35-->
+<!--BUILD:2026-11-06 11:09-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -2614,13 +2614,7 @@ function sitePreview(all){
     $('#spvPrev').onclick = () => stepSitePv(-1);
     $('#spvNext').onclick = () => stepSitePv(1);
     M.addEventListener('keydown', ev => { if(ev.key === 'ArrowLeft'){ stepSitePv(-1); ev.preventDefault(); } if(ev.key === 'ArrowRight'){ stepSitePv(1); ev.preventDefault(); } });
-    /* 請求書（紙）とボタンの帯以外のところを押したら閉じる（「閉じる」と同じ） */
-    M.addEventListener('click', ev => {
-      const t = ev.target;
-      if(t.closest('.spv-bar, .xp, button, a, input, select, label')) return;
-      const B0 = $('#spvBody'); if(B0 && t !== M && t !== B0 && B0.contains(t)){ const pg = [...B0.children].some(c => c.contains(t) && c.getBoundingClientRect().width < B0.clientWidth - 4); if(pg) return; }
-      closeSitePv();
-    });
+    /* 2026-11-06 まわりの余白を押しても閉じない（閉じるのは「閉じる」か Esc だけ） */
     M.tabIndex = -1;
   }
   const B = $('#spvBody'); B.innerHTML = curPvHtml();
@@ -2951,9 +2945,26 @@ $('#btnHikae').addEventListener('click', () => openHikae());
 $('#btnUndo').addEventListener('click', undo);
 $('#btnWorksAll') && $('#btnWorksAll').addEventListener('click', openHikae);
 $('#btnExport').addEventListener('click', exportCarry);
+/* Esc を押した瞬間に、入力中・ほかの小窓／メニューが出ていたら印をつける（それを閉じる Esc でプレビューまで閉じないように） */
+const PV_ESC_BUSY = '.dlg, .xpe, #xHkMenu, .xmore-wrap.on, #xQt:not([hidden]), .xbulk-v, #wqup:not([hidden]), #lux-menu:not([hidden]), #xpanel:not([hidden])';
+window.addEventListener('keydown', ev => {
+  if(ev.key !== 'Escape') return;
+  const M = document.getElementById('sitePv'); if(!M || M.hidden) return;
+  const a = document.activeElement;
+  if(ev.isComposing || ev.keyCode === 229 || (a && a.matches && a.matches('input, select, textarea, [contenteditable="true"]')) || document.querySelector(PV_ESC_BUSY)) window.__pvEscBusy = ev.timeStamp;
+}, true);
 document.addEventListener('keydown', ev => {
   if(ev.key === 'Escape' && $('#hikae') && !$('#hikae').hidden && !$('.dlg')){ closeHikae(); ev.preventDefault(); return; }
-  if(ev.key === 'Escape' && $('#sitePv') && !$('#sitePv').hidden){ closeSitePv(); ev.preventDefault(); return; }
+  if(ev.key === 'Escape' && $('#sitePv') && !$('#sitePv').hidden){
+    /* 2026-11-06 勝手に閉じないように：変換中・入力中・ほかの小窓やメニューが出ているときの Esc ではプレビューを閉じない */
+    ev.preventDefault();
+    if(ev.isComposing || ev.keyCode === 229) return;
+    const a = document.activeElement;
+    if(a && a.matches && a.matches('input, select, textarea, [contenteditable="true"]')){ try{ a.blur(); $('#sitePv').focus({ preventScroll: true }); }catch(e){} return; }   /* 1回目の Esc は入力をやめるだけ */
+    const xpn = document.getElementById('xpanel'); if(xpn && !xpn.hidden && window.__pvEscBusy === ev.timeStamp && !document.querySelector('.dlg')){ xpn.hidden = true; return; }   /* 右の小さなパネルを先に閉じる */
+    if(window.__pvEscBusy === ev.timeStamp || document.querySelector(PV_ESC_BUSY)) return;
+    closeSitePv(); return;
+  }
   if((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && (ev.key === 'z' || ev.key === 'Z') && S.built && !$('.dlg') && !(ev.target.matches('input,textarea') && ev.target.value !== ev.target.defaultValue)){ ev.preventDefault(); undo(); return; }
   if(ev.target.matches('input,select,textarea') || ev.metaKey || ev.ctrlKey || ev.altKey) return;
   if($('#hikae') && !$('#hikae').hidden) return;
@@ -2990,7 +3001,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-06 08:35';
+const BUILD = '2026-11-06 11:09';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8337,8 +8348,9 @@ function rowAct(id, a, docked){
 /* プレビューの行を押したとき（ext2l から呼ばれる）：欄の上ならその場で直す */
 window.seikyuExt.applyField = apply; window.seikyuExt.fieldVal = valOf; window.seikyuExt.fieldLbl = LBL; window.seikyuExt.fieldOrder = ORDER; window.seikyuExt.rowAct = rowAct;
 window.seikyuExt.pvEdit = function(m, ev, pg, docked){
-  if(typeof RO === 'function' && RO()) return false;   /* 読むだけの作業 */
-  const f = fieldAt(m, ev); if(!f) return false;
+  if(typeof RO === 'function' && RO()){ if(!docked){ toast('読むだけの作業なので、ここでは直せない'); return true; } return false; }   /* 読むだけの作業 */
+  /* 2026-11-06 欄の外（行のすき間など）を押しても、プレビューを閉じずに品名の欄で開く */
+  const f = fieldAt(m, ev) || 'name';
   const lr = m.getBoundingClientRect();
   openAt(m, f, docked, { left: ev.clientX - 40, top: lr.top, bottom: lr.bottom });
   return true;
@@ -8351,7 +8363,7 @@ const _cl = closeSitePv; closeSitePv = function(){ close(); return _cl.apply(thi
 document.addEventListener('mousemove', ev => {
   const m = ev.target.closest && ev.target.closest('.xp') ? document.querySelector('.xlid.xhov') : null;
   if(!m){ return; }
-  const f = fieldAt(m, ev); m.title = f ? LBL[f] + 'を押すとその場で直せる' : '押すと直す画面へ';
+  const f = fieldAt(m, ev); m.title = f ? LBL[f] + 'を押すとその場で直せる' : '押すとその場で直せる';
 }, { passive: true });
 const st = document.createElement('style');
 st.textContent = '.xpe{position:fixed;z-index:10000;width:300px;padding:10px 12px;border-radius:12px;background:#fff;color:#14232A;box-shadow:0 14px 40px rgba(0,0,0,.35),0 0 0 1px rgba(20,100,110,.25);font-size:13px}' +
@@ -8975,7 +8987,7 @@ drawSite = function(){
   }catch(e){}
 };
 document.addEventListener('click', ev => {
-  const b = ev.target.closest('[data-xr]'); if(!b) return; ev.stopPropagation();
+  const b = ev.target.closest('.xreal[data-xr]'); if(!b) return; ev.stopPropagation();   /* 左のメニュー（#xRail の data-xr）は食べない */
   const sh = sheetById(S.cur); if(!sh) return;
   if(b.dataset.xr === 'ord'){ const m = orderLikeReal(sh); save(); drawSites(); toast('本物の順にした（' + m + '行うごいた・↶でもどせる）', 4000); }
   if(b.dataset.xr === 'prevord'){ const m = restorePrevOrder(sh); save(); drawSites(); toast('手で足した行を前月の場所にもどした（' + m + '行うごいた・↶でもどせる）', 4000); }
@@ -15732,7 +15744,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 08:35';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-06 11:09';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -16436,6 +16448,7 @@ var CLOSE_RE = /^(閉じる|とじる|キャンセル|やめる|もどる|戻る
 function veilOf(t){
   if(!t || !t.closest) return null;
   var v = t.closest(VEIL_SEL); if(!v || v.hidden) return null;
+  if(v.id === 'sitePv') return null;   /* 2026-11-06 プレビューは外を押しても閉じない */
   /* 押したのが窓そのもの（うしろの暗いところ）か、紙を並べた所の余白か */
   if(t === v && !v.matches('.sheetwrap')) return v;
   if(t.matches(OUT_SEL) && v.contains(t)) return v;
@@ -16991,7 +17004,7 @@ document.addEventListener('click', function(ev){
 /* ---------- L56 Esc で上の窓から1つずつ閉じる（アプリが閉じなかったときだけ） ---------- */
 document.addEventListener('keydown', function(ev){
   if(ev.key !== 'Escape' || ev.__lx) return;
-  var v = topVeil(); if(!v) return;
+  var v = topVeil(); if(!v || v.id === 'sitePv') return;   /* プレビューはアプリの Esc にまかせる */
   setTimeout(function(){ if(v.isConnected && visible(v) && topVeil() === v){ try{ if(X.closeVeil) X.closeVeil(v); }catch(e){} } }, 60);
 });
 
@@ -17505,6 +17518,9 @@ const A = 'html.xrail';
 const css = document.createElement('style'); css.id = 'xRailCss';
 css.textContent = [
 '#xRail{display:none}',
+/* 2026-11-06 プレビュー中も左のメニューを出す（押すとプレビューを閉じてその画面へ） */
+A + '.xpvon #xRail{z-index:61;top:0}',
+A + '.xpvon #sitePv.spv:not([hidden]){left:' + RW + 'px}',
 A + ' #xRail{display:flex;position:fixed;left:0;top:var(--wqnav-h,42px);bottom:0;width:' + RW + 'px;z-index:40;flex-direction:column;align-items:stretch;gap:4px;padding:10px 8px 12px;background:#0A0A0C;border-right:1px solid rgba(201,164,92,.20);box-sizing:border-box;overflow:hidden auto}',
 A + ':not(.lux-dark) #xRail{background:#FBF8F1;border-right-color:rgba(156,122,53,.28)}',
 A + ' #xRail .xr-logo{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0 10px;margin-bottom:4px;border-bottom:1px solid rgba(201,164,92,.16);color:' + G2 + ';font-weight:800;font-size:11px;letter-spacing:.06em;cursor:default}',
@@ -17558,7 +17574,7 @@ rail.innerHTML = '<div class="xr-logo" title=""><i>請</i>請求ナビ</div>' +
   ['load', 'sites', 'check', 'paper'].map((k, i) => '<button type="button" class="xr-it" data-xr="' + k + '" title="' + LABEL[k] + '（' + (i + 1) + '）">' + svg(ICON[k]) + '<span>' + LABEL[k] + '</span><kbd>' + (i + 1) + '</kbd></button>').join('') +
   '<div class="xr-sp"></div><div class="xr-low"></div><div class="xr-ver"></div>';
 document.body.appendChild(rail);
-rail.addEventListener('click', ev => { const b = ev.target.closest('[data-xr]'); if(!b) return; ev.preventDefault(); const t = b.dataset.xr; if(typeof setTab === 'function') setTab(t); sync(); });
+rail.addEventListener('click', ev => { const b = ev.target.closest('[data-xr]'); if(!b) return; ev.preventDefault(); const t = b.dataset.xr; const M = document.getElementById('sitePv'); if(M && !M.hidden && typeof closeSitePv === 'function'){ try{ window.seikyuExt && (window.seikyuExt.__xpsClick = 0); closeSitePv(); }catch(e){} } if(typeof setTab === 'function') setTab(t); sync(); });
 
 function sync(){
   if(!root.classList.contains('xrail')) return;
@@ -17602,6 +17618,9 @@ window.addEventListener('resize', () => { const w = window.innerWidth > 900; if(
 new MutationObserver(later).observe(root, { attributes: true, attributeFilter: ['class'] });
 (function watchTabs(){ const T = document.querySelector('.top .tabs'); if(!T){ setTimeout(watchTabs, 400); return; } new MutationObserver(() => { if(on) sync(); }).observe(T, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'disabled'] }); })();
 if(typeof setTab === 'function'){ const _st = setTab; setTab = function(){ const r = _st.apply(this, arguments); try{ sync(); }catch(e){} return r; }; }
+const pvMark = () => { const M = document.getElementById('sitePv'); root.classList.toggle('xpvon', !!(M && !M.hidden)); };
+if(typeof sitePreview === 'function'){ const _sp = sitePreview; sitePreview = function(){ root.classList.add('xpvon'); try{ return _sp.apply(this, arguments); } finally{ pvMark(); } }; }
+if(typeof closeSitePv === 'function'){ const _cl = closeSitePv; closeSitePv = function(){ try{ return _cl.apply(this, arguments); } finally{ pvMark(); } }; }
 apply(); setTimeout(apply, 0); setTimeout(apply, 800);
 })();
 
