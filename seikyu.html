@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-07 00:10-->
+<!--BUILD:2026-11-07 01:31-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1972,7 +1972,7 @@ function drawSite(){
   const prevBox = sh.prev ? '<div class="prev"><b>前月（' + esc(sh.prev.name) + '）</b>　請求 ' + yen(sh.prev.total) +
       (sh.prev.fur && sh.prev.fur.length ? '　ふりかえ ' + sh.prev.fur.map(f => (f.amt > 0 ? '+' : '') + yen(f.amt) + (f.memo ? '（' + esc(f.memo) + '）' : '')).join('、') : '') +
       (sh.prevManual && sh.prevManual.length ? '　<span class="pm">前月に手で足した行 ' + sh.prevManual.length + '：' + sh.prevManual.map((p, i) => p.added ? '<span class="tag ok">✓ ' + esc(p.name) + '</span>' : (/^(日極|月極)$/.test(String(p.kb || '')) ? '<button class="btn sm" data-addprev="' + i + '" title="前月から続く品：基本料は入れません">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa) + (num(p.ba) ? '<small style="opacity:.7">（前月の基本料 ' + yen(p.ba) + ' は入れない）</small>' : '') + '</button>' : (S.sameMonth ? '<button class="btn sm" data-addprev="' + i + '">＋ ' + esc(p.name) + ' ' + yen(p.la + p.sa + p.ba) + '</button>' : '<span class="tag" title="運賃・販売は前月だけの請求。今月もかかるときは「行を足す」で今月の日付で入れて" style="opacity:.6">前月だけ：' + esc(p.name) + '（足さない）</span>'))).join(' ') + '</span>' : '') + relinkBtn() + '</div>' : (S.prev ? '<div class="prev">' + relinkBtn() + '</div>' : '');
-  B.innerHTML = '<div class="card">' + '<div class="shead" id="shead">' +
+  siteSet(B, sh.id, '<div class="card">' + '<div class="shead" id="shead">' +
     '<div class="sh"><div class="nm"><input id="shName" value="' + esc(sh.name) + '" aria-label="呼び名"><div class="full">' + esc(sh.siteName) + (sh.csvSite && sh.csvSite !== sh.siteName ? '<small class="muted">（CSVは「' + esc(sh.csvSite) + '」・前月の請求書と同じ名前にしている）</small>' : '') + '　現場コード ' + esc(sh.code) + '<br>宛名 <input id="shCust" value="' + esc(custOf(sh)) + '" style="width:220px" title="この現場の請求書の宛名（得意先名）。空にするとCSVの「' + esc(S.meta.custName) + '」にもどる">' + (sh.custName ? '<small class="muted">（CSVは「' + esc(S.meta.custName) + '」・この現場だけ宛名を変えている）</small>' : '') + '</div></div>' +
     '<label class="fld">工事番号（三貴）<input id="shKouji" value="' + esc((sh.skv && sh.skv.F23) || sh.kouji) + '" placeholder="数字だけでOK（T- は自動）" title="数字だけ入れると T- を頭につける"></label>' +
     (S.meta.custCode === '3057' ? '<label class="fld">三貴担当者名<input id="shSkTan" value="' + esc((sh.skv && sh.skv.AD21) || '') + '" placeholder="例：山田"></label>' : '') +
@@ -1994,8 +1994,9 @@ function drawSite(){
     '</div>' +
     '<div style="overflow:auto"><table class="ln"><thead><tr><th>#</th><th>商品名／伝票・管理番号</th><th>貸出〜終了</th><th>区分</th><th class="n">数量</th><th class="n">日数<br>ｻﾎﾟｰﾄ</th><th class="n">賃貸単価<br>ｻﾎﾟｰﾄ単価</th><th class="n">基本料・販売<br>単価</th><th class="n">金額</th><th></th></tr></thead><tbody>' +
     ls.map((l, i) => lineRow(l, i, others)).join('') + '</tbody></table></div>' +
-    '<div class="row" style="margin-top:10px"><button class="btn" id="addLine">＋ 行を足す（手入力）</button><button class="btn" id="addAdj">＋ 調整の行（値引き・端数）</button><button class="btn" id="addHead" title="【三軒茶屋事務所】のような見出しの行。↑↓で動かせる">＋ 見出しの行</button></div></div>';
+    '<div class="row" style="margin-top:10px"><button class="btn" id="addLine">＋ 行を足す（手入力）</button><button class="btn" id="addAdj">＋ 調整の行（値引き・端数）</button><button class="btn" id="addHead" title="【三軒茶屋事務所】のような見出しの行。↑↓で動かせる">＋ 見出しの行</button></div></div>');
 }
+function siteSet(B, id, h){ const X = window.seikyuExt; if(X && X.siteMorph) X.siteMorph(B, h, id); else B.innerHTML = h; }
 /* スマホ：たたんだ行に出す1行のまとめ（期間・区分・数量×日数×単価）。押すとひらいて直せる */
 function moSum(l){
   const per = (l.start || l.end) ? md(l.start) + '〜' + md(l.end) : (l.kashi ? '貸出 ' + md(l.kashi) : '');
@@ -2015,7 +2016,8 @@ function lineRow(l, i, others){
   const cls = (l.nb ? 'nbrow ' : '') + (l.ovl ? 'ovlrow ' : '') + (l.manual ? 'man' : (l.carried || l.edited) ? 'hand' : '');
   const why = (l.carried ? '<div class="why">' + esc(l.carried) + '</div>' : (l.edited && l.sys ? '<div class="why">手直し（CSVは「' + esc(l.sys.name) + '」' + yen(lineAmt(l.sys)) + '）</div>' : '') + (l.manual ? '<div class="why" style="color:var(--warn)">手入力の行</div>' : ''))
     + (l.sugg && l.sugg.vers && !suggSame(l) ? '<div class="why" style="color:var(--warn)">' + (l.sugg.how ? esc(l.sugg.how) + '：' : '') + '前月は手で ' + esc(l.sugg.diff || ('「' + l.sugg.names.join('・') + '」')) + ' にしていた（今月の日数で ' + yen(l.sugg.amt) + '、いまは ' + yen(lineAmt(l)) + '）　<button class="btn sm" data-act="usesugg">今月も同じにする</button>' + (l.suggDec ? '' : ' <button class="btn sm ghost" data-act="nosugg">このままでいい</button>') + '</div>' : '')
-  const kbSel = '<select data-f="kb">' + KB.concat(l.kb && KB.indexOf(l.kb) < 0 ? [l.kb] : []).map(k => '<option' + (k === l.kb ? ' selected' : '') + '>' + k + '</option>').join('') + '</select>';
+  /* 2026-11-06 軽く：区分・移す先の選択肢は、押したときに入れる（ext6a）。200行で 5千個の部品を作らない */
+  const kbSel = '<select data-f="kb" data-lz="kb"><option selected>' + esc(l.kb || KB[0]) + '</option></select>';
   const inp = (f, v, w) => '<input class="e" data-f="' + f + '" value="' + esc(v) + '"' + (w ? ' style="width:' + w + 'px"' : '') + ' inputmode="' + (f === 'name' ? 'text' : 'decimal') + '"' + (f === 'start' || f === 'end' ? ' placeholder="月/日" title="10/1・1001 のように入れる。日数と金額は入れ直す"' : f === 'retd' ? ' placeholder="継続" title="返却日。空にすると「継続」"' : f === 'kashi' ? ' placeholder="月/日" title="貸出日"' : '') + '>';
   return '<tr class="' + cls + (S.bulkSel && S.bulkSel.has(i + 1) ? ' bksel' : '') + '" data-id="' + l.id + '"><td class="sub rowno" data-no="' + (i + 1) + '" title="押して選ぶ（Shift で範囲）。選んだ行を まとめて ほかの現場へ・出さない・複製・区分を変える・消す">' + (i + 1) + '</td>' +
     '<td>' + inp('name', l.name) + '<div class="sub">伝票 <input class="e den' + (l.denW != null ? ' chg' : '') + '" data-f="denW" value="' + esc(denOf(l)) + '" placeholder="（出さない）" inputmode="numeric" style="width:64px;font-size:inherit;padding:0 3px" title="紙に出す伝票番号。空にすると紙に出さない。CSVの番号（' + esc(denSys(l) || 'なし') + '）にもどすときは右の ↺">' + (l.denW != null ? '<small style="opacity:.7">（CSVは ' + esc(denSys(l) || 'なし') + '）</small><button type="button" class="xrevw" data-revw="denW" title="CSVの番号にもどす">↺</button>' : '') + '　管理 <input class="e den' + (l.kanW != null ? ' chg' : '') + '" data-f="kanW" value="' + esc(kanOf(l)) + '" placeholder="（出さない）" style="width:96px;font-size:inherit;padding:0 3px" title="紙に出す管理番号。空にすると紙に出さない。CSVの番号（' + esc(kanSys(l) || 'なし') + '）にもどすときは右の ↺">' + (l.kanW != null ? '<small style="opacity:.7">（CSVは ' + esc(kanSys(l) || 'なし') + '）</small><button type="button" class="xrevw" data-revw="kanW" title="CSVの番号にもどす">↺</button>' : '') + (l.shohin && kanSys(l) !== l.shohin ? '　<span style="opacity:.7">商品 ' + esc(l.shohin) + '</span>' : '') + '</div>' + why +
@@ -2027,7 +2029,7 @@ function lineRow(l, i, others){
     '<td class="n">' + inp('lu', yenZ(l.lu), 76) + inp('su', yenZ(l.su), 76) + '</td>' +
     '<td class="n">' + inp('bu', yenZ(l.bu), 76) + '</td>' +
     '<td class="n" style="font-weight:700">' + yen(lineAmt(l)) + '<div class="sub">' + (num(l.la) ? '賃 ' + yen(l.la) : '') + (num(l.sa) ? '<br>ｻ ' + yen(l.sa) : '') + (num(l.ba) ? '<br>基 ' + yen(l.ba) : '') + '</div></td>' +
-    '<td class="xlnc"><div class="lnbtn"><button data-act="up" title="1行上へ">↑</button><button data-act="down" title="1行下へ">↓</button><button data-act="dup" title="同じ行をもう1行">⧉</button><select data-act="move" title="別の現場へ移す" style="max-width:26px"><option value="">⇢</option>' + others.map(s => '<option value="' + s.id + '">' + esc(s.name) + 'へ</option>').join('') + '</select>' +
+    '<td class="xlnc"><div class="lnbtn"><button data-act="up" title="1行上へ">↑</button><button data-act="down" title="1行下へ">↓</button><button data-act="dup" title="同じ行をもう1行">⧉</button><select data-act="move" data-lz="mv" title="別の現場へ移す" style="max-width:26px"><option value="">⇢</option></select>' +
     (l.sys && (l.carried || l.edited || sysDiffAny(l)) ? '<button data-act="revert" title="CSVのとおりに戻す（日付・伝票もぜんぶ）">↺</button>' : '') + '<button data-act="nb" title="' + (l.nb ? '請求書に出す' : '請求書に出さない（行は残す）') + '">' + (l.nb ? '◎' : '⊘') + '</button><button data-act="del" title="この行を消す">×</button></div></td></tr>';
 }
 
@@ -3002,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-07 00:10';
+const BUILD = '2026-11-07 01:31';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -4412,14 +4414,15 @@ drawSite = function(){
   $$('#siteBody tr[data-id]').forEach(tr => {
     const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
     const td = tr.children[1];
+    td.querySelectorAll(':scope > .xmemo').forEach(x => x.remove());   /* 2026-11-06 残した行（ext6a）で2つにならないように */
     if(l.memo || l.rule){ const d = document.createElement('div'); d.className = 'why xmemo'; d.innerHTML = (l.rule ? '<span class="tag rule">決まり：' + esc(l.rule) + '</span> ' : '') + (l.memo ? 'メモ：' + esc(l.memo) : ''); td.appendChild(d); }
     if(l.rule) tr.classList.add('rulerow');
     /* 手で変えた欄だけ黄色のマーカー（CSVの値とちがう欄）。行全体の色はやめて、左の線だけ */
     markRow(tr, l);
     const amt = tr.children[8]; if(amt){ amt.classList.add('xcalc'); amt.title = '押すと計算のしかた'; }
-    const bt = tr.querySelector('.lnbtn'); if(bt){ const b = document.createElement('button'); b.dataset.x = 'lmemo'; b.title = 'メモ（社内）・理由・決まりごと'; b.textContent = '✎'; bt.insertBefore(b, bt.firstChild); }
+    const bt = tr.querySelector('.lnbtn'); if(bt && !bt.querySelector('[data-x="lmemo"]')){ const b = document.createElement('button'); b.dataset.x = 'lmemo'; b.title = 'メモ（社内）・理由・決まりごと'; b.textContent = '✎'; bt.insertBefore(b, bt.firstChild); }
     tr.draggable = false;
-    const rn = tr.querySelector('.rowno'); if(rn){ rn.draggable = true; rn.title += '・つまんで上下に動かせる'; }
+    const rn = tr.querySelector('.rowno'); if(rn){ rn.draggable = true; if(rn.title.indexOf('つまんで上下に') < 0) rn.title += '・つまんで上下に動かせる'; }
   });
   /* 送付済のロック（N22） */
   $('#siteBody').classList.toggle('locked', (S.status === 'sent' || S.status === 'done') && !E().unlocked);
@@ -4480,7 +4483,7 @@ function markRow(tr, l){
     const a = l[f], b = l.sys[f]; if(b === undefined){ el.classList.remove('chg'); return; }
     const diff = N.has(f) ? num(a) !== num(b) : D.has(f) ? String(a || '') !== String(b || '') : String(a == null ? '' : a).trim() !== String(b == null ? '' : b).trim();
     el.classList.toggle('chg', diff);
-    el.title = diff ? 'CSVは ' + (D.has(f) ? (b ? md2(b) : '空（継続）') : N.has(f) ? yen(b) : (b || '空')) + '（手で変えた）' : '';
+    el.title = diff ? 'CSVは ' + (D.has(f) ? (b ? md2(b) : '空（継続）') : N.has(f) ? yen(b) : (b || '空')) + '（手で変えた）' : (/^CSVは /.test(el.title) ? '' : el.title);   /* 2026-11-06 ほかの説明（返却日など）は消さない＝毎回の消して付け直しをやめる */
   });
 }
 ['change','input'].forEach(t => $('#siteBody').addEventListener(t, ev => { const tr = ev.target.closest && ev.target.closest('tr[data-id]'); if(!tr) return; setTimeout(() => { const l = S.lines.find(x => x.id === tr.dataset.id); const tr2 = $('tr[data-id="' + tr.dataset.id + '"]'); if(l && tr2) markRow(tr2, l); }, 0); }));
@@ -13832,7 +13835,7 @@ if(typeof updateFromCsv === 'function'){
 document.addEventListener('change', ev => { const t = ev.target; if(!t || !t.classList || !t.classList.contains('xlkpick')) return; window.__xlkPicked = [...document.querySelectorAll('.xlkpick')].filter(c => c.checked).map(c => +c.dataset.i); }, true);
 const css = document.createElement('style');
 css.textContent = '.xlockbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 10px;padding:9px 14px;border-radius:12px;background:rgba(46,139,87,.14);border:1.5px solid rgba(46,139,87,.55);font-size:13px}.xlockbar b{color:#2E8B57;font-size:14px}.xlockbar span{opacity:.8}.xlockbar .btn{margin-left:auto}' +
-  '#siteBody.xsitelock table.ln input.e, #siteBody.xsitelock table.ln select{pointer-events:none;opacity:.75}#siteBody.xsitelock table.ln .lnbtn button, #siteBody.xsitelock table.ln .lnbtn select, #siteBody.xsitelock .xgrip{opacity:.3;pointer-events:none}#siteBody.xsitelock #addLine, #siteBody.xsitelock #addAdj, #siteBody.xsitelock #addHead{opacity:.35;pointer-events:none}';
+  '#siteBody.xsitelock table.ln tbody{pointer-events:none}#siteBody.xsitelock table.ln td.rowno, #siteBody.xsitelock table.ln td.xcalc, #siteBody.xsitelock table.ln .why, #siteBody.xsitelock table.ln [data-x="lmemo"]{pointer-events:auto}#siteBody.xsitelock table.ln tbody{color:var(--ink2,#555)}#siteBody.xsitelock table.ln .lnbtn{visibility:hidden}#siteBody.xsitelock table.ln .lnbtn [data-x="lmemo"]{visibility:visible}#siteBody.xsitelock .xgrip{visibility:hidden}#siteBody.xsitelock #addLine, #siteBody.xsitelock #addAdj, #siteBody.xsitelock #addHead{opacity:.35;pointer-events:none}';
 document.head.appendChild(css);
 })();
 
@@ -14353,7 +14356,8 @@ const _sv = save; save = function(){ try{ if(S.built) autoCont(); }catch(e){} re
 function paint(){
   document.querySelectorAll('#siteBody table.ln tr[data-id] input.e[data-f="retd"]').forEach(inp => {
     const tr = inp.closest('tr[data-id]'), l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
-    const span = inp.parentElement; if(!span || span.querySelector('select[data-xret]')) return;
+    const span = inp.parentElement; if(!span) return;
+    { const s0 = span.querySelector('select[data-xret]'); if(s0){ const c0 = !day(l.retd); s0.value = c0 ? 'c' : 'r'; inp.placeholder = '月/日'; inp.title = '返却日（10/31・1031 のように）'; inp.classList.toggle('xret-off', c0); return; } }   /* 2026-11-06 残した行（ext6a）でも同じに */
     const isCont = !day(l.retd);
     span.querySelectorAll('small').forEach(s => { if(/継続/.test(s.textContent)) s.remove(); });
     const sel = document.createElement('select'); sel.dataset.xret = l.id; sel.className = 'xret';
@@ -15755,7 +15759,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 00:10';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 01:31';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -18834,6 +18838,109 @@ if(typeof drawSites === 'function'){ const _ds = drawSites; drawSites = function
 if(typeof setTab === 'function'){ const _st = setTab; setTab = function(){ const r = _st.apply(this, arguments); try{ paintPins(); }catch(e){} return r; }; }
 setTimeout(paintPins, 800);
 })();
+
+/* 請求ナビ Web：大リニューアル 本丸（ext6a.js）
+   2026-11-06「重い・固まる」のいちばんの元：現場の表（200行で 1万8千個の部品）を、1文字かえるたびに全部こわして作り直していた
+   → 変わっていない行はそのまま残して、変わった行だけ入れかえる（見た目・紙・PDFはまったく同じ）
+   ・別の現場にかえたとき・作業を開いたときは、いままでどおり全部作り直す
+   ・行の外（上の欄・まとめて変える・下のボタン）は毎回作り直す（あとから付く部品もいままでどおり付く） */
+(function(){
+const X = window.seikyuExt = window.seikyuExt || {};
+const RAW = new WeakMap();
+let lastSh = null;
+const st = X.morphStat = { full:0, morph:0, keep:0, fresh:0 };
+function remember(tb){ if(!tb) return; for(const tr of tb.children) RAW.set(tr, tr.outerHTML); }
+function full(B, h, id, why){
+  st.why = why || 0; B.innerHTML = h; lastSh = id; st.full++;
+  const tb = B.querySelector(':scope > .card > div > table.ln > tbody'); remember(tb);
+  const th = tb && tb.parentNode.tHead; if(th) RAW.set(th, th.outerHTML);
+}
+X.siteFull = () => { lastSh = null; };
+X.siteMorph = function(B, h, id){
+  try{
+    if(X.morphOff || id !== lastSh || !B.isConnected) return full(B, h, id, 1);
+    const card = B.firstElementChild;
+    const oTb = card && B.querySelector(':scope > .card > div > table.ln > tbody');
+    if(!oTb || B.querySelectorAll(':scope > .card').length !== 1) return full(B, h, id, 2);
+    const T = document.createElement('template'); T.innerHTML = h;
+    const C = T.content, nCard = C.firstElementChild;
+    const nTb = nCard && nCard.classList.contains('card') && nCard.querySelector(':scope > div > table.ln > tbody');
+    if(!nTb || C.children.length !== 1) return full(B, h, id, 3);
+    const oTable = oTb.parentNode, oWrap = oTable.parentNode, nTable = nTb.parentNode, nWrap = nTable.parentNode;
+    if(oWrap.parentNode !== card || nWrap.parentNode !== nCard || !oTable.tHead || !nTable.tHead) return full(B, h, id, 4);
+    if(oTable.tBodies.length !== 1 && [...oTable.tBodies].indexOf(oTb) < 0) return full(B, h, id, 5);
+    /* 見出し */
+    const nTh = nTable.tHead, nThRaw = nTh.outerHTML;
+    if(RAW.get(oTable.tHead) !== nThRaw){ oTable.replaceChild(nTh, oTable.tHead); RAW.set(nTh, nThRaw); }
+    /* 行：同じ行（中身がひと文字もちがわない）は残す */
+    const old = new Map();
+    for(const tr of oTb.children){ const k = tr.getAttribute('data-id'); if(k && RAW.has(tr) && !old.has(k)) old.set(k, tr); }
+    const want = [];
+    for(const tr of [...nTb.children]){
+      const raw = tr.outerHTML, k = tr.getAttribute('data-id'), o = k && old.get(k);
+      if(o && RAW.get(o) === raw){ want.push(o); old.delete(k); st.keep++; }
+      else if(o){
+        /* 同じ行で中身が変わった：行（tr）はそのまま、中だけ入れかえる（下の行まで計算し直しにならない） */
+        for(const a of [...o.attributes]) if(!tr.hasAttribute(a.name)) o.removeAttribute(a.name);
+        for(const a of tr.attributes) if(o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
+        for(const x of Object.keys(o)) try{ delete o[x]; }catch(e){}
+        o.replaceChildren(...tr.childNodes);
+        RAW.set(o, raw); want.push(o); old.delete(k); st.inplace = (st.inplace || 0) + 1;
+      }
+      else { RAW.set(tr, raw); want.push(tr); st.fresh++; }
+    }
+    const ws = new Set(want);
+    for(const n of [...oTb.childNodes]) if(!ws.has(n)) n.remove();
+    let cur = oTb.firstChild;
+    for(const tr of want){ if(cur === tr){ cur = cur.nextSibling; continue; } oTb.insertBefore(tr, cur); }
+    /* 表のまわり：あとから付いたものは消す（いままでと同じ） */
+    for(const n of [...oTable.childNodes]) if(n !== oTb && n !== oTable.tHead) n.remove();
+    for(const n of [...oWrap.childNodes]) if(n !== oTable) n.remove();
+    for(const n of [...B.childNodes]) if(n !== card) n.remove();
+    /* 行の外は作り直す */
+    for(const n of [...card.childNodes]) if(n !== oWrap) n.remove();
+    const nk = [...nCard.childNodes], wi = nk.indexOf(nWrap);
+    const pre = document.createDocumentFragment(); nk.slice(0, wi).forEach(n => pre.appendChild(n));
+    card.insertBefore(pre, oWrap);
+    nk.slice(wi + 1).forEach(n => card.appendChild(n));
+    /* 残した行：入力のしるし（focus）は、いま入力していない欄からははずす */
+    const ae = document.activeElement; oTb.querySelectorAll('td.focus').forEach(td => { if(!td.contains(ae)) td.classList.remove('focus'); });
+    st.morph++;
+  }catch(e){ console.warn('siteMorph', e); try{ full(B, h, id); }catch(e2){} }
+};
+/* 作業を開いた・CSVを読み直した・元に戻すなどは、ぜんぶ作り直す（念のため） */
+['build', 'openWork', 'updateFromCsv', 'undo', 'redo', 'restoreVersion'].forEach(n => {
+  if(typeof window[n] === 'function'){ const f = window[n]; window[n] = function(){ lastSh = null; return f.apply(this, arguments); }; }
+});
+})();
+
+/* 同じ値を入れ直すだけで、ブラウザが行の中を全部計算し直していた（title・draggable・placeholder）。同じ値なら何もしない */
+(function(){
+  const same = (proto, prop, cmp) => { const d = Object.getOwnPropertyDescriptor(proto, prop); if(!d || !d.set || !d.get) return;
+    Object.defineProperty(proto, prop, { configurable:true, enumerable:d.enumerable, get:d.get, set(v){ if(cmp(d.get.call(this), v)) return; d.set.call(this, v); } }); };
+  const str = (a, v) => a === String(v);
+  same(HTMLElement.prototype, 'title', str);
+  same(HTMLElement.prototype, 'draggable', (a, v) => a === !!v);
+  same(HTMLInputElement.prototype, 'placeholder', str);
+  const sa = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(n, v){ if(this.getAttribute(n) === String(v)) return; return sa.call(this, n, v); };
+})();
+/* 区分・移す先の選択肢：押す（さわる・Tabで来る）直前に入れる */
+(function(){
+  const fill = sel => {
+    const k = sel.getAttribute('data-lz'); if(!k) return; sel.removeAttribute('data-lz');
+    try{
+      if(k === 'kb'){ const cur = sel.value, list = KB.concat(cur && KB.indexOf(cur) < 0 ? [cur] : []);
+        sel.innerHTML = list.map(x => '<option' + (x === cur ? ' selected' : '') + '>' + esc(x) + '</option>').join(''); sel.value = cur; }
+      else if(k === 'mv'){ const tr = sel.closest('tr[data-id]'), l = tr && S.lines.find(x => x.id === tr.dataset.id); const me = l ? l.sheet : S.cur;
+        sel.insertAdjacentHTML('beforeend', S.sheets.filter(s => s.id !== me).map(s => '<option value="' + s.id + '">' + esc(s.name) + 'へ</option>').join('')); sel.value = ''; }
+    }catch(e){ console.warn('lazy select', e); }
+  };
+  const on = ev => { const t = ev.target; if(t && t.tagName === 'SELECT' && t.hasAttribute('data-lz')) fill(t); };
+  ['pointerdown', 'mousedown', 'touchstart', 'focusin', 'keydown'].forEach(n => document.addEventListener(n, on, { capture:true, passive:true }));
+  window.seikyuExt.fillLazy = root => (root || document).querySelectorAll('select[data-lz]').forEach(fill);
+})();
+
 
 </script>
 
