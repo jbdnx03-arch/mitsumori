@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-07 01:31-->
+<!--BUILD:2026-11-07 15:32-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3004,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-07 01:31';
+const BUILD = '2026-11-07 15:32';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -15749,6 +15749,7 @@ function printHtmlDoc(html, title){
 window.KASHI_PAPER = { buildDoc, paperHtml, paperDocumentMulti, printHtmlDoc, fullName, fileSafe, ymd8, jdLong, defaultOpt, fmtGet, fmtRetDate, nf };
 })();
 
+try{ window.WQ_APPLE = localStorage.getItem('seikyu.skin') !== 'gold'; }catch(e){ window.WQ_APPLE = true; }   /* 2026-11-07 Apple風のときは前の飾りの動きを止めて軽く */
 window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!important}@media (min-width:901px){.sites{top:calc(76px + var(--wqnav-h,0px))!important;max-height:calc(100vh - 92px - var(--wqnav-h,0px))!important}.shead{top:calc(var(--toph,56px) + var(--wqnav-h,0px))!important}}";
 /* ===== wqnav：どのアプリでも、いちばん上に「ホーム＋★よく使う」の帯を出す =====
    ・web見積で ★ を付けた並び（wq.nav.items）を、請求ナビ・滅失申請・車両管理などでも同じに出す
@@ -15759,7 +15760,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 01:31';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 15:32';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -15804,6 +15805,7 @@ function render(nav){
 }
 function setH(nav){
   var hh = nav.hidden ? 0 : nav.offsetHeight;
+  if(setH.__v === hh) return; setH.__v = hh;
   document.documentElement.style.setProperty('--wqnav-h', hh + 'px');
 }
 function mk(){
@@ -16037,7 +16039,8 @@ var root = document.documentElement;
 var reduce = false; try{ reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
 var coarse = false; try{ coarse = matchMedia('(pointer: coarse)').matches; }catch(e){}
 var lowEnd = false; try{ lowEnd = (navigator.deviceMemory && navigator.deviceMemory <= 3) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2); }catch(e){}
-function motion(){ var m = ls(KM); if(m === 'off' || m === 'std' || m === 'max') return m; return reduce ? 'off' : 'max'; }
+function motion(){ if(window.WQ_APPLE) return 'off';
+  var m = ls(KM); if(m === 'off' || m === 'std' || m === 'max') return m; return reduce ? 'off' : 'max'; }
 var PAPER = '#pvpaper, #paper, #print, .xp, .pp, .pw, .pg, .pgdoc, .pgatt, #xPdfWork, .sheet-paper, .paper, .pvwrap';
 function inPaper(el){ try{ return !!(el && el.closest && el.closest(PAPER)); }catch(e){ return false; } }
 var idle = window.requestIdleCallback ? function(f){ return requestIdleCallback(f, { timeout:600 }); } : function(f){ return setTimeout(function(){ f({ timeRemaining:function(){ return 12; } }); }, 60); };
@@ -16221,6 +16224,7 @@ function inject(){
 }
 /* 時間でオーロラの色を変える（朝は金・昼は青緑・夕方は夕焼け・夜は紺） */
 function ambient(){
+  if(window.WQ_APPLE) return;
   var h = new Date().getHours(), c;
   if(h >= 5 && h < 10) c = ['255,214,140', '120,210,220', '255,170,120'];
   else if(h >= 10 && h < 16) c = ['63,193,201', '217,183,106', '56,140,200'];
@@ -16760,6 +16764,7 @@ ready(function(){
 });
 var scanT = 0, pend = [], hsT = 0;
 function paperWhite(){
+  if(window.WQ_APPLE) return;
   try{ if(root.classList.contains('lux-dark')) { document.body.style.removeProperty('--lx-pw'); return; }
     var c = getComputedStyle(document.body).backgroundColor;
     var h = getComputedStyle(root).backgroundColor;
@@ -16874,7 +16879,7 @@ function hsOne(el){
   el.classList.toggle('lx-hr', el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
   if(!el.__lxs){ el.__lxs = 1; el.addEventListener('scroll', function(){ hsOne(el); }, { passive:true }); }
 }
-function hsAll(){ try{ document.querySelectorAll('.tablebox, .tblwrap, .tbl-wrap, .tblbox, .scrollx, .x-scroll').forEach(hsOne); document.querySelectorAll('div').forEach(function(d){ if(d.__lxs || d.clientWidth < 120) return; var o = getComputedStyle(d).overflowX; if((o === 'auto' || o === 'scroll') && d.scrollWidth > d.clientWidth + 2) hsOne(d); }); }catch(e){} }
+function hsAll(){ try{ document.querySelectorAll('.tablebox, .tblwrap, .tbl-wrap, .tblbox, .scrollx, .x-scroll').forEach(hsOne); if(window.WQ_APPLE) return; document.querySelectorAll('div').forEach(function(d){ if(d.__lxs || d.clientWidth < 120) return; var o = getComputedStyle(d).overflowX; if((o === 'auto' || o === 'scroll') && d.scrollWidth > d.clientWidth + 2) hsOne(d); }); }catch(e){} }
 
 /* ---------- L27・L28 読み込みの線・タブ名・処理中のカーソル ---------- */
 var inflight = 0, loadEl = null, busyT = 0;
@@ -17070,7 +17075,7 @@ window.addEventListener('online', function(){ band('つながりました', 1800
 if(SMALL) window.addEventListener('beforeunload', function(ev){ if(dirty && Date.now() - dirtyAt < 20 * 60 * 1000){ ev.preventDefault(); ev.returnValue = ''; return ''; } });
 
 /* ---------- L68・L72 スマホ：下の固定バーとキーボード ---------- */
-function safeBottom(){ try{ document.querySelectorAll('body *').forEach(function(el){ if(el.__lxsb || el.children.length > 60) return; var cs = getComputedStyle(el); if(cs.position === 'fixed' && cs.bottom === '0px' && el.offsetHeight < 140 && el.offsetWidth > innerWidth * .6){ el.__lxsb = 1; el.style.paddingBottom = 'max(' + cs.paddingBottom + ', env(safe-area-inset-bottom))'; } }); }catch(e){} }
+function safeBottom(){ try{ document.querySelectorAll(window.WQ_APPLE ? '.actionbar, .addbar, nav, footer, [class*="bar"], [id*="Bar"], [id*="bar"]' : 'body *').forEach(function(el){ if(el.__lxsb || el.children.length > 60) return; var cs = getComputedStyle(el); if(cs.position === 'fixed' && cs.bottom === '0px' && el.offsetHeight < 140 && el.offsetWidth > innerWidth * .6){ el.__lxsb = 1; el.style.paddingBottom = 'max(' + cs.paddingBottom + ', env(safe-area-inset-bottom))'; } }); }catch(e){} }
 if(coarse) setTimeout(safeBottom, 1500);
 document.addEventListener('focusin', function(ev){
   var t = ev.target; if(!t || !t.matches || !t.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea') || t.__lxk) return; t.__lxk = 1;
@@ -18448,6 +18453,31 @@ function meta(){
   m.content = root.classList.contains('lux-dark') ? '#1C1C1E' : '#F2F2F7';
 }
 new MutationObserver(meta).observe(root, { attributes: true, attributeFilter: ['class'] }); meta();
+})();
+/* 2026-11-07「この左上のメニューのボタンは全てにつけて」：請求ナビにも左上の青い ☰（押すとコマンド＝したいことを打つ・全部の操作の一覧） */
+(function(){
+const css = document.createElement('style'); css.id = 'x5bMenuBtn';
+css.textContent = 'html #wqnav #x5bMenu,html #x5bMenu{flex:0 0 auto;display:inline-flex;width:38px;height:38px;min-width:38px;margin:0 8px 0 0;padding:0;border:0;border-radius:11px;cursor:pointer;' +
+  'background:linear-gradient(#fff,#fff) center calc(50% - 6px) / 18px 2px no-repeat,linear-gradient(#fff,#fff) center / 18px 2px no-repeat,linear-gradient(#fff,#fff) center calc(50% + 6px) / 18px 2px no-repeat,var(--brand,#007AFF)!important;' +
+  'box-shadow:0 2px 8px rgba(0,122,255,.28);-webkit-tap-highlight-color:transparent;touch-action:manipulation}html #x5bMenu:active{transform:scale(.94);opacity:.85}' +
+  'html:not(.xapple) #wqnav #x5bMenu{background:linear-gradient(#111,#111) center calc(50% - 6px) / 18px 2px no-repeat,linear-gradient(#111,#111) center / 18px 2px no-repeat,linear-gradient(#111,#111) center calc(50% + 6px) / 18px 2px no-repeat,var(--ax,#C9A45C)!important}';
+document.head.appendChild(css);
+function put(){
+  const nav = document.getElementById('wqnav'); if(!nav || document.getElementById('x5bMenu')) return !!nav;
+  const b = document.createElement('button'); b.type = 'button'; b.id = 'x5bMenu'; b.setAttribute('aria-label', 'メニュー'); b.title = 'メニュー（したいことを打つ・全部の操作）';
+  b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation();
+    const c = document.getElementById('btnCmd'); if(c){ c.click(); return; }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key:'k', ctrlKey:true, bubbles:true })); });
+  nav.insertBefore(b, nav.firstChild); return true;
+}
+if(!put()){ let n = 0; const t = setInterval(function(){ if(put() || ++n > 40) clearInterval(t); }, 250); }
+})();
+/* 2026-11-07 軽く：ずっと動きつづける飾り（読み込み中のきらきら・矢印の上下）をやめる。読み込み中の文はそのまま字で出す */
+(function(){
+const css = document.createElement('style'); css.id = 'x5bCalm';
+css.textContent = 'html.xapple .works .muted:only-child,html.xapple .hk-body > .muted:only-child{animation:none!important;color:var(--ink3,#8E8E93)!important;background:none!important;min-height:0!important}' +
+  'html.xapple .drop b::before{animation:none!important}';
+document.head.appendChild(css);
 })();
 
 /* 請求ナビ Web：大リニューアル 第3段階（ext5c.js）提案 F1・F3・F4・F5・F7・F13・F16
