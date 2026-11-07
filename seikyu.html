@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-07 21:07-->
+<!--BUILD:2026-11-07 23:02-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3004,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-07 21:07';
+const BUILD = '2026-11-07 23:02';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3746,6 +3746,33 @@ table.ln .why,table.ln .sub{animation:bodyin .25s ease-out}
 @media (max-width:900px){ .main{grid-template-columns:minmax(0,1fr)!important} .main > *{min-width:0} }
 </style>
 <script>
+/* =====================================================================
+   請求ナビ Web：画面と機能（navi.js）
+   2026-11-07 まとめ直し：ext.js〜ext6a.js の66本を、この1本にまとめた（並び・中身はいままでと同じ）。
+   これからの直しは、ここの該当する章に入れる（新しいファイルは足さない）。
+   ===================================================================== */
+
+/* #####################################################################
+   ■ はじまり：本体を包んで足す（提案 N1〜N54）
+   ##################################################################### */
+
+/* ---------- 〔元 ext.js〕 ---------- */
+/* 画面が変わったあとの仕上げ（ボタンを足す・印をつける…）：いままで1つずつ見張りを置いていたのを、1つの見張りにまとめた。
+   1コマ（画面の書きかえ1回）に1回だけ、順番に動かす（2026-11-07 まとめ直し） */
+(function(){
+  const X = window.seikyuExt = window.seikyuExt || {};
+  if(X.onDom) return;
+  const fns = []; let q = 0, mo = null;
+  function flush(){ q = 0;
+    for(let pass = 0; pass < 3; pass++){
+      for(let i = 0; i < fns.length; i++){ try{ fns[i](); }catch(e){ console.warn('onDom', e); } }
+      if(!mo || !mo.takeRecords().length) break;
+    } }
+  function kick(){ if(!q) q = requestAnimationFrame(flush); }
+  function start(){ if(mo) return; mo = new MutationObserver(kick); mo.observe(document.body, { childList: true, subtree: true }); }
+  X.onDom = function(fn){ fns.push(fn); if(document.body) start(); else document.addEventListener('DOMContentLoaded', start); };
+  X.onDomCount = () => fns.length;
+})();
 /* ====================================================================
    請求ナビ Web：追加の機能（提案 N1〜N54）
    本体（app.html）の関数を包んで足す。本体の作りはなるべく変えない
@@ -3758,7 +3785,7 @@ const md2 = s => s ? (+s.slice(5, 7)) + '/' + (+s.slice(8, 10)) : '';
 const hm = s => s ? new Date(s).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
 const cleanCust = s => String(s || '').normalize('NFKC').replace(/[\s　]/g, '').replace(/株式会社|有限会社|\(株\)|\(有\)|㈱|㈲/g, '');
 const RO = () => !!(window.__ro);
-window.seikyuExt = {};
+window.seikyuExt = window.seikyuExt || {};
 
 /* ------------------------------------------------------------------
    得意先カード・決まりごと（N13・N38・N41）
@@ -5266,6 +5293,7 @@ async function pdfHand(blob, fn, n){
   setTimeout(() => URL.revokeObjectURL(url), 300000);
 }
 
+
 /* ====================== 阿久津の印（web見積と同じ本物の印影）：請求書・赤入れで「押す／外す」（2026-10-30） ====================== */
 const HANKO_AKUTSU = 'data:image/png;base64,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';
 function hankoOn(k){ try{ return localStorage.getItem('wq.hanko.' + k) === '1'; }catch(e){ return false; } }
@@ -5297,6 +5325,12 @@ document.addEventListener('change', ev => { const t = ev.target; if(!t || !t.dat
   if(ps.length > 1 && new Set(ps).size < ps.length && typeof toast === 'function') toast('2つの印が同じ欄に重なります。どちらかの欄を変えてください', 3500);
   hankoRedraw(); }, true);
 
+
+/* #####################################################################
+   ■ 10月の提案（N・M・S・P）
+   ##################################################################### */
+
+/* ---------- 〔元 ext2a.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：追加2（N56・N58〜N95）
    ================================================================== */
@@ -5501,6 +5535,8 @@ X2.dv = (id, def) => (id in X2.dvals ? X2.dvals[id] : def);
 /* 登録番号（T＋法人番号13けた）の検査の数字 */
 X2.invOk = v => { const m = /^T(\d)(\d{12})$/.exec(String(v || '')); if(!m) return false; const d = m[2].split('').reverse().map(Number); const sum = d.reduce((a, x, i) => a + x * (i % 2 === 0 ? 1 : 2), 0); return 9 - (sum % 9) === +m[1]; };
 
+
+/* ---------- 〔元 ext2b.js〕 ---------- */
 /* ==================================================================
    追加2-b：印刷・PDFのまわり（N56・N61・N62・N63・N68・N79・N85・N89・N90）
    ================================================================== */
@@ -5685,6 +5721,8 @@ async function x2SysPdf(f){
   }catch(e){ console.error(e); toast('PDFを読めなかった：' + (e.message || e), 6000); }
 }
 
+
+/* ---------- 〔元 ext2c.js〕 ---------- */
 /* ==================================================================
    追加2-c：現場の画面（N74・N78・N82・N86・N88・N91）
    ================================================================== */
@@ -5863,6 +5901,8 @@ async function x2XlImport(f){
   askDialog('Excel版から移した', '決まりごとに <b>' + n + ' 件</b>入れた（今月の行に ' + a + ' 件当てた）。' + (skip.length ? '<br>決まりごとにできないもの（手で足した行など。前月のファイルから自動で引き継がれる）：' + skip.length + ' 件' : ''), [{ t:'わかった', v:1, primary:true }]);
 }
 
+
+/* ---------- 〔元 ext2d.js〕 ---------- */
 /* ==================================================================
    追加2-d：控え・締めの管理（N63・N65・N66・N67・N71・N73・N80・N83・N84・N87・N92・N95）・チェック（N72・N81）
    ================================================================== */
@@ -6102,6 +6142,8 @@ drawChecks = function(){
   d.querySelectorAll('details').forEach(x => x.querySelector('summary').addEventListener('click', ev => { if(ev.target.closest('button')) ev.preventDefault(); }));
 };
 
+
+/* ---------- 〔元 ext2e.js〕 ---------- */
 /* 見た目：いま開いているタブの色を body に */
 (function(){
   const _st = setTab;
@@ -6492,6 +6534,8 @@ drawChecks = function(){
   }
 })();
 
+
+/* ---------- 〔元 ext2f.js〕 ---------- */
 /* ==================================================================
    追加 2f：マウスを使わない（キーで進む・コマンド）・状態のもどしの守り
    ================================================================== */
@@ -6697,6 +6741,8 @@ drawChecks = function(){
   });
 })();
 
+
+/* ---------- 〔元 ext2g.js〕 ---------- */
 /* ====================== 請求書チェックリスト（PDF）に赤入れ（2026-10-29） ======================
    システムから出した「請求書チェックリスト」のPDFを入れると、行を読んで、気になるところに赤枠・番号・短い注記を書き込み、
    最後に「チェック結果」のページを足したPDFを作る（Claudeが手でやっていた赤入れと同じ形）。
@@ -7379,6 +7425,8 @@ setTimeout(install, 1200);
 window.x3 = { readLines, parseChecklist, parseSales, isSalesChk, parseWList, findings, annotate, run, state, addFiles, pdfjs, cmaps: () => CDN_CMAPS };
 })();
 
+
+/* ---------- 〔元 ext2h.js〕 ---------- */
 /* ====================== チェックを現場ごとに見る（2026-10-30） ======================
    ・チェックの画面：上に「全部／鑑・全体／各現場」の切りかえ（まだ直していない件数つき）
    ・現場の画面：見出しの下に「この現場のチェック ○件」。開くと一覧、押すとその行へ */
@@ -7475,6 +7523,8 @@ const _ds = drawSites;
 drawSites = function(){ _ds.apply(this, arguments); try{ siteDiff(); }catch(e){} clearTimeout(siteT); siteT = setTimeout(siteChecks, 120); };
 })();
 
+
+/* ---------- 〔元 ext2i.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：指定用紙（三貴・Yours）も見られるように／工番・担当者の抜けを知らせる（2026-10-30）
    ・現場の画面に「指定用紙を見る」。プレビューで「両方／指定用紙／本物」を切り替え
@@ -7720,6 +7770,8 @@ const _ow = openWork; openWork = function(){ const r = _ow.apply(this, arguments
 const _bd = build; build = function(){ const r = _bd.apply(this, arguments); try{ S._skRestoring = true; const n = restore(); S._skRestoring = false; if(n) setTimeout(() => toast('指定用紙：前に入れてあった工番・担当者など ' + n + ' か所をもどした', 5000), 1500); }catch(e){ S._skRestoring = false; } return r; };
 })();
 
+
+/* ---------- 〔元 ext2j.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：行の「えらぶモード」（2026-10-30）
    ・えらぶモードでは、行のどこを押しても選べる（Shift で範囲）。左の番号を押しても同じ
@@ -7880,6 +7932,8 @@ st.textContent = '.xselbar{position:fixed;left:50%;bottom:78px;transform:transla
 document.head.appendChild(st);
 })();
 
+
+/* ---------- 〔元 ext2k.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：「PDFで保存」を、システムから印刷したのと同じくっきりさに（2026-10-30）
    前は紙を写真のように写した画像（約240dpi）だった → 線も字も「本物のPDF（ベクター）」で書く。
@@ -8103,6 +8157,8 @@ makePdf = async function(box, name){
 window.makePdf = makePdf;
 })();
 
+
+/* ---------- 〔元 ext2l.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：プレビューから直す（2026-10-31）
    ・プレビューの行を押すと、その行を直す画面へ（その行が光る）。指定用紙の「⚠未入力」を押すと指定用紙を直す画面
@@ -8252,6 +8308,8 @@ st.textContent =
 document.head.appendChild(st);
 })();
 
+
+/* ---------- 〔元 ext2m.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：プレビューの請求書の上で、そのまま直す（2026-10-31）
    ・本物の書式の明細の行で、直したい欄（品名・伝票・貸出・開始・終了・返却・数量・単位・日数・区分・単価・基本料）を押す
@@ -8548,6 +8606,8 @@ st2.textContent = '.xin .xcell.xchip{display:flex;align-items:center;justify-con
 document.head.appendChild(st2);
 })();
 
+
+/* ---------- 〔元 ext2n.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：なんでも入れる（2026-10-31）
    ・読み込みに「なんでも置く」：CSV・本物の請求書PDF（システムから印刷）・前月の請求ナビ（.xlsm）・引き継ぎ（.json）・
@@ -9083,6 +9143,8 @@ st.textContent = '.xin{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0;font-siz
 document.head.appendChild(st);
 })();
 
+
+/* ---------- 〔元 ext2o.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：プレビューに「システムとのずれ」（2026-10-31）
    ・請求書の下の空いているところに、その現場の Web の税抜・システム（CSV）・ずれ と、ずれの内わけ（手打ち・手直し・出さない）を1行ずつ
@@ -9197,6 +9259,8 @@ st.textContent = '.xsysd{box-sizing:border-box;margin:10px auto 22px;padding:10p
 document.head.appendChild(st);
 })();
 
+
+/* ---------- 〔元 ext2p.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web（2026-10-31）
    ・ETC888 は「基本出さない」：まだ決めていない ETC888 の行は、出さないに決めておく（前月に出していた品は前月どおり出す）
@@ -9314,6 +9378,8 @@ const _sn = snapshot;
 snapshot = function(){ const o = _sn.apply(this, arguments); o.dateOrd = S.dateOrd || 0; o.skipFix = S.skipFix || 0; return o; };
 })();
 
+
+/* ---------- 〔元 ext2q.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：スマホをアプリのように（2026-10-31「スマホでももっとやりやすく、アプリみたいにプロ仕様に」）
    M1 下のタブバー（読み込み・現場・チェック・印刷・その他）。親指で届く。チェックの数のバッジつき
@@ -9580,6 +9646,8 @@ mq.addEventListener && mq.addEventListener('change', () => { try{ drawSites && S
 setTimeout(() => { try{ paintBot(); }catch(e){} }, 300);
 })();
 
+
+/* ---------- 〔元 ext2r.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：スマホの続き M11〜M32（2026-10-31「全部お願い」）
    M11 行を押すと下から編集シート（大きい入力・保存）  M20 行を長押しでも同じシート（出さない・複製・消す・↺・メモ・ほかの現場へ）
@@ -10011,6 +10079,8 @@ tr[data-id]{transition:transform .2s}
 document.head.appendChild(st);
 })();
 
+
+/* ---------- 〔元 ext2s.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：締めを楽に・つなぎ・ミス防止 M24・M33〜M59（2026-10-31「全部お願い」）
    M24・M33・M34 締めボード（読み込みのいちばん上）：今月の進み具合・今日やること・抜け漏れ
@@ -10379,6 +10449,8 @@ st.textContent = `
 document.head.appendChild(st);
 })();
 
+
+/* ---------- 〔元 ext2t.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：2026-10-31 夜
    T1 iPhone で下の帯がスクロールについてくる（iOS 26 の Safari の「固定の帯がずれる」不具合）
@@ -11341,6 +11413,8 @@ window.addEventListener('click', () => setTimeout(() => { try{ pvBtn(); }catch(e
   (function watch(){ const M = document.getElementById('sitePv'); if(!M){ setTimeout(watch, 500); return; } const f = () => document.documentElement.classList.toggle('xpvon', !M.hidden); f(); new MutationObserver(f).observe(M, { attributes: true, attributeFilter: ['hidden'] }); })();
 })();
 
+
+/* ---------- 〔元 ext2u.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：PDFの保存を Excel版と同じ決まりに（2026-11-01「pdf保存は色々ルールあったよね？ yoursは現場ごとにpdfにするとか」）
    ・名前：まとめて1本＝26.10.31_御請求書_株式会社○○御中
@@ -11410,6 +11484,8 @@ X.yoursPdf = async function(box, name){
 };
 })();
 
+
+/* ---------- 〔元 ext2v.js〕 ---------- */
 /* ====================================================================
    2026-11-01「最初は本物の請求書どおりに出して、それぞれ前月引き継ぎを入れるボタン、一括で入れたり出したり。ETC888 も一括で」
    前月の引き継ぎパネル：チェックした行＝入れる／請求書に出す、外した行＝入れない／出さない
@@ -12080,6 +12156,8 @@ window.addEventListener('click', async ev => {
     const T = totals(); toast('本物どおりにした（' + n + ' 件）。システムとの差 ' + (T.diff ? yti(T.diff, true) : 'ぴったり ✓'), 6000); }
 }, true);
 
+
+/* ---------- 〔元 ext2w.js〕 ---------- */
 /* ==================================================================
    請求ナビ Web：プレビューの画面で全部できるように（2026-11-02）
    「プレビュー画面で全ての操作をできるようにして。やっぱり見やすい。もちろん行をドラッグできるように」
@@ -12313,6 +12391,8 @@ css.textContent =
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext2x.js〕 ---------- */
 /* 請求ナビ Web：見積から請求書（ext2x.js） */
 (function(){
 /* ---- ここから web見積「仕入先の見積から」（mods/shiire.js 2026-10-28）の読み取りと同じもの（同じ結果になるように写した） ---- */
@@ -13014,6 +13094,8 @@ document.head.appendChild(css);
 X._qLines = pdfToLines; X._qParse = parseLines;
 })();
 
+
+/* ---------- 〔元 ext2y.js〕 ---------- */
 /* 請求ナビ Web：スマホで請求の行をなめらかに動かす（ext2y.js）
    2026-11-04「スマホでも請求の行スムーズに移動できる様にして。もっとアプリみたいにして」
    ・現場の画面の行の左はしに「つまみ（≡）」。指でつかむと行が浮き上がり（ブルッ）、まわりの行がすっとよけて、離したところに入る
@@ -13038,7 +13120,7 @@ function grips(){
   });
 }
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ grips(); }catch(e){} return r; };
-{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; grips(); }); }).observe(document.body, { childList: true, subtree: true }); }
+window.seikyuExt.onDom(() => { grips(); });
 
 /* ---- ドラッグ ---- */
 let D = null, raf = 0;
@@ -13152,6 +13234,8 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext2z.js〕 ---------- */
 /* 請求ナビ Web：動きを軽く（ext2z.js・2026-11-04「ちょっと動きが重い 軽くして」）
    ・チェック（checks）は1回 30ms ほどかかり、現場を切りかえるたびに4回よばれていた → 中身が変わっていない間（0.4秒）は前の結果を使う
    ・保存・元に戻す・作業を開く／作るで中身が変わったとみなす */
@@ -13173,6 +13257,12 @@ checks = function(){
 window.seikyuExt.checksBump = bump;
 })();
 
+
+/* #####################################################################
+   ■ チェックと赤入れ・E提案
+   ##################################################################### */
+
+/* ---------- 〔元 ext3a.js〕 ---------- */
 /* 請求ナビ Web：手で打つ行の品名に候補を出す（ext3a.js）
    2026-11-04「手打ちで打つ時に 商品の候補出せるよね？ これだけやってるんだから」
    ・手で足した行の品名を打つと、下に候補（今の作業・前月・これまでの作業から。同じ請求先を先に）
@@ -13313,6 +13403,8 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3b.js〕 ---------- */
 /* 請求ナビ Web：よく一緒に出る品（ext3b.js）
    2026-11-04「こういう時に web見積と一緒で よく一緒に出るもの を追加できるようにして。もちろん新たに追加したら更新してね」
    ・現場の画面の表の下に「よく一緒に出る品」。手で足した行（品名あり）を親にして、
@@ -13480,7 +13572,7 @@ document.addEventListener('change', ev => {
   if(up && up.manual && !up.head && String(up.name || '').trim() && nk(up.name) !== nk(nm)) togSet(up.name, nm, 'add', l.kb);
 });
 /* 表は描き直しがあとから来ることがあるので、表の下から消えたら入れ直す */
-{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; const tb = document.querySelector('#siteBody table.ln'); if(!tb) return; const b = document.getElementById('xTog'); if(!b || tb.nextElementSibling !== b){ try{ paint(); }catch(e){} } }); }).observe(document.body, { childList: true, subtree: true }); }
+window.seikyuExt.onDom(() => { const tb = document.querySelector('#siteBody table.ln'); if(!tb) return; const b = document.getElementById('xTog'); if(!b || tb.nextElementSibling !== b){ try{ paint(); }catch(e){} } });
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paint(); }catch(e){} try{ loadStats(); }catch(e){} return r; };
 const css = document.createElement('style');
 css.textContent = [
@@ -13505,6 +13597,8 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3c.js〕 ---------- */
 /* 請求ナビ Web：進み具合（ext3c.js）
    2026-11-04「現場みたは無くして 未完了か完了だけでいい。あとこの表の表に進み具合のせて どのくらい完了してるかとか」
    ・上の数字のタイルに「進み具合」：完了した現場の数・％、金額でみた％、残りの要確認、まだの現場（押すとその現場へ） */
@@ -13572,6 +13666,8 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3d.js〕 ---------- */
 /* 請求ナビ Web：現場間で行を移したときの「あと」と「来た印」（ext3d.js）
    2026-11-04「現場間移動の時は 移動する前のとこは 請求書に出ないような形で どこどこへ移動しました って残るようにして。
              移動先ではもちろん請求書に載るようにして どこどこからきましたみたいな」
@@ -13652,7 +13748,7 @@ document.addEventListener('click', ev => {
   sh.movedOut.splice(+b.dataset.xgdel, 1); const l = S.lines.find(x => x.id === g.ref); if(l && l.movedFromId === sh.id){ delete l.movedFrom; delete l.movedFromId; } save(); drawSites();
 }, true);
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ paint(); }catch(e){ console.warn(e); } return r; };
-{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; const sh = sheetById(S.cur), tb = document.querySelector('#siteBody table.ln tbody'); if(!sh || !tb) return; const need = (sh.movedOut || []).length || linesOf(sh).some(l => l.movedFrom); if(need && !tb.querySelector('tr.xghost, .xmvfrom')){ try{ paint(); }catch(e){} } }); }).observe(document.body, { childList: true, subtree: true }); }
+window.seikyuExt.onDom(() => { const sh = sheetById(S.cur), tb = document.querySelector('#siteBody table.ln tbody'); if(!sh || !tb) return; const need = (sh.movedOut || []).length || linesOf(sh).some(l => l.movedFrom); if(need && !tb.querySelector('tr.xghost, .xmvfrom')){ try{ paint(); }catch(e){} } });
 sync();
 const css = document.createElement('style');
 css.textContent = [
@@ -13665,6 +13761,8 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3e.js〕 ---------- */
 /* 請求ナビ Web：現場の表で Tab で次の欄へ（ext3e.js）
    2026-11-04「ここの日付 tabで次に移動できるようにしてよ」
    ・日付（貸出・開始・終了・返却）などを直して Tab を押すと、表が描き直されて行き先の欄が消えていた
@@ -13747,7 +13845,7 @@ function btns(){
 }
 document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('#siteBody [data-act="addb"]'); if(!b) return; ev.stopPropagation(); ev.preventDefault(); const tr = b.closest('tr[data-id]'); if(tr) addAt(tr.dataset.id, ev.shiftKey); }, true);
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ btns(); }catch(e){} return r; };
-{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; btns(); }); }).observe(document.body, { childList: true, subtree: true }); }
+window.seikyuExt.onDom(() => { btns(); });
 const css = document.createElement('style'); css.textContent = '#siteBody .lnbtn [data-act="addb"]{font-weight:800;color:var(--brand,#5EC8D2)}'; document.head.appendChild(css);
 })();
 /* 2026-11-05「単価かえる時も金額の候補出して」：賃貸単価・サポート単価・基本料／販売単価の欄に入ると、同じ品のこれまでの単価を出す（同じ請求先を先に）。押すとその単価が入る */
@@ -13804,6 +13902,8 @@ X.dragGroup = function(a, b, downHint){
 };
 })();
 
+
+/* ---------- 〔元 ext3f.js〕 ---------- */
 /* 請求ナビ Web：完了した現場はロック（ext3f.js）
    2026-11-05「完了現場にしたら金額変わらないようにロックして。ロック解除したらまたいじれるように。
               csv更新で金額変わる時は ロックしていますが金額変わりますよろしいですか？的な質問をして」
@@ -13950,6 +14050,8 @@ css.textContent = '.xlockbar{display:flex;flex-wrap:wrap;align-items:center;gap:
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3g.js〕 ---------- */
 /* 請求ナビ Web：プレビューの左に目次（ext3g.js）
    2026-11-05「左の方に 鑑、各現場の目次みたいのつけて そこ押したら飛べるように」
    ・全現場のとき：鑑（表紙）と各現場。押すとその請求書へスクロール。いま見ている所に色
@@ -14014,6 +14116,8 @@ css.textContent = [
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3h.js〕 ---------- */
 /* 請求ナビ Web：貸出順に並べる・元に戻す／やり直す（ext3h.js）
    2026-11-05「貸出順に並べるボタンが欲しい。あと一つ前の作業に戻るボタンも」
    ・2026-11-05「貸出順にとシステム順にもあるね」→ 1つにまとめて「本物の順に並べる」（「システムの順に」はかくす）
@@ -14128,12 +14232,14 @@ document.addEventListener('click', ev => { const b = ev.target.closest && ev.tar
 const _ds = drawSites; drawSites = function(){ const r = _ds.apply(this, arguments); try{ sortBtn(); topRedo(); paintBtns(); }catch(e){} return r; };
 const _sp = sitePreview; sitePreview = function(){ const r = _sp.apply(this, arguments); setTimeout(paintBtns, 30); return r; };
 if(typeof updUndoBtn === 'function'){ const _uu = updUndoBtn; updUndoBtn = function(){ const r = _uu.apply(this, arguments); paintBtns(); return r; }; }
-{ let q = 0; new MutationObserver(() => { if(q) return; q = requestAnimationFrame(() => { q = 0; const mini = document.getElementById('xMini'); if(mini && mini.classList.contains('on') && !mini.querySelector('.xurg')) paintBtns(); sortBtn(); topRedo(); }); }).observe(document.body, { childList: true, subtree: true }); }
+window.seikyuExt.onDom(() => { const mini = document.getElementById('xMini'); if(mini && mini.classList.contains('on') && !mini.querySelector('.xurg')) paintBtns(); sortBtn(); topRedo(); });
 const css = document.createElement('style');
 css.textContent = '#shead [data-x5="sysorder"]{display:none!important}.xurg{display:inline-flex;gap:4px}#xMini .xurg .btn{padding:4px 10px;font-size:12.5px}.xurg .btn[disabled]{opacity:.4}';
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3i.js〕 ---------- */
 /* 請求ナビ Web：前月は同じ現場で請求書が2枚あったとき（ext3i.js）
    2026-11-05「神田の先月の引き継ぎが出ないよ」
    三貴 神田：9月は「神田」（システムの行）と「神田 (2)」（60KVA発電機・50psｺﾝﾌﾟﾚｯｻｰ・20kgﾌﾞﾚｰｶｰ・ｴｱﾎｰｽ…を手で足した請求書）の2枚。
@@ -14216,6 +14322,8 @@ css.textContent = '.xsibpm{margin:8px 0;padding:10px 12px;border:1.5px solid #E0
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3j.js〕 ---------- */
 /* 請求ナビ Web：ひと晩の見直し（ext3j.js・2026-11-05）
    ・hidden にしたのに消えない帯・窓（えらんだ行の帯 #xSelBar、並べて直す #xDock、本物を横に #xRealSide など。
      CSS の display:flex が hidden に勝っていた）→ hidden はかならず消える
@@ -14258,6 +14366,8 @@ if(typeof openWork === 'function'){ const _o = openWork; openWork = function(){ 
 })();
 /* （2026-11-05 表の列の幅を決める案は、せまい画面で品名の欄がつぶれたのでやめた） */
 
+
+/* ---------- 〔元 ext3k.js〕 ---------- */
 /* 請求ナビ Web：この現場は請求しない（ext3k.js）
    2026-11-05「この現場は請求しない みたいなボタンが欲しい」（三貴 神田通信機㈱：行を全部 ② に移して、残りは出さない行だけ）
    ・現場の見出しに「この現場は請求しない」。押すと 鑑・請求書・印刷・PDF に出ない（鑑に出す のチェックも外れる）
@@ -14314,6 +14424,8 @@ css.textContent = '.xnobillbar{display:flex;flex-wrap:wrap;align-items:center;ga
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3l.js〕 ---------- */
 /* 請求ナビ Web：えらんだ行の帯に「こうするとこうなる」と提案（ext3l.js）
    2026-11-05「選んだ項目を移動したら合計がいくら減りますとか 色々な提案も入れて欲しいね」
    ・移す・消すと：この現場の税込 いま → あと（いくら減る）
@@ -14372,6 +14484,8 @@ css.textContent = '.xselbar .xsb-hint{flex-basis:100%;display:flex;flex-directio
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3m.js〕 ---------- */
 /* 請求ナビ Web：伝票番号の打ちまちがいを知らせる（ext3m.js）
    2026-11-05「この3kvadは明らか間違いでしょ こういうのはアラームしてくれないと」
    三貴 新富 3KVADﾃﾞｨｰｾﾞﾙｲﾝﾊﾞｰﾀｰ発電機：伝票 784291（どこにもない番号）。まわりの手で足した行は 748211 → 打ちまちがい
@@ -14451,6 +14565,8 @@ window.addEventListener('click', ev => { const b = ev.target.closest && ev.targe
   const was = l.name; l.name = x.xnm; save(); try{ drawChecks(); }catch(e){} try{ drawSites(); }catch(e){} toast('品名を「' + was + '」→「' + x.xnm + '」に直した（↶ でもどせる）', 4000); }, true);
 })();
 
+
+/* ---------- 〔元 ext3n.js〕 ---------- */
 /* 請求ナビ Web：返却の欄を［継続｜返却日］でえらぶ（ext3n.js）
    2026-11-05「継続は勝手に出るようにするか プルダウンで選べるようにするか 考えて」
    ・返却の欄の前にプルダウン［継続｜返却 ▸ 日付］。継続をえらぶと返却日は空・「継続」。返却をえらぶと日付の欄（はじめは終了日）
@@ -14499,6 +14615,8 @@ css.textContent = '#siteBody select.xret{font:inherit;font-size:12px;padding:1px
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3v.js〕 ---------- */
 /* 請求ナビ Web：請求のまちがいを見つける（第1弾）（ext3v.js）
    2026-11-05「全部お願い！！」の第1弾
    E79 保証日数：品名の【3日保証】【10日保証】【30日保証】＝最低これだけの日数は請求する（本人確認済み）。
@@ -14597,6 +14715,8 @@ X.moreChecks = () => { const r = []; [guarantee, offReturn, kyushi, support, kas
 if(typeof checks === 'function'){ const _c = checks; checks = function(){ const r = _c.apply(this, arguments); try{ r.push(...X.moreChecks()); }catch(e){ console.warn(e); } return r; }; }
 })();
 
+
+/* ---------- 〔元 ext3w.js〕 ---------- */
 /* 請求ナビ Web：作業の近道（第2弾）（ext3w.js）
    2026-11-05「全部お願い！！」の第2弾
    E9  前回の続き：開いたとき「前回の続き（得意先・現場）」を出して、押すとその作業・現場・場所へ
@@ -14735,6 +14855,8 @@ css.textContent = '#xResume{position:fixed;left:50%;transform:translateX(-50%);t
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3o.js〕 ---------- */
 /* 請求ナビ Web：チェックの使いまわし（いちばん外側）（ext3o.js・2026-11-05「重くなってきたから軽くして」）
    ext2z の使いまわしの外に、あとから足したチェック（請求しない・打ちまちがい）がかぶさっていて、毎回ぜんぶ計算しなおしていた
    → いちばん外で、中身が変わっていない間（0.4秒）は前の結果を使う。保存・入力・元に戻す・やり直す・開く・作るで作り直す */
@@ -14755,6 +14877,8 @@ checks = function(){
 const ob = X.checksBump; X.checksBump = () => { bump(); if(ob) ob(); };
 })();
 
+
+/* ---------- 〔元 ext3p.js〕 ---------- */
 /* 請求ナビ Web：数字を直したときは、その行だけ書きかえる（ext3p.js）
    2026-11-05「重くなってきたから軽くして」→「（行だけ書きかえる作り）お願い」
    ・数量・日数・サポート日数・単価（賃貸・サポート・基本料）・品名・開始・終了 を直したときは、表を全部作り直さず
@@ -14817,6 +14941,8 @@ const _ds = drawSites; drawSites = function(){ dirty = false; clearTimeout(idleT
 X.lightFlush = () => { if(dirty) full(); };
 })();
 
+
+/* ---------- 〔元 ext3q.js〕 ---------- */
 /* 請求ナビ Web：表の見出しの「#」に ☐ を出して、押したら この現場の行を全部えらぶ（もう一度で全部はずす）（ext3q.js）
    2026-11-05「ここの一番上にチェックマーク押して そこ押したら 全部選択にしてほしい」
    一部だけ選んでいるときは ▣、全部なら ☑。全部えらぶと下の帯（移す・消す・上へ下へ・合計）がそのまま使える */
@@ -14865,6 +14991,8 @@ css.textContent = '#siteBody th.xall{cursor:pointer;user-select:none;text-align:
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3s.js〕 ---------- */
 /* 請求ナビ Web：プレビューでも「前月の引き継ぎ」がまだあると知らせる（ext3s.js）
    2026-11-05「プレビューでも 前月の引き継ぎがあるとか アナウンスして欲しいよね」
    ・プレビューのいちばん上に「前月の引き継ぎがまだ n 件（現場ごとの数）」＋［前月の引き継ぎを開く］
@@ -14922,6 +15050,8 @@ css.textContent = '.xpvcarry{display:flex;flex-wrap:wrap;align-items:center;gap:
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3t.js〕 ---------- */
 /* 請求ナビ Web：画面のデザインを「黒×金」に（ext3t.js）
    2026-11-05「デザインをもっと見やすいように おしゃれに変えてみて」→ 全部の画面・高級感（黒×金）
    ・画面だけ。紙（請求書・鑑）・印刷・PDF は本物どおりのまま（.xp / .pp / #print / #xPdfVec にはさわらない）
@@ -15043,6 +15173,8 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 setTimeout(btn, 800); setTimeout(btn, 2500);
 })();
 
+
+/* ---------- 〔元 ext3u.js〕 ---------- */
 /* 請求ナビ Web：作業をはやく（ext3u.js）
    2026-11-05「もっと作業効率上げて プロフェッショナルに 有料版を目指して 改良して」
    E1 ✓ 完了して次へ（C）：いまの現場を完了にして、次の未完了の現場へ。のこり何現場かも出す
@@ -15175,6 +15307,8 @@ css.textContent = '#xQueue{position:fixed;right:18px;bottom:18px;z-index:70;widt
 document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext3x.js〕 ---------- */
 /* 請求ナビ Web：印刷の前の最終確認に「検算」と「インボイス」を足す（第3弾）（ext3x.js）
    2026-11-05「全部お願い！！」の第3弾
    E11 印刷前の最終チェック：もとからある「印刷の前の最終確認」の表に足す
@@ -15218,6 +15352,8 @@ if(typeof askDialog === 'function'){
 }
 })();
 
+
+/* ---------- 〔元 ext3y.js〕 ---------- */
 /* 請求ナビ Web：使いやすく・かっこよく（黒×金のまま、並びと形を整える）（ext3y.js）
    2026-11-05「色合いはこれでOK もっと使いやすいように デザインをかっこよくおしゃれに変えられる？」
    ・上の数字のタイルを1列（6つ）に小さくまとめて、現場の一覧と明細がすぐ見えるように（前は一覧が画面の下のほうから始まっていた）
@@ -15321,6 +15457,7 @@ if(typeof drawKpis === 'function'){ const _dk = drawKpis; drawKpis = function(){
 window.addEventListener('resize', later);
 new MutationObserver(later).observe(root, { attributes: true, attributeFilter: ['class'] });
 })();
+
 
 /* ====================== 貸出状況照会（web見積の kashi.js の紙をそのまま使う。mkkashi.py で切り出し・2026-10-29） ====================== */
 (function(){
@@ -15860,6 +15997,7 @@ function printHtmlDoc(html, title){
 window.KASHI_PAPER = { buildDoc, paperHtml, paperHtmlIn, loadLast, paperDocumentMulti, printHtmlDoc, fullName, fileSafe, ymd8, jdLong, defaultOpt, fmtGet, fmtRetDate, nf };
 })();
 
+
 try{ window.WQ_APPLE = localStorage.getItem('seikyu.skin') !== 'gold'; }catch(e){ window.WQ_APPLE = true; }   /* 2026-11-07 Apple風のときは前の飾りの動きを止めて軽く */
 window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!important}@media (min-width:901px){.sites{top:calc(76px + var(--wqnav-h,0px))!important;max-height:calc(100vh - 92px - var(--wqnav-h,0px))!important}.shead{top:calc(var(--toph,56px) + var(--wqnav-h,0px))!important}}";
 /* ===== wqnav：どのアプリでも、いちばん上に「ホーム＋★よく使う」の帯を出す =====
@@ -15871,7 +16009,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 21:07';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 23:02';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -16867,7 +17005,7 @@ ready(function(){
     for(var i = 0; i < ms.length; i++){ var m = ms[i];
       if(m.type === 'childList'){ for(var j = 0; j < m.addedNodes.length; j++){ var n = m.addedNodes[j]; if(n.nodeType === 1 && !/^lx-|^lux-/.test(n.id || '')) adds.push(n); } dropIn(m); }
     }
-    if(adds.length){ clearTimeout(scanT); pend = pend.concat(adds); scanT = setTimeout(function(){ var L = pend; pend = []; L.forEach(function(n){ if(n.isConnected) scan(n); }); }, 60); }
+    if(adds.length){ clearTimeout(scanT); pend = pend.concat(adds); scanT = setTimeout(function(){ var L = pend; pend = []; /* 2026-11-07 まとめ直し：中に入っている部品は外側の1回でいっしょに見る（同じ所を何百回も見ていた） */ var S2 = new Set(L); L.forEach(function(n){ if(!n.isConnected) return; for(var a = n.parentNode; a; a = a.parentNode){ if(S2.has(a)) return; } scan(n); }); }, 60); }
   }).observe(document.body, { childList:true, subtree:true });
   setTimeout(hsAll, 800); window.addEventListener('resize', function(){ clearTimeout(hsT); hsT = setTimeout(hsAll, 200); });
   /* L97 ほかのアプリを先に読んでおく（ひまなときに） */
@@ -16908,12 +17046,17 @@ function monthHello(){
 
 /* ---------- 部品ごとの仕上げ（足されたものにだけ） ---------- */
 var HIT_SEL = 'button, .btn, [role="button"], .iconbtn, .wqn';
+/* 2026-11-07 まとめ直し：押せる範囲を測るのは1コマに1回だけ（先に全部測って、あとでまとめて印をつける＝測るたびに計算し直さない） */
+var hitQ = [], hitF = null, hitR = 0;
+function hitLater(bs, f){ hitF = f; for(var i = 0; i < bs.length; i++) hitQ.push(bs[i]); if(!hitR) hitR = requestAnimationFrame(function(){ hitR = 0; var L = hitQ; hitQ = []; var seen = new Set(), todo = [];
+  L.forEach(function(b){ if(seen.has(b) || b.__lxh || inPaper(b)) return; seen.add(b); b.__lxh = 1; var rc = b.getBoundingClientRect(); if(!rc.width || (rc.width >= 34 && rc.height >= 30)) return; var cs = getComputedStyle(b, '::after'); if(cs && cs.content && cs.content !== 'none') return; todo.push(b); });
+  todo.forEach(function(b){ b.classList.add('lx-hit'); }); }); }
 function scan(r){
   if(!r || !r.querySelectorAll || inPaper(r)) return;
   try{
     /* L20 小さいボタンの押せる範囲 */
     var bs = r.matches && r.matches(HIT_SEL) ? [r] : []; bs = bs.concat(Array.prototype.slice.call(r.querySelectorAll(HIT_SEL))); bs = bs.filter(function(b){ return !(b.closest && b.closest('table.ln tbody, #spvBody, .xp, .pp, #kpis, #siteList')); });   /* 2026-11-05 数字のタイル・現場の一覧は描き直しが多いので測らない */   /* 2026-11-04 軽く：明細の行ボタン（数百個）は測らない */
-    if(bs.length < 400) requestAnimationFrame(function(){ bs.forEach(function(b){ if(b.__lxh || inPaper(b)) return; b.__lxh = 1; var rc = b.getBoundingClientRect(); if(!rc.width || (rc.width >= 34 && rc.height >= 30)) return; var cs = getComputedStyle(b, '::after'); if(cs && cs.content && cs.content !== 'none') return; if(getComputedStyle(b).position === 'static') b.classList.add('lx-hit'); else { b.classList.add('lx-hit'); } }); });
+    if(bs.length < 400) hitLater(bs, function(b){ if(b.__lxh || inPaper(b)) return; b.__lxh = 1; var rc = b.getBoundingClientRect(); if(!rc.width || (rc.width >= 34 && rc.height >= 30)) return; var cs = getComputedStyle(b, '::after'); if(cs && cs.content && cs.content !== 'none') return; if(getComputedStyle(b).position === 'static') b.classList.add('lx-hit'); else { b.classList.add('lx-hit'); } });
     /* L100 アイコンだけのボタンに名前 */
     r.querySelectorAll('button:not([aria-label])').forEach(function(b){ var t = String(b.textContent || '').trim(); if((!t || t.length <= 1) && b.title) b.setAttribute('aria-label', b.title); });
     r.querySelectorAll('th:not([scope])').forEach(function(th){ if(th.closest('thead')) th.setAttribute('scope', 'col'); });
@@ -17459,6 +17602,8 @@ try{
 window.WQLUX2 = { shake:shake, band:band, mark:mark, dirty:function(v){ dirty = !!v; title(); }, load:{ start:startLoad, end:endLoad } };
 })();
 
+
+/* ---------- 〔元 ext3z.js〕 ---------- */
 /* 請求ナビ Web：サクサクに（ext3z.js）
    2026-11-05「pcでもアプリのように もっと使いやすく サクサクに リニューアルして」
    ・プレビュー（全現場）と「印刷・PDF」の画面：閉じても中身を捨てずに取っておき、次に開くときは変わったページだけ描き直す
@@ -17625,6 +17770,12 @@ if(typeof drawSites === 'function'){ const _ds = drawSites; drawSites = function
 X.flushKpis = () => { if(kWant){ kWant = 0; drawKpis(); } };
 })();
 
+
+/* #####################################################################
+   ■ PCのアプリ化・プレビュー・印鑑
+   ##################################################################### */
+
+/* ---------- 〔元 ext4a.js〕 ---------- */
 /* 請求ナビ Web：PCをアプリのように（ext4a.js）
    2026-11-05「pcでもアプリのように もっと使いやすく サクサクに リニューアルして」
    ・PCの広い画面（901px〜）：左に縦のメニュー（読み込み・現場・チェック・印刷）。スマホの下のボタンと同じ考え
@@ -17755,6 +17906,8 @@ if(typeof closeSitePv === 'function'){ const _cl = closeSitePv; closeSitePv = fu
 apply(); setTimeout(apply, 0); setTimeout(apply, 800);
 })();
 
+
+/* ---------- 〔元 ext4b.js〕 ---------- */
 /* 請求ナビ Web：代品の単価（ext4b.js）
    2026-11-06「60kva 45kva代品ってなってるでしょ？ そしたら単価が下がるのが普通。他の60kvaと一緒になってるから これはアラーム出して欲しかったね」
    品名に「（45KVA代品）」のように 代品 とある行は、代わりにした品（45KVA）の単価になるのがふつう。
@@ -17809,6 +17962,8 @@ X.daihinChecks = daihin;
 if(typeof checks === 'function'){ const _c = checks; checks = function(){ const r = _c.apply(this, arguments); try{ r.push(...daihin()); }catch(e){ console.warn(e); } return r; }; }
 })();
 
+
+/* ---------- 〔元 ext4c.js〕 ---------- */
 /* 請求ナビ Web：プレビューでも全部の操作（ext4c.js）
    2026-11-06「プレビュー画面でも 全ての操作ができるように リニューアルして」
    ・プレビューの右に「現場の操作」の欄。現場の画面の上の部分（呼び名・工事番号・鑑に出す・請求しない・税抜を合わせる・
@@ -17997,9 +18152,12 @@ window.addEventListener('resize', () => { if(isOpen() && side){ const m = M(); c
 X.pvSide = { apply, refresh };
 })();
 
+
 /* 印影（本物の印をなぞった線のデータ・2026-11-06）。くっきり印刷・文字PDFでも線のまま */
 window.HANKO_VEC = {"阿久津": {"w": 313, "h": 312, "d": "M139 309.5C138.1 309 138 309 135.5 309C133.1 309 133 308.9 132 308.5C131 308 130.8 308 129 308C127.2 308 127 307.9 126 307.5C125.1 307 124.7 307 123.5 307C122.2 307 121.9 306.9 121 306.5C120.2 306.1 119.7 306 118.9 306C118.2 306 117.7 305.8 117 305.5C116.2 305.1 115.7 305 115 305C114.2 305 113.7 304.8 112.9 304.5C112.3 304.2 111.7 304 111.5 304C111.3 304 110.6 303.7 110 303.5C109.3 303.2 108.7 303 108.5 303C108.3 303 107.6 302.7 107 302.5C106.3 302.2 105.7 302 105.5 302C105.3 302 104.6 301.7 104 301.5C103.3 301.2 102.6 301 102.4 301C102.2 301 101.1 300.5 100 300C98.8 299.4 97.7 299 97.4 299C96.8 299 78.4 289.7 77.6 289C77.2 288.7 76.1 288 75.1 287.5C74 287 72.9 286.3 72.6 286C72.2 285.7 71.6 285.3 71.1 285C70.6 284.8 69.9 284.3 69.6 284C69.2 283.7 68.5 283.2 68 283C67.5 282.7 66.6 282 66 281.5C65.4 280.9 64.5 280.2 64 280C63.5 279.7 62.6 279 62 278.5C61.4 277.9 60.5 277.2 60 277C59.3 276.6 58.3 275.8 56.5 274C54.7 272.1 53.7 271.3 53 271C51.6 270.2 42.7 261.3 41.9 259.9C41.6 259.2 40.8 258.3 38.9 256.4C37.1 254.6 36.3 253.6 35.9 252.9C35.6 252.3 34.9 251.4 33.9 250.4C33 249.5 32.2 248.5 31.9 247.9C31.7 247.4 31.2 246.7 30.9 246.3C30.6 246 30.1 245.3 29.9 244.8C29.6 244.3 29.2 243.7 28.9 243.3C28.6 243 28.1 242.3 27.9 241.8C27.6 241.3 27.2 240.7 26.9 240.3C26.6 240 26.1 239.3 25.9 238.8C25.6 238.3 25.2 237.7 24.9 237.3C24.6 237 23.9 235.9 23.4 234.8C22.9 233.8 22.2 232.7 21.9 232.3C21.2 231.5 15 219.1 15 218.5C15 218.2 14.3 216.6 13.5 215C12.6 213.3 12 211.7 12 211.5C12 211.3 11.7 210.6 11.5 210C11.2 209.3 11 208.7 11 208.5C11 208.3 10.7 207.6 10.5 207C10.2 206.3 10 205.7 10 205.5C10 205.3 9.7 204.6 9.5 204C9.2 203.3 9 202.7 9 202.5C9 202.3 8.7 201.6 8.5 201C8.2 200.3 8 199.7 8 199.5C8 199.3 7.7 198.6 7.5 198C7.1 197.1 7 196.6 7 195.9C7 195.2 6.8 194.7 6.5 193.9C6.1 193.1 6 192.6 6 191.9C6 191.2 5.8 190.7 5.5 189.9C5 189 5 188.7 5 187.4C5 186.2 4.9 185.8 4.5 184.9C4 183.9 4 183.7 4 181.9C4 180.1 3.9 179.9 3.5 178.9L3 177.9L3 174.4L3 170.9L2.4 170L1.9 169L1.9 156L1.9 142.9L2.4 141.9L3 141L3 137.5L3 134L3.5 133C3.9 132 4 131.8 4 130C4 128.2 4 128 4.5 127C4.9 126.1 5 125.7 5 124.5C5 123.2 5 122.9 5.5 122C5.8 121.2 6 120.7 6 120C6 119.3 6.1 118.8 6.5 118C6.8 117.2 7 116.7 7 116C7 115.4 7.1 114.8 7.5 114C7.7 113.3 8 112.7 8 112.5C8 112.3 8.2 111.6 8.5 111C8.7 110.3 9 109.7 9 109.5C9 109.3 9.2 108.6 9.5 108C9.7 107.3 10 106.7 10 106.5C10 106.3 10.2 105.6 10.5 105C10.7 104.3 11 103.7 11 103.5C11 103.3 11.2 102.6 11.5 102C11.7 101.3 12 100.6 12 100.4C12 100.2 12.4 99.1 13 98C13.5 96.8 14 95.7 14 95.4C14 94.8 22.2 78.4 22.9 77.6C23.2 77.2 23.9 76.1 24.4 75.1C24.9 74 25.6 72.9 25.9 72.6C26.2 72.2 26.6 71.6 26.9 71.1C27.1 70.6 27.5 70 27.8 69.7C28.1 69.4 28.5 68.7 28.8 68.1C29.2 67.6 29.8 66.7 30.4 66.1C30.9 65.6 31.6 64.7 31.9 64.1C32.1 63.6 32.8 62.7 33.4 62.1C34 61.5 34.7 60.5 34.9 60C35.3 59.3 36.1 58.4 37.4 57C38.8 55.6 39.6 54.7 39.9 54C40.7 52.6 52.5 40.7 54 39.9C54.7 39.6 55.6 38.8 57 37.4C58.4 36.1 59.3 35.3 60 34.9C60.6 34.6 61.5 33.9 62.5 32.9C63.4 32 64.4 31.2 65 30.9C65.5 30.7 66.2 30.2 66.6 29.9C66.9 29.6 67.6 29.1 68.1 28.9C68.6 28.6 69.2 28.2 69.6 27.9C69.9 27.6 70.6 27.1 71.1 26.9C71.6 26.6 72.2 26.2 72.6 25.9C72.9 25.6 73.6 25.1 74.1 24.9C74.6 24.6 75.2 24.2 75.6 23.9C75.9 23.6 77.5 22.7 79.1 21.9C80.7 21.1 82.2 20.2 82.6 19.9C83.4 19.2 91.8 15 92.4 15C92.7 15 94.3 14.3 96 13.5C97.6 12.6 99.2 12 99.4 12C99.6 12 100.3 11.7 101 11.5C101.6 11.2 102.3 11 102.5 11C102.7 11 103.3 10.7 104 10.5C104.6 10.2 105.3 10 105.5 10C105.7 10 106.3 9.7 107 9.5C107.6 9.2 108.3 9 108.5 9C108.7 9 109.3 8.7 110 8.5C110.6 8.2 111.3 8 111.5 8C111.7 8 112.3 7.7 112.9 7.5C113.7 7.1 114.2 7 115 7C115.7 7 116.2 6.8 117 6.5C117.7 6.1 118.2 6 119 6C119.7 6 120.2 5.8 121 5.5C121.7 5.1 122.2 5 122.9 5C123.7 5 124.2 4.8 125 4.5C126 4 126.2 4 128 4C129.8 4 130 3.9 131 3.5C132 3 132.1 3 134.5 3C136.9 3 137 2.9 138 2.5L138.9 2L144.4 2L149.8 2L151 1.5L152.1 1L156.5 1L160.8 1L162 1.5L163.1 2L168.5 2L174 2L175 2.5C175.9 2.9 176 3 178.4 3C180.8 3 180.9 3 181.9 3.5C182.9 3.9 183.1 4 184.9 4C186.7 4 186.9 4 187.9 4.5C188.7 4.8 189.2 5 190 5C190.7 5 191.2 5.1 192 5.5C192.7 5.8 193.2 6 194 6C194.7 6 195.2 6.1 196 6.5C196.7 6.8 197.2 7 197.9 7C198.7 7 199.2 7.1 200 7.5C200.6 7.7 201.2 8 201.4 8C201.6 8 202.3 8.2 203 8.5C203.6 8.7 204.3 9 204.5 9C204.7 9 205.3 9.2 206 9.5C206.6 9.7 207.3 10 207.5 10C207.7 10 208.3 10.2 209 10.5C209.6 10.7 210.3 11 210.5 11C210.7 11 211.8 11.4 213 12C214.1 12.5 215.2 13 215.5 13C215.7 13 217.7 13.9 220 15C222.2 16.1 224.2 17 224.4 17C225 17 225.8 17.4 226.4 17.9C226.7 18.2 228.7 19.3 230.8 20.4C233 21.5 235 22.6 235.3 22.9C235.7 23.2 236.8 23.9 237.8 24.4C238.9 24.9 240 25.6 240.3 25.9C240.7 26.2 241.3 26.6 241.8 26.9C242.3 27.1 243 27.6 243.3 27.9C243.7 28.2 244.4 28.7 244.9 28.9C245.4 29.2 246.3 29.9 246.9 30.4C247.5 31 248.4 31.7 248.9 31.9C249.4 32.2 250.3 32.9 250.9 33.4C251.5 34 252.4 34.7 252.9 34.9C253.6 35.3 254.6 36.1 256.4 37.9C258.3 39.8 259.2 40.6 259.9 40.9C261.4 41.7 270.3 50.6 271 52C271.4 52.7 272.1 53.7 274 55.5C275.8 57.3 276.6 58.3 277 59C277.2 59.5 277.9 60.5 278.5 61.1C279.1 61.7 279.8 62.6 280.1 63.1C280.4 63.7 281 64.6 281.5 65.1C282.1 65.7 282.8 66.6 283.1 67.1C283.4 67.7 283.8 68.4 284.1 68.7C284.4 69 284.8 69.6 285 70.1C285.3 70.6 285.7 71.2 286 71.6C286.3 71.9 286.8 72.6 287 73.1C287.3 73.6 287.7 74.2 288 74.6C288.3 74.9 289.2 76.5 290 78.1C290.8 79.7 291.7 81.2 292 81.6C292.7 82.4 298 92.8 298 93.4C298 93.7 298.4 94.8 299 96C299.5 97.1 300 98.2 300 98.5C300 98.7 300.4 99.8 301 101C301.5 102.1 302 103.2 302 103.4C302 103.6 302.2 104.3 302.5 105C302.7 105.6 303 106.3 303 106.5C303 106.7 303.2 107.3 303.5 108C303.7 108.6 304 109.3 304 109.5C304 109.7 304.2 110.3 304.5 111C304.8 111.8 305 112.4 305 113C305 113.7 305.1 114.2 305.5 115C305.8 115.8 306 116.3 306 117C306 117.7 306.1 118.2 306.5 119C306.8 119.8 307 120.3 307 121C307 121.7 307.1 122.2 307.5 123C307.9 123.9 308 124.2 308 125.5C308 126.7 308 127.1 308.5 128C308.9 129 309 129.2 309 131C309 132.8 309 133 309.5 134L310 135L310 139L310 143L310.5 144L311 144.9L311 156L311 167L310.5 168L310 168.9L310 172.4L310 175.9L309.5 176.9C309 178 309 178.1 309 180.4C309 182.8 308.9 182.9 308.5 183.9C308 184.8 308 185.2 308 186.4C308 187.7 307.9 188 307.5 188.9C307.1 189.7 307 190.2 307 190.9C307 191.6 306.8 192.1 306.5 192.9C306.1 193.7 306 194.2 306 194.9C306 195.6 305.8 196.1 305.5 196.9C305.1 197.7 305 198.2 305 198.9C305 199.6 304.8 200.1 304.5 201C304.2 201.6 304 202.3 304 202.5C304 202.7 303.7 203.3 303.5 204C303.2 204.6 303 205.3 303 205.5C303 205.7 302.7 206.3 302.5 207C302.2 207.6 302 208.3 302 208.5C302 208.7 301.5 209.8 301 211C300.4 212.1 300 213.2 300 213.5C300 213.7 299.3 215.3 298.5 217C297.6 218.6 297 220.2 297 220.5C297 221.1 292.7 229.5 292 230.3C291.7 230.7 291 231.8 290.5 232.8C290 233.9 289.3 235 289 235.3C288.7 235.7 288 236.8 287.5 237.8C287 238.9 286.3 240 286 240.3C285.7 240.7 285.3 241.3 285 241.8C284.8 242.3 284.4 242.9 284.1 243.2C283.8 243.5 283.4 244.2 283.1 244.7C282.8 245.3 282.1 246.3 281.5 246.9C280.9 247.4 280.2 248.4 280 248.9C279.7 249.5 278.9 250.4 278 251.4C277 252.4 276.3 253.3 276 253.9C275.6 254.6 274.8 255.6 272.5 257.9C270.2 260.2 269.4 261.1 269 261.9C268.3 263.3 263.3 268.3 261.9 269C261.2 269.4 260.2 270.2 257.9 272.5C255.6 274.7 254.6 275.6 253.9 276C253.4 276.2 252.5 276.9 251.9 277.5C251.3 278 250.4 278.7 249.9 279C249.4 279.2 248.5 279.9 247.9 280.5C247.3 281 246.4 281.7 245.9 282C245.4 282.2 244.7 282.7 244.3 283C244 283.3 243.3 283.8 242.8 284C242.3 284.3 241.7 284.7 241.3 285C241 285.3 240.3 285.8 239.8 286C239.3 286.3 238.7 286.7 238.3 287C238 287.3 236.9 288 235.8 288.5C234.8 289 233.7 289.7 233.3 290C232.5 290.7 218.1 298 217.5 298C217.2 298 216.1 298.4 215 299C213.8 299.5 212.7 300 212.5 300C212.2 300 211.1 300.4 210 301C208.8 301.5 207.7 302 207.5 302C207.3 302 206.6 302.2 206 302.5C205.3 302.7 204.6 303 204.4 303C204.2 303 203.6 303.2 203 303.5C202.2 303.8 201.7 304 201 304C200.2 304 199.7 304.1 198.9 304.5C198.3 304.7 197.7 305 197.5 305C197.2 305 196.6 305.2 196 305.5C195.2 305.8 194.7 306 194 306C193.2 306 192.7 306.1 191.9 306.5C191 306.9 190.7 307 189.4 307C188.2 307 187.8 307 186.9 307.5C185.9 307.9 185.7 308 183.9 308C182.1 308 181.9 308 180.9 308.5C179.9 308.9 179.8 309 177.4 309C175 309 174.9 309 174 309.5L173 310L156.4 309.9L139.9 309.9L139 309.5ZM167.9 298.5C168.9 298.1 169.3 298.1 172.5 298C175.9 297.9 176.1 297.9 177 297.4C178 297 178.2 297 180 297C181.9 297 182 296.9 183 296.5C183.7 296.1 184.2 296 184.9 296C185.7 296 186.2 295.8 187 295.5C187.9 295 188.2 295 189.5 295C190.7 295 191.1 294.9 192 294.5C192.6 294.2 193.2 294 193.5 294C193.7 294 194.3 293.7 194.9 293.5C195.7 293.1 196.2 293 197 293C197.7 293 198.2 292.8 199 292.5C199.6 292.2 200.2 292 200.4 292C200.6 292 201.3 291.7 202 291.5C202.6 291.2 203.3 291 203.5 291C203.7 291 204.8 290.5 206 290C207.1 289.4 208.2 289 208.5 289C208.7 289 210.3 288.3 212 287.5C213.6 286.6 215.2 286 215.5 286C216.1 286 224.8 281.6 225.6 280.9C225.9 280.6 227 279.9 228.1 279.4C229.1 278.9 230.2 278.2 230.6 277.9C230.9 277.6 232 276.9 233.1 276.4C234.1 275.9 235.2 275.2 235.6 274.9C235.9 274.6 236.6 274.1 237.1 273.9C237.6 273.6 238.4 273 239 272.4C239.6 271.9 240.5 271.2 241 270.9C241.5 270.7 242.4 270 243 269.4C243.6 268.9 244.5 268.2 245 267.9C245.7 267.6 246.7 266.7 248.5 264.9C250.4 263.1 251.3 262.3 252 261.9C253.5 261.2 262.2 252.5 262.9 251C263.3 250.3 264 249.4 265.4 248C266.8 246.6 267.6 245.7 267.9 245C268.2 244.4 269 243.5 269.9 242.5C270.8 241.6 271.6 240.6 271.9 240.1C272.1 239.6 272.6 238.9 272.9 238.6C273.2 238.2 273.6 237.6 273.9 237.1C274.1 236.6 274.6 235.9 274.9 235.6C275.2 235.2 275.6 234.6 275.9 234.1C276.1 233.6 276.6 232.9 276.9 232.6C277.2 232.2 277.9 231.1 278.4 230.1C278.9 229 279.6 227.9 279.9 227.6C280.6 226.8 289 210.1 289 209.5C289 209.3 289.2 208.6 289.5 208C289.7 207.3 290 206.6 290 206.4C290 206.2 290.4 205.1 291 204C291.5 202.8 292 201.7 292 201.5C292 201.3 292.2 200.6 292.5 200C292.7 199.3 293 198.6 293 198.4C293 198.2 293.2 197.6 293.5 197C293.8 196.2 294 195.7 294 195C294 194.3 294.1 193.8 294.5 193C294.8 192.2 295 191.7 295 191C295 190.3 295.1 189.8 295.5 189C295.8 188.2 296 187.7 296 187C296 186.3 296.1 185.8 296.5 185C296.9 184 297 183.8 297 182C297 180.2 297 180 297.5 179C297.9 178 298 177.9 298 175.5C298 173.1 298 173 298.5 172L299 170.9L299 155.5L299 140L298.5 138.9C298 137.9 298 137.8 298 135.4C298 133.1 297.9 133 297.5 131.9C297 131 297 130.7 297 129.4C297 128.2 296.9 127.8 296.5 126.9C296.1 126.1 296 125.6 296 124.9C296 124.2 295.8 123.7 295.5 122.9C295.1 122.1 295 121.6 295 120.9C295 120.2 294.8 119.7 294.5 118.9C294.1 118.1 294 117.6 294 116.9C294 116.2 293.8 115.7 293.5 114.9C293.2 114.3 293 113.7 293 113.5C293 113.3 292.7 112.6 292.5 112C292.2 111.3 292 110.7 292 110.5C292 110.3 291.7 109.6 291.5 109C291.2 108.3 291 107.6 291 107.4C291 107.2 290.5 106.1 290 105C289.4 103.8 289 102.7 289 102.4C289 101.8 279.6 83.1 278.9 82.3C278.6 82 278.1 81.3 277.9 80.8C277.6 80.3 277.2 79.7 276.9 79.3C276.6 79 276.1 78.3 275.9 77.8C275.6 77.3 275.2 76.7 274.9 76.3C274.6 76 274.1 75.3 273.9 74.8C273.6 74.3 273.2 73.7 272.9 73.3C272.6 73 272.1 72.3 271.9 71.8C271.6 71.3 271 70.4 270.4 69.9C269.8 69.3 269.1 68.3 268.9 67.8C268.5 67.1 267.7 66.1 266.4 64.8C265 63.5 264.3 62.6 263.9 61.9C263.2 60.4 251.5 48.7 250 48C249.3 47.6 248.4 46.9 247 45.5C245.6 44.1 244.7 43.3 244 43C243.5 42.7 242.6 42 242 41.5C241.4 40.9 240.6 40.3 240.1 40C239.6 39.8 238.9 39.3 238.6 39C238.2 38.7 237.6 38.3 237.1 38C236.6 37.8 235.9 37.3 235.6 37C235.2 36.7 234.6 36.3 234.1 36C233.6 35.8 232.9 35.3 232.6 35C232.2 34.7 231.1 34 230.1 33.5C229 33 227.9 32.3 227.6 32C226.8 31.3 212.1 24 211.5 24C211.2 24 210.1 23.5 209 23C207.8 22.4 206.7 22 206.5 22C206.3 22 205.6 21.7 205 21.5C204.4 21.2 203.6 20.9 203.3 20.9C202.9 20.8 202.4 20.6 202 20.3C201.5 19.9 201.2 19.8 200.6 19.8C200 19.8 199.7 19.7 199.1 19.3C198.6 18.9 198.2 18.8 197.6 18.8C197.1 18.8 196.7 18.7 196.2 18.4C195.9 18.1 195.3 17.8 195 17.7C194.5 17.6 194.3 17.4 194.2 16.9C193.9 16 193.6 15.8 192.5 15.8C191.7 15.8 191.4 15.9 190.8 16.3C190.1 16.8 189.9 16.8 189.2 16.7C188.8 16.7 188.1 16.5 187.7 16.3C187.2 16.1 186.6 16 185.9 16C185.2 16 184.7 15.8 184 15.5C183 15 182.9 15 181 15C179.2 15 179 14.9 178 14.5C176.9 14 176.9 14 174 14C171.1 14 171 14 170 13.5L168.9 13L156.5 13L144 13L142.9 13.5C141.9 14 141.9 14 138.9 14C136 14 136 14 134.9 14.5C133.9 14.9 133.7 15 131.9 15C130.1 15 129.9 15 129 15.5C128.2 15.8 127.7 16 127 16C126.2 16 125.7 16.1 125 16.5C124.2 16.8 123.7 17 123 17C122.2 17 121.7 17.1 121 17.5C120.2 17.8 119.7 18 119 18C118.2 18 117.7 18.1 116.9 18.5C116.3 18.7 115.7 19 115.5 19C115.3 19 114.6 19.2 114 19.5C113.3 19.7 112.7 20 112.5 20C112.3 20 111.6 20.2 111 20.5C110.3 20.7 109.7 21 109.5 21C109.3 21 108.6 21.2 108 21.5C107.3 21.7 106.6 22 106.4 22C106.2 22 105.1 22.4 104 23C102.8 23.5 101.7 24 101.4 24C100.8 24 84.1 32.3 83.3 33C83 33.3 82.3 33.8 81.8 34C81.3 34.3 80.7 34.7 80.3 35C80 35.3 79.3 35.8 78.8 36C78.3 36.3 77.7 36.7 77.3 37C77 37.3 76.3 37.8 75.8 38C75.3 38.3 74.7 38.7 74.3 39C74 39.3 73.3 39.8 72.8 40C72.4 40.3 71.5 40.9 70.9 41.5C70.3 42 69.4 42.7 68.9 43C68.3 43.3 67.3 44.1 66.4 45C65.4 45.9 64.5 46.7 63.9 47C62.4 47.7 48.7 61.4 48 62.9C47.6 63.6 46.9 64.5 45.5 65.8C44.2 67.1 43.4 68.1 43.1 68.8C42.8 69.3 42.1 70.3 41.5 70.9C40.9 71.4 40.3 72.3 40 72.8C39.8 73.3 39.3 74 39 74.3C38.7 74.7 38.3 75.3 38 75.8C37.8 76.3 37.3 77 37 77.3C36.7 77.7 36.3 78.3 36 78.8C35.8 79.3 35.3 80 35 80.3C34.7 80.7 33.8 82.2 33 83.8C32.2 85.4 31.3 87 31 87.3C30.3 88.1 26 96.8 26 97.4C26 97.7 25.3 99.3 24.5 101C23.6 102.6 23 104.2 23 104.4C23 104.6 22.7 105.3 22.5 106C22.2 106.6 22 107.3 22 107.5C22 107.7 21.7 108.3 21.5 109C21.2 109.6 21 110.3 21 110.5C21 110.7 20.7 111.3 20.5 112C20.2 112.6 20 113.3 20 113.5C20 113.7 19.7 114.3 19.5 115C19.2 115.6 19 116.3 19 116.5C19 116.7 18.7 117.3 18.5 117.9C18.1 118.7 18 119.2 18 119.9C18 120.6 17.8 121.1 17.5 121.9C17.1 122.7 17 123.2 17 123.9C17 124.6 16.8 125.1 16.5 125.9C16 126.8 16 127.2 16 128.4C16 129.7 15.9 130 15.5 130.9C15 132 15 132.1 15 134.4C15 136.8 14.9 136.9 14.5 137.9L14 139L14 143.4L14 147.9L13.5 148.9L13 150L13 155.5L13 160.9L13.5 162L14 163L14 168L14 172.9L14.5 174C14.9 175 15 175.2 15 177C15 178.8 15 179 15.5 180C15.9 180.9 16 181.2 16 182.5C16 183.7 16 184.1 16.5 185C16.9 185.9 17 186.2 17 187.5C17 188.7 17 189.1 17.5 190C17.8 190.8 18 191.3 18 192C18 192.7 18.1 193.2 18.5 194C18.7 194.6 19 195.2 19 195.4C19 195.6 19.2 196.3 19.5 197C19.7 197.6 20 198.3 20 198.5C20 198.7 20.2 199.3 20.5 200C20.7 200.6 21 201.3 21 201.5C21 201.7 21.2 202.3 21.5 203C21.7 203.6 22 204.3 22 204.5C22 204.7 22.4 205.8 23 207C23.5 208.1 24 209.2 24 209.5C24 209.7 24.6 211.3 25.5 213C26.3 214.6 27 216.2 27 216.5C27 217.1 29.3 221.8 30 222.6C30.3 222.9 31.2 224.5 32 226.1C32.8 227.7 33.7 229.2 34 229.6C34.3 229.9 35 231 35.5 232.1C36 233.1 36.7 234.2 37 234.6C37.3 234.9 37.8 235.6 38 236.1C38.3 236.6 38.9 237.5 39.5 238.1C40.1 238.7 40.8 239.6 41.1 240.1C41.4 240.7 42 241.6 42.5 242.1C43.1 242.7 43.7 243.6 44 244.1C44.4 244.8 45.2 245.8 46.5 247.1C47.9 248.5 48.6 249.3 49 250C49.7 251.5 61.4 263.2 62.9 263.9C63.5 264.2 64.4 265 65.4 265.9C66.3 266.9 67.3 267.6 67.9 267.9C68.4 268.2 69.3 268.9 69.9 269.4C70.5 270 71.4 270.7 71.9 270.9C72.4 271.2 73.3 271.9 73.9 272.4C74.5 273 75.4 273.6 75.8 273.9C76.3 274.1 77 274.6 77.3 274.9C77.7 275.2 78.3 275.6 78.8 275.9C79.3 276.1 80 276.6 80.3 276.9C80.7 277.2 81.8 277.9 82.8 278.4C83.9 278.9 85 279.6 85.3 279.9C86.1 280.6 98.8 287 99.4 287C99.7 287 100.8 287.4 102 288C103.1 288.5 104.2 289 104.5 289C104.7 289 105.8 289.4 107 290C108.1 290.5 109.2 291 109.4 291C109.6 291 110.3 291.2 111 291.5C111.6 291.7 112.3 292 112.5 292C112.7 292 113.3 292.2 113.9 292.5C114.7 292.8 115.2 293 116 293C116.7 293 117.2 293.1 118 293.5C118.6 293.7 119.2 294 119.5 294C119.7 294 120.3 294.2 120.9 294.5C121.7 294.8 122.2 295 123 295C123.7 295 124.2 295.1 125 295.5C125.8 295.9 126.1 296 127.4 296C128.7 296 129 296 129.9 296.5C130.9 296.9 131.1 297 132.9 297C134.7 297 134.9 297 135.9 297.5L137 298L140.4 298L143.9 298L144.9 298.4L145.9 298.9L156.3 298.9L166.7 299L167.9 298.5ZM166.8 296.3C166.4 295.9 166 295 166 294.4C166 294.3 165.7 293.6 165.4 292.9L164.9 291.8L165 283C165 278.2 165 274.1 165 274C164.9 273.6 164.3 273.4 163.4 273.7C162.9 273.8 162.1 274 161.7 274C161.2 274 160.6 274.1 160 274.5C159.2 274.8 158.7 275 158 275C157.2 275 156.7 275.1 155.9 275.5C155 275.9 154.7 276 153.4 276C152.2 276 151.8 276 150.9 276.5C150.3 276.7 149.7 277 149.5 277C149.3 277 148.6 277.2 148 277.5C147 277.9 146.6 278 145.5 278C144.3 278 143.9 277.9 143 277.5C142.3 277.2 141.6 277 141.4 277C140.9 277 136.4 274.7 135.8 274.2C135.1 273.6 135.5 272.6 136.7 272.1C136.9 272 138 272 139 272C140.8 272 141 271.9 142 271.5C142.9 271 143.2 271 144.5 271C145.7 271 146.1 270.9 147 270.5C148 270 148.2 270 150 270C151.9 270 152 269.9 153 269.5C153.7 269.1 154.2 269 154.9 269C155.7 269 156.2 268.8 157 268.5C157.9 268 158.2 268 159.5 268C160.8 268 161.1 267.9 161.8 267.5C162.5 267.2 163.1 267 164 267C165.7 266.8 165.8 266.7 165.9 265.1C166 264.2 165.9 263.9 165.5 263.1C165.1 262.3 165 261.9 165 260.4C164.9 258.8 164.8 258.6 164.5 258.3C163.9 257.8 163.1 257.9 161.9 258.5L160.9 259L157.5 259L154.1 259L153 258.5C152.3 258.2 151.6 258 151.4 258C150.9 258 148.4 256.7 148.2 256.4C148 255.9 148.1 255.5 148.6 254.9C149.4 254 149.7 254 154 254L158 254L158.8 253.5C159.6 253.1 159.9 253 162 253C163.9 252.9 164.3 252.8 164.6 252.6C164.8 252.3 164.9 251.9 164.9 248.4C164.9 244.6 164.9 244.6 164.5 244.3C163.9 243.8 163.1 243.9 161.9 244.5C160.9 244.9 160.7 245 158.9 245L157 245L155 244C153.9 243.4 152.7 243 152.5 243C152.2 243 151.4 242.7 150.7 242.3C149.2 241.6 148.9 241.2 149.3 240.5C149.6 239.9 150.2 239.8 152.6 239.9L154.9 240L156 239.5C157 239 157.1 239 159 239C160.8 239 161 238.9 161.8 238.5C162.3 238.3 163 238 163.5 237.9C164.9 237.7 164.9 237.7 164.9 234.5C164.9 231.1 164.9 231.1 163.2 231C162.2 230.9 161.9 231 161 231.4C160 231.9 159.7 232 158.4 232C157.2 232 156.8 232 155.9 232.5C155.3 232.7 154.7 233 154.5 233C154.3 233 153.6 233.2 153 233.5C152.3 233.7 151.6 234 151.4 234C151.2 234 150.1 234.4 149 235C146 236.4 145.8 236.4 142.5 234.7C139.2 233.1 137.8 231.8 138.2 230.7C138.4 230.1 139 230 142 230C144.9 230 144.9 230 146 229.5C147 229 147.2 229 149 229C150.8 229 151 228.9 152 228.5C153 228 153.2 228 155 228C156.8 228 157 227.9 158 227.5C159 227 159.2 227 161 227C163.3 227 163.7 226.8 164.8 225.6C165.9 224.5 166 224.1 165.9 222.3C165.9 220.7 165.8 220.6 165.5 220.3C164.9 219.8 164.1 219.9 162.9 220.5C161.9 220.9 161.8 221 159.4 221C157.1 221 157 221 155.9 221.5C155 221.9 154.7 222 153.4 222C152.1 222 151.8 221.9 151.2 221.5C150.8 221.3 150.5 221 150.4 220.9C150.4 220.8 149.7 220.4 149 220C147.5 219.2 147 218.5 147.2 217.8C147.3 217.1 147.9 217 150.5 217C152.8 217 153 216.9 154 216.5C155 216 155.1 216 158 216C160.9 216 160.9 216 162 215.5C162.6 215.2 163.2 215 163.4 215C164.3 215 164.6 214.6 165.3 213.3L166 212L166 209.4C166 207.1 165.9 206.8 165.6 206.3C165.1 205.4 164.1 204.5 163 204C161.9 203.4 160.3 202 160.2 201.4C159.9 200.3 160.5 200 163.1 200C164.8 200 165.1 199.9 165.8 199.5C166.2 199.3 166.8 199.1 167 199.1C167.1 199.1 168.7 199.8 170.5 200.7C174.3 202.6 175.1 203.3 176.2 205.5C177.1 207.2 177.1 207.6 176.4 209C176 209.9 175.9 210.1 176 211.2C176.1 212.9 176 212.9 180.3 212.9C183.9 213 184 213 184.7 212.6C185.1 212.3 185.5 212 185.7 211.8C186.3 211.1 186.9 211 188.4 211C189.8 211 190 211 191.3 211.6C192.1 212 193 212.6 193.3 212.9C193.7 213.2 194.4 213.7 194.9 213.9C196 214.5 197.4 215.8 197.7 216.6C198 217.3 198 218.7 197.7 219.5C197.5 220 197.1 220.3 196.5 220.6C195.2 221.3 195.3 221.9 196.9 222.2C197.3 222.3 198.4 222.7 199.3 223.1C200.3 223.6 201.2 224 201.4 224C202.2 224 203 224.4 204.1 225.7C205.5 227.1 206 227.7 206 228.3C206 229.3 205.7 229.6 204.3 230.3C202.5 231.1 201.5 231.2 200 230.5C199.2 230.1 198.7 230 197.9 230C197.2 230 196.7 229.8 196.1 229.5C194.7 228.9 194.4 229 193.6 230.6L193 231.9L193 234C193 235.9 193 236 193.5 237C193.7 237.5 194 238.2 194 238.5C194 239.2 193.4 240.1 192.6 240.6C192.1 240.9 192 241 187.5 241L182.9 241L182.1 241.4C181.3 241.8 181 241.9 178.4 242C174.9 242.1 175.1 242 175 244.4C174.9 245.8 174.8 246.4 174.5 246.9C174 247.8 174 248.1 174.7 249.5C175.6 251.1 176.1 251.3 178 250.5C178.6 250.2 179.3 250 179.5 250C180 250 181.6 249.1 181.6 248.8C181.6 248.6 182.6 248.1 182.9 248.1C183.1 248.1 183.7 248.3 184.1 248.5C184.9 248.9 185.1 249 186.9 249C188.9 249 188.9 249 190.2 249.6C191.8 250.4 192 250.7 191.9 252.3C191.8 253.8 191 254.7 189.5 254.9C189.1 255 188.3 255.3 187.8 255.5C186.9 255.9 186.8 256 182.4 256C178 256 177.9 256 177.1 256.4C176.7 256.6 175.9 256.9 175.4 257C174 257.2 174 257.1 174 261.5C174 264.9 174.1 265.3 174.3 265.6C174.6 265.8 175.2 265.9 181.8 265.9L188.9 266L190 265.5C191 265 191.2 265 192.9 265C194.7 265 194.9 265 196 265.5C196.6 265.7 197.3 266 197.5 266C197.7 266 198.6 266.3 199.4 266.7C201.4 267.6 203.2 269.4 204.1 271.3C205 273.1 205 273.3 203.7 274.7C202.7 275.7 202.2 276 200.6 276C199.3 276 198.9 275.9 198 275.5C197.3 275.2 196.7 275 196.5 275C196.3 275 195.6 274.7 195 274.5C194.3 274.2 193.7 274 193.5 274C193.3 274 192.6 273.7 192 273.5C191.3 273.2 190.6 273 190.4 273C190.2 273 189.6 272.7 189 272.4L187.9 271.9L181.3 272C175.3 272 174.6 272.1 174.4 272.3C174.2 272.5 174 273 174 273.9C173.9 274.8 173.7 275.5 173.4 276.1L173 276.9L173 281.9L173 286.9L172.5 287.9C172.1 288.7 172 289.2 172 289.9C172 290.7 171.8 291.2 171.2 292.4C170.8 293.2 170.3 294 170.1 294.2C169.9 294.4 169.6 294.9 169.3 295.3C169.1 295.7 168.8 296.2 168.7 296.3C168.3 296.7 167.3 296.7 166.8 296.3ZM118.3 286.6C118 286.4 117.4 285.9 116.9 285.4C116.4 284.9 115.6 284.3 115.2 284.1C114.7 283.8 114.3 283.5 114.2 283.2C113.9 282.6 113.9 280.4 114.2 279.3C114.5 278.5 114.5 278.4 114.2 277.6C114 276.9 114 276 114 273.9C114 270.9 114.1 270.4 114.7 270.2C115.2 270.1 115.7 270.3 116.1 271.1C116.5 271.8 117.7 272.5 118.5 272.5C119 272.5 120.4 271.1 121 270C121.2 269.5 121.9 268.6 122.4 268C123 267.5 123.6 266.6 123.9 266.1C124.1 265.6 124.6 264.9 124.9 264.6C125.2 264.2 125.6 263.6 125.9 263.1C126.1 262.6 126.6 261.9 126.9 261.6C127.2 261.2 127.6 260.6 127.9 260.1C128.1 259.6 128.5 259 128.8 258.7C129.1 258.4 129.5 257.7 129.8 257.2C130.1 256.6 130.8 255.7 131.4 255.1C132 254.5 132.6 253.6 132.9 253.1C133.1 252.6 133.6 251.9 133.9 251.6C134.2 251.2 134.6 250.6 134.9 250.1C135.1 249.6 135.6 248.9 135.9 248.6C136.1 248.3 136.6 247.6 136.8 247.1C137.9 245 139.6 244.4 139.9 246.2C140 246.6 139.9 247 139.5 247.9C139.2 248.5 139 249.2 139 249.4C139 249.7 138.5 250.8 138 252C137.4 253.1 137 254.2 137 254.4C137 254.6 136.7 255.3 136.5 256C136.2 256.6 136 257.3 136 257.5C136 258.1 132.7 264.6 131.9 265.4C131.6 265.8 131.2 266.5 131.1 266.9C130.9 267.8 130.7 268.4 130.4 269.3C130.3 269.7 130.1 270.3 130 270.6C130 271 129.7 271.6 129.2 272.1C128.3 273.1 127 275.8 127 276.4C127 276.6 126.7 277.3 126.5 278C126.2 278.6 126 279.3 126 279.5C126 279.7 125.2 281.4 124.3 283.2C123 285.8 122.6 286.6 122.2 286.8C121.5 287.1 119 287 118.3 286.6ZM122 243.5C121 243 120.9 243 118.5 243L116 243L114.7 242.3C113.4 241.7 113.3 241.6 112.9 240.8C112.7 240.4 112.2 239.7 111.9 239.4C110.9 238.4 110.9 237.5 111.7 237.1C112 237 113.3 237 115.5 237L118.9 237L120 236.5C120.9 236 121.2 236 122.5 236C123.7 236 124.1 235.9 125 235.5C126 235 126.2 235 127.9 235C129.3 235 130.1 234.9 130.6 234.7C131.4 234.4 131.5 234.4 132.3 234.7C132.8 234.8 133.4 235 133.6 235C133.7 235 134.5 235.3 135.2 235.6L136.6 236.3L137.3 237.6C138.4 239.8 138.2 240.3 136.3 241.3C135.5 241.7 134.7 242 134.5 242C134.2 242 133.6 242.2 133 242.4C132.1 242.9 131.7 242.9 129.9 243C128.2 243.1 127.5 243.2 126.8 243.6C125.3 244.2 123.4 244.1 122 243.5ZM180 235.5C180.9 235 181.2 235 182.4 235C184.3 235 184.5 234.9 185.3 233.3C185.9 232 186 231.8 185.9 230.8C185.8 229 185.9 229 181.6 229L178 228.9L176.6 229.6C175 230.4 175 230.5 175 233C175 235.8 175.1 235.9 177.5 235.9C178.8 236 179.1 235.9 180 235.5ZM181.7 224.6C182 224.4 182.9 224.2 183.5 224.1C185.4 223.9 185.6 223.8 186.3 222.2C187 220.9 187 220.9 186.9 219.3C186.8 217 186.9 217.1 183.6 217L181 216.9L180 217.4C179.2 217.9 178.8 218 177.9 218C176.7 218 176 218.3 175.3 219.3C175 219.8 175 220 175 221.8C175 224 175.1 224.6 175.7 224.8C175.9 224.9 177.1 224.9 178.5 224.9C180.7 225 181 224.9 181.7 224.6ZM132.7 219.9C131.7 219.4 130.7 219 130.5 219C130.2 219 129.1 218.5 128 218C126.8 217.4 125.7 217 125.5 217C124.9 217 124.1 216.5 123.5 216C123.2 215.7 122.5 215.2 122 215C120.9 214.4 116.4 210 116.2 209.4C115.8 208 117.2 207.6 119 208.5L119.9 209L124.9 209L129.8 209L131 209.5C131.6 209.7 132.3 210 132.5 210C132.7 210 133.6 210.3 134.4 210.7C135.6 211.3 136.1 211.7 137.5 213C139.4 214.9 139.8 215.4 139.8 215.9C139.8 216.4 138.6 218.8 138.1 219.2C137.5 219.7 135.4 220.8 134.9 220.8C134.7 220.8 133.7 220.4 132.7 219.9ZM106.8 198.4C106.4 198.2 105.8 198 105.6 198C104.4 197.9 103.8 197.2 104.4 196.2C104.6 195.7 105.1 195.4 106.8 194.5C108 193.9 109.3 193.2 109.6 192.9C109.9 192.6 111 191.9 112.1 191.4C113.5 190.7 114.2 190.2 115 189.4C115.6 188.9 116.5 188.2 117 187.9C117.8 187.5 119.2 186.2 124.5 180.9C129.9 175.6 131.2 174.3 132 173.9C133.4 173.2 137.2 169.4 137.9 168C138.2 167.4 138.9 166.5 139.9 165.6C140.7 164.7 141.5 163.7 141.9 163.1C142.2 162.6 142.8 161.7 143.4 161.1C143.9 160.6 144.6 159.7 144.9 159.1C145.2 158.6 145.8 157.7 146.4 157.1C146.9 156.6 147.6 155.7 147.9 155.1C148.2 154.6 148.8 153.7 149.4 153.1C149.9 152.6 150.6 151.7 150.9 151.1C151.1 150.6 151.8 149.7 152.4 149.1C153 148.5 153.6 147.6 153.9 147.1C154.1 146.6 154.5 146 154.8 145.7C155.1 145.4 155.5 144.7 155.8 144.1C156.2 143.6 156.8 142.7 157.4 142.1C157.9 141.6 158.6 140.7 158.9 140.1C159.1 139.6 159.8 138.7 160.4 138.1C161 137.5 161.6 136.6 161.9 136.1C162.1 135.6 162.6 134.9 162.9 134.6C163.2 134.2 163.9 133.1 164.4 132.1C164.9 131 165.6 129.9 165.9 129.6C166.7 128.6 167.9 126.3 167.7 125.7C167.6 125.1 167 125 165.7 125.5C164.7 126 164.6 126 159.8 126C155 126 154.9 126 154.1 125.5C152.7 124.8 152.5 124.9 150.6 126.8C150 127.4 149.3 128.3 149 128.9C148.3 130.2 145.2 133.3 143.9 134C143.2 134.3 142.2 135.2 140.4 137C138.6 138.8 137.6 139.6 136.9 140C136.4 140.2 135.5 140.9 134.9 141.5C134 142.4 133.4 142.7 129.4 144.7L124.9 147L123 147C120.9 147 120.3 146.8 120.2 146.2C120 145.4 120.5 144.7 121.8 144C122.5 143.7 123.3 143.2 123.6 142.9C123.9 142.6 124.6 142.1 125.1 141.9C126.5 141.2 132.2 135.4 132.9 134C133.3 133.3 134.2 132.3 136.9 129.6C139.4 127 140.5 125.9 140.9 125.1C141.1 124.6 141.8 123.7 142.4 123.1C143 122.5 143.7 121.5 143.9 121C144.2 120.5 144.9 119.6 145.4 119C146.1 118.2 146.5 117.7 146.5 117.4C146.5 116.8 144.3 114.6 143.2 114.1C142 113.5 141.8 112.9 142.6 111.9C143.3 111 143.7 111 147.5 111L150.9 111L152.4 111.7C153.6 112.3 154.1 112.7 155.6 114.1C157.9 116.4 157.8 116.3 158 118.5C158.1 120.7 158.2 120.8 159.7 120.9C160.7 121 161 120.9 162 120.5C163 120 163.1 120 165.5 120L168 120L169.5 119.2C170.3 118.8 171.2 118.3 171.3 118C172.2 117.2 172.8 117 174.4 117C175.8 117 176 117 177.4 117.7C178.7 118.3 179.1 118.6 181.2 120.7C183.7 123.2 184 123.6 184 125C184 126.1 183.7 126.7 182.7 127.7C181.8 128.5 179.2 130 178.5 130C177.8 130 177.3 130.3 176.9 131.1C176.7 131.5 175.8 132.6 175 133.4C173.5 134.9 173.4 135.1 172 137.8C171.2 139.4 170.4 140.9 170.1 141.2C169.8 141.5 169.4 142.2 169.1 142.7C168.8 143.3 168.1 144.3 167.5 144.9C166.9 145.4 166.3 146.3 166 146.8C165.8 147.3 165.3 148 165 148.3C164.7 148.7 164.2 149.4 164 149.9C163.7 150.5 163.4 151 163.2 151.1C163 151.3 162.7 151.7 162.4 152.1C161.9 153 161.8 153.8 162.3 154.6C162.5 154.9 166.3 158.8 170.8 163.3C177.5 170.1 179.1 171.5 179.9 171.9C180.6 172.3 181.5 173 182.9 174.4C184.3 175.8 185.2 176.6 185.9 176.9C186.5 177.2 187.5 178 188.4 178.9C189.4 179.9 190.3 180.6 190.9 180.9C191.6 181.3 192.6 182.2 194.9 184.4C197.2 186.7 198.2 187.6 198.9 187.9C199.5 188.2 200.5 189 201.4 189.9C202.3 190.8 203.3 191.6 203.8 191.9C204.3 192.1 205 192.6 205.3 192.9C205.7 193.2 206.3 193.6 206.8 193.9C208.6 194.8 209.3 196 208.8 197.2C208.4 197.9 208.1 198 202.9 198L198 198L197 197.5C196.1 197 195.7 197 194.5 197C193.3 197 192.9 196.9 192 196.5C191.3 196.2 190.6 196 190.4 196C190.2 196 189.3 195.6 188.5 195.2C187.1 194.5 186.9 194.4 182.2 189.7C178.4 185.8 177.3 184.7 176.9 183.9C176.7 183.4 176 182.4 175.4 181.9C174.8 181.3 174.1 180.3 173.9 179.8C173.6 179.2 172.9 178.3 172.4 177.8C171.8 177.3 171.2 176.4 170.9 175.8C170.6 175.2 169.9 174.3 169.4 173.8C168.8 173.3 168.2 172.4 167.9 171.8C167.5 171.2 166.7 170.2 165.9 169.3C164.9 168.4 164.2 167.5 163.9 166.9C163.5 166.1 162.8 165.2 160.8 163.3C159.4 161.9 158 160.6 157.8 160.4C156.8 159.8 155.9 160.2 155.1 161.8C154.7 162.5 154 163.4 153 164.3C152.2 165.2 151.4 166.2 151.1 166.8C150.8 167.3 150.1 168.3 149.5 168.9C148.9 169.4 148.3 170.3 148 170.8C147.7 171.4 147.4 171.7 147 172C146.5 172.2 146.2 172.5 145.9 173.1C145.7 173.5 144.8 174.6 144 175.4C143 176.4 142.3 177.3 142 177.9C141.3 179.2 138.2 182.3 136.9 183C136.3 183.3 135.4 184 134.4 185C133.5 185.9 132.5 186.7 131.9 187C131.4 187.2 130.5 187.9 129.9 188.5C129.3 189 128.4 189.7 127.9 190C127.4 190.2 126.7 190.7 126.4 191C125.8 191.6 125 192 124.3 192C123.8 192 122.6 192.7 122.1 193.2C121.8 193.6 117 196 116.5 196C116.3 196 115.6 196.2 115 196.5C114.3 196.7 113.7 197 113.5 197C113.3 197 112.6 197.2 112 197.5C111.3 197.7 110.6 198 110.4 198C110.1 198 109.6 198.1 109.1 198.4C108.1 198.9 107.7 198.9 106.8 198.4ZM181.5 110.8C181.4 110.7 181 110.4 180.8 110.2C180.3 109.8 179 107 179 106.5C179 105.7 177.5 103 176.7 102.2C175.9 101.4 173.2 100 172.4 100C172.2 100 171.1 99.5 170 99C168.9 98.4 167.7 98 167.3 97.9C166.2 97.8 165.8 97.1 166.4 96.3L166.8 95.9L172.8 95.9L178.9 96L180 95.5C180.6 95.2 181.3 95 181.5 95C182.2 95 183.2 94.3 183.6 93.6C183.9 93 184 92.8 184 85L184 77L184.5 76L185 74.9L185 58L185 41L184.5 39.9C184.1 39.1 184 38.6 184 37.9C184 37 183.8 36.7 182.7 34.4C181.6 32.3 181.3 31.7 180.3 30.8C178.5 29 178.5 29 175.5 29C173 29 173 29 171.9 29.5C171 29.9 170.7 30 169.4 30C168.2 30 167.8 30 166.9 30.5C165.9 30.9 165.7 31 163.9 31C162.1 31 161.9 31 161 31.5C160.2 31.8 159.7 32 159 32C158.1 32 157.7 32.1 155.9 33C153.9 33.9 153.9 34 152.5 34C151 34 151 33.9 149 33C147.8 32.4 146.7 32 146.4 32C146.2 32 145.2 31.5 144.1 31C142.1 30 141.8 30 141.1 30.4C140.5 30.7 139 33.7 139 34.4C139 34.7 138.7 35.3 138.5 35.9C138.1 36.7 138 37.2 138 38C138 38.7 137.8 39.2 137.5 39.8C136.9 41 137 41.5 138.1 42C139.3 42.6 141.4 44.7 141.6 45.5C141.7 45.9 141.8 46.3 141.8 46.3C141.8 46.4 142 46.8 142.3 47.1C142.6 47.4 142.8 47.8 142.8 48C142.8 48.2 143 48.7 143.3 49C143.5 49.4 143.8 50 143.9 50.5C144 50.9 144.3 51.6 144.5 52C144.9 52.8 144.9 53.1 144.4 54.1C144 54.9 144 55.1 144 57.4L144 59.9L142.8 62.3C140.8 66.3 139.1 67.7 137.4 66.6C137.1 66.5 135.5 65 133.9 63.4L131 60.5L128.6 59.3C127.3 58.7 126.1 58.1 126 58.1C125.3 58.1 125 58.7 125 59.8C125 60.6 124.8 61.1 124.5 61.9L124 63L124 67L124 70.9L124.5 72L125 73L125 88L125 102.9L124.5 103.8C124.3 104.3 124 105.1 123.9 105.5C123.7 107 122.8 107.8 121.3 107.9C119.8 108 119.3 107.8 117.8 106.2C116.4 104.9 116 104.2 116 103.4C116 103.3 115.7 102.6 115.5 102C115.2 101.3 115 100.6 115 100.4C115 100.2 114.7 99.6 114.5 99C114.2 98.4 114 97.7 114 97.4C114 97.2 114.4 96.1 115 95L116 93L116 89L116 85L116.5 84L117 82.9L117 64L117 45L117.5 44C117.9 43.1 118 42.7 118 41.5C118 40.2 117.9 39.9 117.5 38.9C117 38 117 37.7 117 36.4C117 35.1 116.9 34.8 116.6 34.3C116.1 33.4 115.1 32.5 114 32C113.1 31.5 111.3 30 110.5 28.9C110 28.3 110 27.6 110.6 27C111.3 26 111.7 26 114.9 26C117.8 26 117.8 26 119 26.5C119.6 26.7 120.3 27 120.5 27C120.7 27 121.3 27.2 121.9 27.5C123.4 28.1 124.5 28.1 126 27.5C126.6 27.2 127.2 27 127.5 27C128 27 132.5 24.8 132.7 24.4C132.8 24.3 132.9 23.6 133 22.9C133.1 21.5 133.3 21 134.3 20.3C134.8 20 135 20 137.4 20C139.7 20 139.9 20 140.8 20.4C141.3 20.6 142.1 20.9 142.5 21C143.4 21.1 144 21.5 144.5 22.2C144.8 22.6 144.9 22.9 144.9 24.2C144.9 26.1 144.9 26.1 145.3 26.3C145.5 26.4 145.8 26.4 146.4 26.3C147.1 26.1 147.3 26.1 147.9 26.4C148.8 26.9 149.1 26.9 150.1 26.4C150.9 26 151.1 26 153.4 26C155.9 26 156 25.9 157 25.5C158 25 158.2 25 160 25C161.8 25 162 24.9 163 24.5C164 24 164.1 24 166.5 24C168.9 24 169 23.9 170 23.5L171 23L175 23L178.9 23L180 22.5C181 22 181.2 22 183 22C184.8 22 185.1 21.9 185.6 21.6C186.4 21.1 187.4 20.1 187.8 19.3C188.2 18.5 188.4 18.3 189.3 18.2C189.9 18.1 190.1 18.2 190.8 18.6C191.5 19.1 191.7 19.1 192.8 19.1C193.9 19.1 194.2 19.2 194.8 19.6C195.4 20 195.7 20.1 196.3 20.1C196.9 20.1 197.3 20.2 197.7 20.6C198.1 20.8 198.7 21.1 199.2 21.2C200.5 21.6 202 23.3 201.9 24.4C201.9 25.2 201.8 25.5 200.4 27C198.6 28.9 198.4 29 196 29C194.2 29 194 28.9 193 28.5C191.7 27.8 190.3 27.8 189.3 28.3C188.9 28.5 188.3 28.7 187.9 28.7C186.4 29 186.2 29.6 187.5 30.3C187.9 30.5 188.6 31.1 189.1 31.6C189.7 32.2 190.4 32.7 191.9 33.4C194.7 34.8 195 35.2 195 37.5C195 38.6 194.9 39 194.5 40C194.2 40.6 194 41.3 194 41.5C194 41.7 193.7 42.3 193.5 42.9C192.8 44.2 192.8 44.7 193.4 45.8C193.6 46.2 193.8 46.8 193.8 47C193.8 47.1 193.6 47.7 193.4 48.1L193 48.9L193 73.9L193 98.8L192.5 100C192.2 100.6 192 101.3 192 101.5C192 101.7 191.4 103 190.7 104.4C189.6 106.7 189.4 107 187.8 108.6C185.6 110.9 185.4 111 183.5 110.9C182.6 110.9 181.7 110.9 181.5 110.8ZM153.6 79.8C153.4 79.6 152.9 78.8 152.1 77.2L151 74.9L151 68L151 61L150.5 59.9C150 58.9 150 58.7 150 56.9C150 55.1 149.9 54.9 149.5 53.9C149.2 53.3 149 52.7 149 52.5C149 52.3 148.8 51.8 148.7 51.5C148.4 50.8 145 47.4 144.1 46.9C143.3 46.6 143.1 46 143.2 45.1C143.4 44.1 143.7 44 146.4 44C148.8 44 148.9 44 149.9 44.5C150.9 44.9 151.2 45 152.5 45C153.7 45 154.1 44.9 155 44.5C156 44 156.2 44 158 44C159.9 44 160 43.9 161 43.5C161.7 43.1 162.2 43 162.9 43C163.7 43 164.2 42.8 165 42.5C165.9 42 166.2 42 167.5 42C168.8 42 169.1 41.9 170 41.5C170.5 41.2 171.2 41 171.4 41C171.7 41 172.9 41.4 174 42C175.1 42.5 176.2 43 176.4 43C177.2 43 178 43.4 179.1 44.7C181.4 46.9 181.5 47.7 180 49.3C179.3 50.1 177 54.8 177 55.4C177 55.7 176.7 56.3 176.5 56.9C176.1 57.7 176 58.2 176 58.9C176 59.8 175.8 60.2 174.5 62.8C172.9 66.1 172.8 66.4 173.9 66.9C174.8 67.4 175 67.9 174.9 69.8C174.9 71.4 174.7 71.9 173.6 72.6C173.1 72.9 172.9 73 171 73C169.1 73 168.9 73 167.9 73.5C166.9 74 166.9 74 163.9 74L160.9 74L159.6 74.6C158.9 75 158.3 75.4 158.2 75.5C158.1 75.6 158 76.3 158 77C157.8 78.4 157.6 78.9 156.7 79.5C156.2 79.9 154.3 80.1 153.6 79.8ZM163.3 67.3C164.6 66.6 164.6 66.6 165.3 65.3C165.8 64.2 166 63.8 166 63C166 62.3 166.1 61.8 166.5 61L167 59.9L166.9 53.8C166.9 48.1 166.8 47.6 166.6 47.3C166.3 47.1 165.9 47 164.1 47C162 46.9 162 46.9 161 47.4C160.2 47.8 159.8 48 158.9 48C157.8 48 156.8 48.4 156.4 49.1C156 49.8 156 50.1 156.5 51.1C156.9 52 157 52.1 157 56L157 59.9L157.5 61C157.9 62 158 62.1 158 64.4C158 67.8 158 67.9 160.5 67.9C161.9 68 162 67.9 163.3 67.3ZM135.6 54.6C136.5 54 136.6 53.8 136.3 52.8C136.2 52.4 136 51.7 135.9 51.3C135.9 51 135.1 49.2 134.2 47.5C132.7 44.4 132.6 44.3 131.8 43.9C130.2 43.1 130 42.5 130 39.4C130 36.8 130.1 36.4 131 35.4C131.7 34.6 132.2 33.3 132.2 32C132.2 31.3 132.2 31.2 131.7 31.1C131.3 30.9 131 31 130 31.4C129.3 31.7 128.6 32 128.4 32C127.7 32 125.3 33.2 125.1 33.7C125 34 125 37.6 125 43.1C125 51.8 125 52 125.3 52.6C125.7 53.3 126.7 54 127.4 54C127.7 54 128.3 54.2 128.9 54.4C129.8 54.9 130 54.9 132.5 54.9C134.9 55 135.1 54.9 135.6 54.6Z"}, "吉川": {"w": 313, "h": 312, "d": "M151.2 307.1C151.2 307.1 149.6 307 147.7 306.9C145.8 306.9 143.6 306.7 142.9 306.6C139.1 306.1 137.5 306 136.9 306C136.5 306 135.8 305.8 135.3 305.7C134.8 305.6 133.4 305.4 132.2 305.2C131 305.1 129.3 304.8 128.4 304.5C127.5 304.3 126.3 304.1 125.8 304C125.3 304 124.2 303.7 123.4 303.5C122.5 303.3 120.4 302.8 118.6 302.3C114.7 301.3 113.5 301 112.8 300.7C112.5 300.6 111.8 300.4 111.2 300.2C110.7 300 109.2 299.6 108 299.2C106.8 298.8 105.5 298.3 105.1 298.2C104.7 298 103.9 297.7 103.3 297.4C102.7 297.2 102.1 297 102 297C101.8 297 100.9 296.6 98.5 295.5C95.5 294.3 94.8 293.9 93.6 293.5C91.9 292.8 86.3 290 85.7 289.5C85.4 289.4 84.8 289 84.2 288.7C82 287.5 79.8 286.3 79.1 285.8C78.7 285.5 78.1 285.2 77.8 285C77.5 284.9 76.8 284.4 76.2 284C75.6 283.6 74.8 283.1 74.5 282.9C73.9 282.6 73.6 282.4 72.2 281.4C71.9 281.3 71.5 281 71.2 280.8C70.9 280.6 70.4 280.2 70.1 280C69.8 279.7 68.9 279.1 68.2 278.6C67.5 278.1 66.5 277.4 66 277C65.5 276.5 64.7 276 64.4 275.7C64 275.5 63.2 274.9 62.5 274.3C61.9 273.8 60.8 272.9 60 272.3C55.1 268.5 45.9 259.3 40.7 253.1C39.5 251.6 36.6 247.8 35.6 246.5C35.3 246.1 34.6 245.1 34 244.5C33.5 243.8 32.9 242.9 32.7 242.6C31.1 240.4 30.3 239.1 29.6 238C29.2 237.3 28.6 236.5 28.5 236.2C27.8 235.2 26.4 233 25.9 232C25.7 231.5 25.2 230.7 25 230.3C24.7 229.8 24.4 229.2 24.1 228.8C23.9 228.4 23.4 227.5 23 226.9C22.2 225.5 20.2 221.5 19.4 219.5C19 218.7 18.6 217.6 18.4 217.1C18.2 216.6 17.7 215.6 17.4 214.8C17 214 16.6 213 16.4 212.5C16.2 212 15.9 211.2 15.7 210.8C15.6 210.4 15.2 209.5 15 208.8C14.7 208.1 14.2 207 14 206.3C13.5 204.5 13 203 12.5 201.8C12.1 200.5 11.4 198.1 10.2 193.8C9.8 192.1 9 188.5 8.7 187.1C8.6 186.3 8.3 185.4 8.2 185C8.1 184.5 7.9 183.6 7.9 183C7.8 182.3 7.6 181.2 7.4 180.5C7.3 179.8 7 178.2 6.9 176.9C6.7 175.6 6.5 174.1 6.4 173.5C6.2 171.3 5.9 168.8 5.8 165.5C5.7 163.6 5.6 161.3 5.5 160.5C5.2 156.8 5.8 143.7 6.4 139.4C6.5 138.5 6.7 136.9 6.8 135.9C6.9 134.9 7.1 133.4 7.3 132.7C7.5 132 7.7 130.6 7.8 129.7C7.9 128.8 8.2 127.3 8.4 126.4C8.6 125.5 8.8 124.4 8.9 124C8.9 123.5 9.1 122.8 9.3 122.2C9.5 121.7 9.7 120.6 9.9 119.8C10 119 10.3 117.8 10.6 117.1C10.8 116.5 11 115.7 11 115.5C11 115.2 11.1 114.7 11.4 114.2C11.6 113.7 11.8 113.1 11.9 112.8C12 112 12.9 109.1 13.4 107.8C13.6 107.2 13.9 106.3 14.1 105.7C14.9 103.2 15.1 102.8 16.4 99.7C16.7 99 17 98.4 17 98.3C17 98 17.8 96 19 93.7C19.4 92.7 19.8 91.9 19.8 91.8C19.8 91.6 23.2 84.8 23.6 84.4C23.8 84.1 24 83.8 24 83.7C24 83.6 24.1 83.3 24.3 83.1C24.4 82.9 25 81.9 25.5 81C25.9 80.1 26.6 78.9 27 78.4C27.3 77.8 27.7 77.2 27.8 77C28.2 76.2 31.8 70.7 33.1 69C33.4 68.7 34 67.8 34.5 67C36.9 63.7 40.4 59.4 43.9 55.5C47.1 51.8 57.9 41.2 58.6 41C58.7 40.9 59.7 40.2 60.8 39.3C61.8 38.3 63 37.4 63.4 37.2C63.7 36.9 64.5 36.4 65 35.9C65.5 35.5 66.5 34.8 67.2 34.3C67.9 33.8 68.8 33.2 69.1 32.9C69.4 32.7 69.9 32.3 70.2 32.2C70.4 32 71.1 31.5 71.8 31C72.4 30.6 73.4 29.9 74 29.5C74.6 29.2 75.2 28.8 75.5 28.6C75.7 28.4 76.1 28.2 76.4 28C76.6 27.9 77.5 27.3 78.2 26.9C79 26.4 79.6 26 79.7 26C79.8 26 80.1 25.8 80.5 25.5C80.8 25.3 81.3 25 81.7 24.8C82.1 24.6 83 24.1 83.9 23.6C87.3 21.8 96.9 17.1 97.8 16.9C98.1 16.8 98.8 16.5 99.4 16.3C101.4 15.4 102.4 15 103.1 14.7C103.5 14.6 104.2 14.3 104.7 14.2C111.1 11.5 124.8 8 132.8 6.9C134.4 6.6 136 6.4 136.3 6.3C136.8 6.2 139.9 5.8 142 5.7C142.5 5.7 143.6 5.6 144.5 5.5C146.9 5.1 150 5 156.9 5.1C165.7 5.1 165.7 5.1 167 5.3C167.6 5.4 168.6 5.5 169.1 5.5C171.9 5.7 176.1 6.1 177.8 6.5C178.8 6.6 180.2 6.9 180.9 6.9C182.3 7.1 186 7.8 188.5 8.4C189.5 8.6 190.8 8.9 191.3 9C191.8 9 192.6 9.2 193.1 9.4C193.6 9.6 194.4 9.8 194.8 9.9C195.2 9.9 195.8 10.1 196.1 10.2C196.4 10.3 197.2 10.5 197.8 10.7C198.4 10.8 199.2 11.1 199.6 11.2C200 11.4 201 11.7 201.8 11.9C202.6 12.1 203.5 12.4 203.8 12.5C204.1 12.7 204.9 12.9 205.5 13.1C207.2 13.6 208.9 14.2 209.6 14.6C210 14.8 210.4 15 210.5 15C210.8 15 212.7 15.7 214 16.4C214.5 16.6 215.2 16.9 215.5 17C215.9 17.1 216.8 17.5 217.6 17.9C218.4 18.2 219.4 18.6 219.8 18.8C221.2 19.4 229.4 23.6 231.8 25C232.2 25.2 232.8 25.6 233.2 25.8C233.6 26 234.1 26.3 234.5 26.5C234.8 26.8 235.5 27.2 236.1 27.6C236.7 27.9 237.4 28.3 237.6 28.5C237.9 28.7 238.6 29.2 239.2 29.6C243.8 32.6 243.7 32.6 245.2 33.7C247.1 35.2 247.5 35.4 248.4 36C248.8 36.3 249.9 37.2 250.7 37.9C251.5 38.6 252.4 39.3 252.8 39.6C254.5 40.9 258.5 44.5 261.9 47.8C267.7 53.5 271.4 57.6 275.5 63C275.8 63.4 276.5 64.2 277 64.8C279.1 67.5 283.4 73.6 284 74.8C284.1 75 284.4 75.5 284.7 75.9C285 76.2 285.5 77.1 285.9 77.8C286.2 78.4 286.7 79.3 287 79.7C287.2 80.1 287.6 80.9 287.9 81.4C288.2 81.9 288.7 82.7 289 83.2C289.7 84.5 295 95 295 95.3C295 95.4 295.2 96 295.5 96.7C295.8 97.3 296.2 98.4 296.5 99.1C297.3 100.8 298 102.6 298 102.8C298 102.9 298.1 103.3 298.3 103.6C298.7 104.3 299.9 107.9 300 108.8C300.1 109.1 300.3 109.6 300.5 110C300.6 110.3 300.9 111.1 301.1 111.9C301.6 113.9 302.1 115.6 302.6 116.7C302.8 117.3 303 118 303 118.2C303 118.4 303.2 119.4 303.5 120.4C303.7 121.4 304 122.7 304.1 123.3C304.1 123.9 304.3 124.6 304.5 125C304.6 125.3 304.8 126 304.9 126.6C304.9 127.2 305.2 128.6 305.4 129.7C305.6 130.8 305.9 132.8 306 134C306.2 135.3 306.4 136.8 306.5 137.4C306.8 138.5 307.3 144.5 307.4 147.3C307.4 148.3 307.5 149.5 307.6 150C307.9 151.3 307.8 161.5 307.5 162.5C307.4 163 307.4 163.5 307.5 164.1C307.5 164.7 307.5 165.5 307.4 166.3C307.2 167 307.1 169 307 170.7C306.9 172.4 306.7 174 306.6 174.2C306.5 174.5 306.5 175 306.4 175.3C306.4 175.7 306.3 176.5 306.2 177C306.1 177.6 306 178.4 306 178.8C306 179.3 305.8 180.1 305.7 180.6C305.6 181.1 305.3 182.6 305.1 183.8C304.9 185 304.6 186.5 304.5 187.1C304.3 187.7 304 188.8 304 189.5C303.9 190.1 303.7 191.1 303.5 191.6C303.3 192.2 303.1 193.1 303 193.7C302.9 194.3 302.7 195.1 302.6 195.4C302.4 195.6 302.2 196.3 302.1 196.8C302 197.6 301.4 199.6 300.7 201.6C300.5 202 300.3 202.9 300 203.6C299.4 205.8 298.8 207.2 298.5 207.9C298.3 208.3 298.1 208.9 298 209.2C298 209.6 297.7 210.5 297.3 211.2C297 211.9 296.6 212.9 296.5 213.3C294.5 217.9 292.7 221.9 292.5 222C292.4 222.1 292.2 222.5 292 222.9C291.9 223.4 291.7 223.8 291.5 224C291.4 224.1 291.2 224.5 291 225C290.9 225.4 290.7 225.8 290.5 226C290.4 226.1 290.2 226.4 290.1 226.8C290 227.1 289.7 227.6 289.5 227.9C289.3 228.1 288.8 229.1 288.4 230C288 230.8 287.3 232 286.9 232.5C286.6 233.1 286.2 233.7 286.1 234C286 234.2 285.4 235.1 284.9 235.9C284.3 236.7 283.7 237.7 283.5 238.1C282.9 239 281.6 241 280.9 241.9C280.7 242.2 280.2 242.9 279.8 243.4C278.9 244.8 278.8 245 278 246C277.6 246.5 277 247.3 276.6 247.9C274.5 250.6 271.8 254 269.2 256.8C265.2 261.3 255.9 270.2 253 272.4C252.6 272.7 251.7 273.4 251.1 273.9C248.6 276 247.7 276.7 245.9 277.9C245.6 278.1 245.3 278.4 245.2 278.4C245.1 278.5 244.5 279 243.7 279.5C242.4 280.4 241.7 280.9 240.2 282C239.7 282.3 238.8 282.9 238.2 283.3C237.6 283.6 236.7 284.2 236.4 284.4C236 284.7 235.7 285 235.5 285C235.4 285 234.7 285.4 233.9 285.9C233.2 286.4 231.9 287.2 231.1 287.6C230.3 288 229.1 288.6 228.5 289C226.6 290 220.4 293.1 220 293.2C219.7 293.3 219.4 293.5 219.1 293.6C218.9 293.7 218.3 294 217.8 294.3C217.3 294.5 216.5 294.8 216 295C215.5 295.2 214.4 295.7 213.6 296C212.8 296.4 211.9 296.8 211.5 296.9C211 297 210.3 297.3 209.8 297.6C209.3 297.8 208.7 298 208.6 298C208.4 298 207.9 298.1 207.5 298.4C207.1 298.6 206.4 298.8 206 298.9C205.5 299 204.7 299.3 204.1 299.5C203.5 299.8 202.2 300.2 201.2 300.4C200.3 300.7 198.6 301.2 197.7 301.5C196.7 301.7 195.2 302.2 194.3 302.5C193.4 302.7 192.4 303 192 303C191.5 303.1 190.6 303.3 189.9 303.5C189.2 303.7 188 303.9 187.2 304C186.4 304.2 185.4 304.4 185 304.5C184.5 304.7 183.2 304.9 181.9 305C180.7 305.2 179.3 305.4 179 305.5C178.6 305.7 177.3 305.9 176.1 306C174.9 306 173.3 306.2 172.7 306.3C169.5 306.7 168.4 306.8 165.2 307C161.7 307.1 151.3 307.3 151.2 307.1ZM165 299C168.7 298.8 169.5 298.7 173.5 298.2C174.4 298.1 176.1 297.8 177.3 297.7C178.4 297.6 179.8 297.3 180.3 297.2C180.8 297.1 181.8 296.9 182.6 296.8C183.4 296.7 184.5 296.5 185 296.4C185.5 296.2 186.5 296 187.4 295.9C188.2 295.7 189.2 295.5 189.5 295.4C189.9 295.2 190.6 295 191.2 295C191.7 294.9 192.8 294.6 193.5 294.4C197.3 293.3 198.3 293 199.1 292.8C199.6 292.7 200.2 292.5 200.6 292.3C200.9 292.1 201.5 291.9 201.9 291.9C202.2 291.8 203 291.6 203.5 291.4C204 291.2 204.7 290.9 205.1 290.7C205.5 290.6 206.2 290.3 206.7 290.2C207.2 290 208.3 289.5 209.3 289.1C211 288.4 211.9 288.1 214.6 286.9C215.4 286.5 216.3 286.1 216.7 286C217.8 285.6 224.6 282.1 225.5 281.5C225.9 281.2 226.4 281 226.5 281C226.6 281 227.3 280.6 228 280.1C228.7 279.7 229.6 279.1 230.1 278.8C231.9 277.9 234 276.6 235.2 275.7C235.6 275.4 236.4 274.8 237.1 274.4C237.8 274 238.8 273.3 239.3 272.9C239.8 272.6 240.4 272.1 240.6 272C240.9 271.8 241.5 271.4 242 271C242.5 270.5 243.5 269.8 244.2 269.3C246 268 249.5 265.1 252.9 261.9C256 259.1 262.6 252.4 264.8 249.8C267.3 246.8 269.5 244.2 270 243.4C270.3 243 270.7 242.4 271 242C271.3 241.6 271.9 240.8 272.3 240.3C272.8 239.7 273.3 238.9 273.6 238.6C274.2 237.8 274.6 237.1 275.7 235.6C277.2 233.2 277.4 232.9 277.9 232C278.1 231.6 278.6 230.8 278.9 230.3C279.7 229.2 280.3 228.1 281 226.9C281.2 226.3 281.6 225.6 281.7 225.4C282.8 223.4 283.5 222.3 284.3 220.7C284.8 219.7 285.4 218.6 285.6 218.2C285.8 217.8 286 217.4 286 217.3C286 217.2 286.4 216.2 286.9 215.1C287.4 214.1 287.9 212.9 288 212.6C288.2 212.3 288.5 211.4 288.9 210.6C289.2 209.8 289.7 208.6 290 207.9C290.7 205.8 291.4 204.1 291.7 203.4C291.8 203 291.9 202.6 291.9 202.4C292 202.2 292.1 201.7 292.4 201.2C292.6 200.7 292.8 199.9 292.9 199.5C293 199 293.3 198.3 293.4 198C293.6 197.6 293.9 196.8 294 196.2C294.1 195.6 294.3 194.7 294.5 194.3C294.6 193.9 294.8 193.3 294.9 192.9C294.9 192.5 295.2 191.6 295.4 191C295.6 190.3 295.8 189.4 295.9 189C295.9 188.5 296.2 187.4 296.5 186.4C296.7 185.4 297 184.1 297 183.6C297.1 183.1 297.3 182.1 297.5 181.5C297.6 180.8 297.8 179.6 297.9 179C297.9 178.3 298.2 176.7 298.4 175.5C298.6 174.2 298.9 171.9 299 170.2C299.1 168.6 299.3 166.9 299.4 166.5C299.5 166 299.5 165.4 299.5 164.8C299.4 164.2 299.4 163.4 299.6 162.5C299.8 160.9 299.8 152 299.5 148C299.4 146.8 299.2 144.3 299.1 142.5C298.9 140.6 298.6 137.9 298.4 136.5C298.2 135 297.9 133.4 297.9 132.8C297.8 132.2 297.6 131 297.4 130.2C297.1 129.4 296.9 128.1 296.8 127.4C296.7 126.6 296.5 125.6 296.3 125.1C296.1 124.6 296 124.1 296 123.9C296 123.7 295.6 122.2 295.2 120.6C294 115.9 293.9 115.4 291.7 108.8C291.6 108.4 291.1 107.2 290.7 106.2C290.3 105.2 290 104.3 290 104.2C290 104 289.8 103.6 289.6 103.2C289.3 102.7 288.9 101.7 288.6 100.8C288.2 99.9 287.8 98.8 287.5 98.4C287.3 97.9 286.8 96.8 286.4 96C285.6 94.1 281.7 86.3 281.4 86C281.3 85.8 281 85.4 280.9 85.1C280.7 84.8 280.3 84.1 280 83.5C279.6 83 279.2 82.3 279 82C278.9 81.7 278.6 81.2 278.4 80.9C278.1 80.6 278 80.3 278 80.2C278 80.1 277.7 79.6 277.3 79.2C277 78.7 276.4 77.9 276 77.3C275.4 76.3 274.2 74.5 273.1 72.8C272.8 72.5 272.3 71.8 271.9 71.3C271.5 70.8 270.9 70 270.6 69.6C269.1 67.4 266.8 64.6 264 61.5C261.8 58.9 254.4 51.5 252.3 49.6C251.5 49 250.5 48.1 250 47.7C247.8 45.8 245.6 43.9 244.8 43.4C244.3 43 243.5 42.4 243 42C242.5 41.5 241.6 40.9 241 40.5C240.4 40.1 239.4 39.4 238.9 38.9C238.3 38.5 237.7 38.1 237.5 38C237.2 37.8 236.9 37.6 236.6 37.4C236 36.9 234.5 36 234.4 36C234.3 36 233.7 35.5 232.9 35C232.2 34.5 231.5 34.1 231.3 34C231.2 33.9 230.7 33.7 230.4 33.5C229 32.5 226.8 31.3 224.5 30.1C224 29.8 223.1 29.3 222.5 29C222 28.7 221.3 28.4 221 28.2C220.6 28 220.2 27.8 220 27.7C219.3 27.4 218.5 27 217.4 26.5C216.8 26.3 215.4 25.6 214.3 25.1C213.1 24.6 211.9 24 211.5 23.9C211 23.8 210.1 23.4 209.3 23C208.5 22.7 207.5 22.3 207.1 22.2C206.7 22 205.9 21.7 205.3 21.5C204.7 21.2 203.9 20.9 203.6 20.9C203.3 20.8 202.8 20.6 202.5 20.5C201.8 20.2 199.7 19.5 198 19.1C197 18.9 196.2 18.6 192.5 17.5C191.8 17.3 190.9 17.1 190.6 17C190.3 17 189.1 16.7 187.9 16.5C181.9 15.1 177 14.4 169.9 13.6C169 13.5 167.7 13.4 167.1 13.3C165.9 13.1 164.7 13.1 156.5 13.1C149.7 13.1 146 13.2 142.8 13.6C142 13.7 140.7 13.9 139.8 13.9C138.9 14 137.7 14.2 137.1 14.3C136.5 14.4 134.8 14.6 133.3 14.9C131.8 15.1 130 15.4 129.3 15.6C128.6 15.8 127.6 16 127.1 16C126.1 16.2 118.1 18.1 117 18.5C116.5 18.7 115.7 18.9 115.1 19C114.5 19.2 113.7 19.4 113.3 19.6C113 19.8 112.4 20 112 20C111.7 20.1 111 20.3 110.5 20.5C110 20.8 109.2 21 108.8 21.2C107.2 21.7 106.3 22 105.3 22.5C104.7 22.7 104.1 23 103.9 23C103.8 23 103.2 23.2 102.6 23.5C102.1 23.7 101.5 24 101.4 24C101.3 24 100.8 24.2 100.2 24.4C99.7 24.7 98.1 25.4 96.8 26C93.5 27.5 90.4 29.1 88.3 30.3C87.3 30.8 86.1 31.5 85.5 31.8C85 32.1 84.2 32.6 83.7 32.9C83.2 33.2 82.5 33.7 82 34C81.5 34.2 80.7 34.7 80.3 34.9C80 35.2 79 35.8 78.3 36.2C76.9 37.1 76.6 37.3 75 38.5C74.5 38.8 73.8 39.3 73.5 39.5C73.2 39.7 72.5 40.2 72.1 40.6C71.6 41 70.8 41.6 70.4 41.9C66.4 44.6 61.2 49.1 55.1 55.3C52.2 58.2 49.4 61 48.9 61.6C48.4 62.2 47.6 63.3 47 63.9C45.4 65.9 44 67.7 43.3 68.5C43 69 42.4 69.8 42 70.3C41.6 70.8 41.1 71.5 40.8 71.8C40.6 72.1 40 73 39.4 73.8C38.9 74.6 38.3 75.4 38.2 75.6C38 75.9 37.6 76.5 37.1 77.2C36.7 77.8 36.2 78.6 36 79C35.7 79.4 35.3 80.1 35 80.6C34.3 81.6 33.8 82.5 33 83.9C32.7 84.4 32.2 85.2 31.9 85.7C31.7 86.2 31.3 86.9 31 87.4C30.8 87.9 30.3 88.8 29.9 89.3C29.6 89.9 29.1 90.7 29 91C28.9 91.4 28.7 91.8 28.5 91.9C28.4 92.1 28.2 92.6 28 93C27.3 94.7 26.9 95.7 26.5 96.3C26.3 96.6 26.1 97.1 26 97.4C26 97.6 25.5 98.7 25.1 99.6C24.2 101.5 23.8 102.4 23.2 104.1C23 104.8 22.7 105.5 22.5 105.9C22.3 106.2 22.1 106.8 22 107.1C22 107.4 21.8 108 21.6 108.3C21.5 108.6 21.2 109.4 21.1 110.1C20.9 110.8 20.7 111.6 20.5 111.9C20.4 112.1 20.1 112.9 20 113.5C19.4 115.6 18.8 117.7 18.5 118.5C18.3 119 18.1 119.7 18 120C18 120.4 17.7 121.6 17.5 122.6C16.5 126.4 16.1 128.5 15.9 129.6C15.9 130.2 15.7 131.1 15.6 131.6C15.4 132.1 15.2 133.2 15.1 134.2C15 135.1 14.8 137 14.5 138.4C14.1 141.1 13.7 145.6 13.8 148.1C13.8 149 13.7 149.9 13.5 150.5C13.4 150.9 13.3 151.4 13.4 151.5C13.4 151.6 13.5 159.6 13.4 160.5C13.4 160.6 13.5 161.2 13.6 161.9C13.7 162.5 13.8 163.6 13.8 164.1C13.7 166 14.1 170.9 14.5 173.5C14.8 174.9 15 176.3 15 176.7C15 177.4 15.5 180.2 15.8 181.2C15.8 181.5 16 182.3 16 183C16.1 183.6 16.3 184.9 16.5 185.7C16.8 186.5 17 187.5 17 188C17.1 188.4 17.3 189.3 17.5 190C17.8 190.6 18 191.6 18.1 192C18.1 192.5 18.3 193.3 18.5 193.8C18.7 194.3 18.9 195 19 195.5C19.2 196.5 19.9 198.9 20.3 199.9C20.5 200.3 20.8 201.2 20.9 201.8C21.4 203.2 22.2 205.4 22.5 206C22.6 206.2 22.8 206.8 23 207.3C23.1 207.8 23.5 208.8 23.9 209.6C24.2 210.4 24.7 211.5 24.9 212C25.1 212.6 25.4 213.2 25.5 213.5C25.7 213.7 25.9 214.3 26 214.8C26.2 215.3 26.4 215.8 26.5 215.9C26.6 216.1 26.8 216.5 27 216.8C27.2 217.4 29.3 221.6 29.6 222.1C29.7 222.3 29.9 222.7 30.1 223.1C30.6 224.2 31.2 225.2 31.4 225.5C31.5 225.6 31.8 226.1 32.1 226.6C32.8 227.9 34.3 230.6 34.7 231.2C35.6 232.6 39.5 238.5 40 239C40.2 239.4 40.6 240 40.9 240.4C41.1 240.7 41.7 241.5 42.1 242C42.5 242.5 43.1 243.3 43.4 243.6C44.8 245.5 47.5 248.9 49.6 251.2C51.3 253.1 59.4 261.2 61.1 262.7C63.5 264.9 66.2 267.2 67.7 268.3C70.4 270.3 70.5 270.4 71.4 271C71.8 271.3 72.6 271.9 73.1 272.3C74 273.1 74.4 273.4 76.3 274.7C78.6 276.2 79 276.4 79.7 276.8C80.1 277 80.6 277.3 80.9 277.6C81.2 277.8 81.5 278 81.6 278C81.6 278 82 278.2 82.4 278.5C82.7 278.7 83.1 279 83.2 279C83.3 279 83.8 279.3 84.5 279.7C85.1 280.1 86 280.7 86.5 280.9C87.7 281.5 88.8 282.1 89.3 282.4C89.8 282.8 95.7 285.7 96.3 285.9C96.5 285.9 96.9 286.1 97.1 286.3C97.4 286.4 97.8 286.7 98.2 286.8C98.5 286.9 99.2 287.2 99.7 287.5C100.2 287.7 100.8 288 100.9 288C101.1 288 101.7 288.2 102.3 288.5C102.9 288.7 104 289.2 104.6 289.5C105.2 289.7 105.8 290 106 290C106.1 290 106.7 290.2 107.3 290.4C108.5 291 114.2 292.8 115.5 293.1C116 293.2 116.5 293.4 116.8 293.5C117 293.7 117.6 293.8 118 293.9C118.4 294 118.8 294.1 119 294.2C119.4 294.3 125 295.7 126 295.9C126.4 295.9 127.4 296.2 128.2 296.4C129 296.6 130.2 296.8 130.9 296.9C131.5 296.9 132.6 297.1 133.3 297.3C134 297.5 135.4 297.7 136.4 297.8C137.4 297.9 138.8 298.1 139.5 298.2C143.8 298.7 143.1 298.7 148.5 298.9C150.1 299 151.5 299.1 151.5 299.1C151.6 299.3 160.8 299.1 165 299ZM100.2 283C99.9 282.6 99.9 282.2 100.3 281.7C100.6 281.4 100.9 281 101 280.7C101.1 280.4 101.8 279.4 102.4 278.4C103.6 276.6 106.8 270.6 107 269.7C107.1 269.4 107.3 269.1 107.4 268.8C107.6 268.6 107.8 268.2 107.9 267.8C107.9 267.5 108.2 266.9 108.4 266.5C108.6 266 108.8 265.4 109 265C109.1 264.5 109.3 263.9 109.4 263.6C109.6 263.3 110 262.1 110.4 261C110.7 259.8 111.2 258.3 111.4 257.5C111.6 256.8 111.9 255.8 111.9 255.2C112 254.7 112.3 253.8 112.4 253.2C112.6 252.7 112.8 251.6 113 251C113.1 250.3 113.3 249.4 113.4 249C113.5 248.5 113.7 247.5 113.8 246.5C113.9 245.6 114.1 244.3 114.3 243.6C114.5 243 114.7 241.5 114.8 240.5C115 238.5 115.3 235.2 115.6 233.3C115.7 232.6 115.8 231.5 115.8 230.6C115.8 229.8 115.9 228 116 226.7C116.2 222.8 116.3 218.3 116.4 191.2C116.4 167.2 116.5 165 116.7 164.8C117 164.4 117.5 164.4 119 164.6C119.6 164.7 121.2 164.9 122.5 165C123.9 165.1 125.9 165.3 126.9 165.5C127.9 165.6 129.1 165.8 129.6 165.8C130.1 165.8 131.2 165.9 132.1 166C134 166.3 134.4 166.6 134.1 167.5C133.9 168.3 133.4 168.7 131.9 169.5C131.1 169.8 130.4 170.3 130.3 170.4C130.2 170.6 130.1 175.6 130.1 194C130.1 218.1 130 223.2 129.5 226.8C129.3 227.9 129.1 229.5 129.1 230.4C129 231.2 128.8 233 128.6 234.3C128.3 235.6 128 237.5 127.9 238.5C127.7 239.5 127.5 240.5 127.4 240.6C127.4 240.8 127.2 241.4 127.1 242C127 242.6 126.8 243.7 126.5 244.4C126.3 245.1 126 246.2 125.9 246.7C125.9 247.3 125.7 248.1 125.5 248.4C125.4 248.8 125.1 249.6 124.9 250.3C124.7 251 124.2 252.2 124 253C123.7 253.7 123.3 254.8 123.1 255.3C122.8 256.2 121.9 258.3 121.6 258.8C121.5 258.9 121.4 259.2 121.3 259.5C119.8 262.7 117.4 266.9 115.9 268.9C115.7 269.2 115.2 269.9 114.9 270.4C113.3 272.8 109.3 277.1 106 279.9C102.3 283.1 101 283.8 100.2 283ZM187.2 283C187.1 282.9 186.9 282.7 186.8 282.5C186.8 282.2 186.7 255.6 186.8 223.2C186.9 171.2 186.9 164.4 187.1 164.3C187.4 164.1 189.1 164.2 191.5 164.5C192.3 164.7 194.2 164.9 195.5 165C196.9 165.1 198.9 165.3 199.9 165.5C200.9 165.6 202.2 165.8 202.7 165.8C204 165.8 204.9 166.1 205 166.4C205.3 167.3 204.1 168.6 202.4 169.4C201.7 169.7 201.1 170.1 201 170.3C200.8 170.5 200.8 186.7 200.8 224.3C200.8 253.8 200.7 278.1 200.7 278.2C200.1 279.1 198 281 197.5 281C197.4 281 196.8 281.2 196.3 281.4C195.8 281.7 194.6 282.2 193.7 282.5C192.2 282.9 191.7 283 189.7 283.1C188.4 283.1 187.3 283.1 187.2 283ZM150.9 268.7C150.6 268.5 150.5 268.2 150.5 266.7C150.4 265.7 150.4 243.8 150.5 218.1C150.5 171.8 150.5 171.4 150.9 171.2C151.3 170.9 153.5 171 156.9 171.5C158.2 171.6 160.3 171.9 161.6 172C163 172.1 164.6 172.3 165.4 172.4C166.1 172.5 167 172.6 167.2 172.6C168 172.6 168.5 173.1 168.4 173.7C168.2 174.6 167.1 175.7 166.1 176C165 176.4 164.7 176.6 164.4 177.1C164.2 177.5 164.1 182.6 164.1 221L164.1 264.4L163.7 265C162.8 266.3 158.6 268.2 155.1 268.8C153.5 269 151.3 269 150.9 268.7ZM118.7 150.8C118.6 150.6 118.4 150.2 118.3 149.9C118 148.8 118.1 94.8 118.3 94.3C118.6 93.7 119.2 93.7 120.3 94.3C120.9 94.5 122.1 95.1 123 95.5C123.8 95.8 124.7 96.2 124.8 96.3C125.2 96.6 125.9 96.9 129.4 98.3C129.9 98.6 130.9 99 131.5 99.3C134.3 100.6 132.1 100.5 157 100.5C182.6 100.5 179.6 100.7 181.2 98.5C181.8 97.8 182.8 96.5 183.5 95.6C184.3 94.7 185.2 93.6 185.6 93.1C186 92.5 186.4 92.1 186.6 92.1C186.9 92.1 188.6 93.5 191.3 95.8C193 97.3 198.4 102 199.5 102.8C200.8 103.9 200.9 104.3 199.9 105.1C199.5 105.5 198.5 106.1 197.7 106.5C196.8 107 196.1 107.4 196.1 107.6C196 107.7 196 116.3 196 126.7L196 145.6L195.5 146.1C195 146.6 192.5 147.7 191.2 148C190.7 148.2 189.8 148.4 189.3 148.6C188.4 148.9 187 149.1 183.2 149.6C182.1 149.7 181.5 149.6 181.2 149.2C181.1 149 181 147.8 181.1 145.3C181.2 141.8 181.1 141.5 180.9 141.2L180.5 140.8L157 140.8C133.8 140.8 133.5 140.8 133.3 141.1C133 141.4 133 141.7 133.1 143.3C133.1 144.6 133.1 145.4 133 145.8C132.7 146.7 131.3 147.8 129.6 148.6C128.9 148.9 128 149.3 127.5 149.5C127.1 149.8 126.3 150 125.9 150C125.4 150.1 124.6 150.3 124.2 150.5C123 150.9 119.2 151.1 118.7 150.8ZM180.9 136.2C181.1 135.7 181.1 133.1 181.1 120.3C181 106 181 105 180.7 104.6L180.4 104.1L157 104.1C136.9 104.1 133.5 104.2 133.3 104.4C133 104.7 133 136.2 133.3 136.6C133.5 136.8 137.2 136.8 156.8 136.8C169.6 136.9 180.2 136.8 180.3 136.8C180.5 136.8 180.8 136.5 180.9 136.2ZM109.3 82.2C108.7 82.1 108.4 81.6 108.1 80.5C107.8 79.5 107.9 79 108.4 78.8C108.6 78.7 116.8 78.6 128.4 78.6L148.1 78.6L148.4 78.3C148.7 77.9 148.7 77.4 148.8 65.7L148.8 53.5L148.4 53.2C148.1 53 146.8 53 125.5 53C100.3 53 102.2 53 102 51.8C102 51.5 101.8 50.8 101.7 50.3C101.6 49.5 101.6 49.4 101.9 49.2C102.1 49 105.9 49 125.1 49C145.7 49 148.1 48.9 148.4 48.7L148.8 48.4L148.8 36.9L148.8 25.4L149.1 25.1C149.4 24.9 149.7 24.8 150.3 24.9C150.7 24.9 152 25 153.2 25.1C154.4 25.2 155.9 25.4 156.5 25.5C157.1 25.5 159.2 25.7 161.1 25.9C165.4 26.2 167.2 26.4 167.5 26.7C168 27.2 167.8 27.8 166.7 28.9C165.8 29.8 165.6 29.9 164.8 30.1C164.2 30.2 163.7 30.5 163.5 30.7C163.1 31.1 163.1 31.1 163.2 39.8L163.2 48.5L163.6 48.7C164 48.9 166.7 48.9 176.7 48.9L189.3 48.9L189.7 48.4C189.9 48.2 190.6 47.2 191.3 46.2C192 45.2 193 43.8 193.6 43C194.1 42.2 194.7 41.3 194.9 41.1C195.1 40.6 195.7 39.8 196.7 38.5C197.3 37.7 197.9 37.8 198.8 38.7C199.2 39.1 200.2 40 201 40.7C201.9 41.4 202.8 42.2 203.1 42.5C203.5 42.8 204.7 43.9 205.9 45C210.2 48.8 211.8 50.4 211.9 50.7C212 51.3 211.7 51.7 210.8 52.3L209.9 52.9L186.8 53C167.5 53 163.6 53.1 163.4 53.3C163.1 53.5 163.1 54.6 163.1 65.7L163.1 77.9L163.5 78.3L163.9 78.6L174 78.6L184.2 78.6L184.8 78C185.1 77.7 185.6 77 185.9 76.5C186.2 76.1 186.7 75.4 187 75C187.2 74.7 188.2 73.2 189.2 71.8C192.5 66.9 192.5 66.9 193.9 68.2C194.4 68.6 195.5 69.6 196.5 70.4C197.4 71.2 198.6 72.2 199 72.6C199.5 73 200.5 73.9 201.3 74.6C204.7 77.7 206.7 79.6 206.9 80C207.4 81 206.3 82 204.6 82.2C203.1 82.3 109.9 82.4 109.3 82.2Z"}};
 
+
+/* ---------- 〔元 ext4d.js〕 ---------- */
 /* 請求ナビ Web：印鑑を線のデータに＋人が押した風（ext4d.js）
    2026-11-06「印鑑は荒くなるよね？印鑑も文字pdfにできる？人が押した風とか色んなバリエーション欲しいね」
    ・阿久津・吉川の印は本物の印影をなぞった線のデータ（hanko_vec.js）。画面・紙の印刷・くっきりPDF とも どこまで大きくしてもくっきり
@@ -18154,6 +18312,8 @@ document.addEventListener('change', ev => { const t = ev.target; if(!t || !t.dat
 const css = document.createElement('style'); css.textContent = '.xhkst{display:inline-flex;gap:8px;flex-wrap:wrap;align-items:center}.xhkst select{max-width:16em}'; document.head.appendChild(css);
 })();
 
+
+/* ---------- 〔元 ext4e.js〕 ---------- */
 /* 請求ナビ Web：稼働表（貸出状況照会）を文字PDFで（ext4e.js）
    2026-11-06「スマホでそれぞれの請求画面から稼働表出さないの？」
    ・スマホは 現場の画面の「稼働表」／下の「その他 → 稼働表・全現場の稼働表」で、印刷の画面を通さずPDFを作って「保存・送る」
@@ -18295,6 +18455,12 @@ X.kashiPdf = async function(html, title, names){
 X.kashiVecPdf = vecPaperPdf;
 })();
 
+
+/* #####################################################################
+   ■ 大リニューアル（Apple風・F提案）
+   ##################################################################### */
+
+/* ---------- 〔元 ext5a.js〕 ---------- */
 /* 請求ナビ Web：大リニューアル 第1段階（ext5a.js）
    2026-11-06「バグが多い・重い・勝手に変わる」→ 描き直しを必要なときだけにする
    ・見えていない現場の画面は描かない（あとで現場の画面に戻ったとき1回だけ描く）
@@ -18341,6 +18507,7 @@ const css = document.createElement('style'); css.id = 'x5aKeep';
 css.textContent = '#tab-sites[hidden],#tab-check[hidden]{display:block!important;content-visibility:hidden;height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden;border:0!important}';
 document.head.appendChild(css);
 })();
+
 
 /* ☰ メニューの「アプリ」：iPhoneのホーム画面のように自分で並べる（2026-11-07）
    ・長押し（PCは右クリック・「編集」）→ ブルブル震える → × で外す・ドラッグで並べかえ・＋ で足す
@@ -18581,6 +18748,8 @@ window.XAHome = { mount:mount, load:load, save:save, add:add, has:has, full:full
   exitAll:function(){ mounts.forEach(function(m){ m.exit(); }); } };
 })();
 
+
+/* ---------- 〔元 ext5b.js〕 ---------- */
 /* 請求ナビ Web：大リニューアル 第2段階「Apple（macOS／iOS）の見た目と操作」（ext5b.js）
    2026-11-06「私 apple製品が好きだから mac や iPhone iOS の仕様にして欲しい。見た目も操作も全て」
    ・色：Apple のシステムカラー（青のアクセント・灰色の背景・白のカード）。暗い／明るいは Mac・iPhone の設定に自動で合わせる
@@ -18903,6 +19072,8 @@ if(mq){ try{ mq.addEventListener('change', remap); }catch(e){} }
 let last = dark(); new MutationObserver(() => { const d = dark(); if(d !== last){ last = d; remap(); } }).observe(root, { attributes:true, attributeFilter:['class', 'data-theme'] });
 })();
 
+
+/* ---------- 〔元 ext5c.js〕 ---------- */
 /* 請求ナビ Web：大リニューアル 第3段階（ext5c.js）提案 F1・F3・F4・F5・F7・F13・F16
    F1  行き来の履歴：前に見ていた現場へ ‹ もどる／› すすむ（上の帯のボタン・⌘[ ⌘]・⌥← ⌥→）
    F3  表の詰め具合：ゆったり／ふつう／ぎっしり（⌘K →「表の詰め具合」、この端末に覚える）
@@ -19057,6 +19228,8 @@ function kashiPdfBtn(){
 }
 })();
 
+
+/* ---------- 〔元 ext5d.js〕 ---------- */
 /* 請求ナビ Web：大リニューアル 第3段階のつづき（ext5d.js）提案 F2・F6・F8・F9・F10・F14・F17
    F2  よく使うボタンをピン留め：ボタンを右クリック（スマホは長押し）→「上の帯にピン留め」。上の帯にいつも出る。もう一度で外す
    F6  品名をさがして置きかえ：全現場から、何行・どの現場が変わるか見てから置きかえる（⌘K。↶でもどせる）
@@ -19292,6 +19465,12 @@ if(typeof setTab === 'function'){ const _st = setTab; setTab = function(){ const
 setTimeout(paintPins, 800);
 })();
 
+
+/* #####################################################################
+   ■ 本丸（速さ）とまとめ直し
+   ##################################################################### */
+
+/* ---------- 〔元 ext6a.js〕 ---------- */
 /* 請求ナビ Web：大リニューアル 本丸（ext6a.js）
    2026-11-06「重い・固まる」のいちばんの元：現場の表（200行で 1万8千個の部品）を、1文字かえるたびに全部こわして作り直していた
    → 変わっていない行はそのまま残して、変わった行だけ入れかえる（見た目・紙・PDFはまったく同じ）
@@ -19392,6 +19571,31 @@ X.siteMorph = function(B, h, id){
   const on = ev => { const t = ev.target; if(t && t.tagName === 'SELECT' && t.hasAttribute('data-lz')) fill(t); };
   ['pointerdown', 'mousedown', 'touchstart', 'focusin', 'keydown'].forEach(n => document.addEventListener(n, on, { capture:true, passive:true }));
   window.seikyuExt.fillLazy = root => (root || document).querySelectorAll('select[data-lz]').forEach(fill);
+})();
+
+/* checks()（請求のまちがい探し）：1回の操作で7回も同じ計算をしていた（2026-11-07 まとめ直し）
+   中身が変わっていないあいだ（保存・入力・クリックのたびに番号を進める・最大1.5秒）は前の答えを使う。答えはコピーして渡す */
+(function(){
+  if(typeof checks !== 'function') return;
+  const X = window.seikyuExt; let ver = 0;
+  X.bumpState = () => { ver++; };
+  ['pointerdown', 'keydown', 'input', 'change', 'drop', 'paste'].forEach(n => window.addEventListener(n, () => { ver++; }, { capture:true, passive:true }));
+  if(typeof save === 'function'){ const _s = save; save = function(){ ver++; return _s.apply(this, arguments); }; }
+  ['build', 'openWork', 'updateFromCsv', 'undo', 'redo', 'restoreVersion', 'setTab'].forEach(n => {
+    if(typeof window[n] === 'function'){ const f = window[n]; window[n] = function(){ ver++; try{ return f.apply(this, arguments); } finally { ver++; } }; }
+  });
+  const inner = checks; let memo = null, key = null, at = 0;
+  const copy = a => a.map(o => (o && typeof o === 'object') ? Object.assign({}, o) : o);
+  X.checksStat = { hit:0, miss:0 };
+  checks = function(){
+    if(arguments.length || X.checksMemoOff) return inner.apply(this, arguments);
+    const k = ver + '|' + S.lines.length + '|' + S.sheets.length + '|' + S.cur;
+    const now = Date.now();
+    if(memo && k === key && now - at < 1500 && S.lines === memo.lines){ X.checksStat.hit++; return copy(memo.out); }
+    const out = inner.apply(this, arguments); X.checksStat.miss++;
+    if(Array.isArray(out)){ memo = { out:copy(out), lines:S.lines }; key = k; at = now; } else memo = null;
+    return out;
+  };
 })();
 
 
