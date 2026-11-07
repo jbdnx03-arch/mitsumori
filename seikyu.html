@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-07 15:32-->
+<!--BUILD:2026-11-07 15:43-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3004,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-07 15:32';
+const BUILD = '2026-11-07 15:43';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -15760,7 +15760,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 15:32';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 15:43';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -18478,6 +18478,23 @@ const css = document.createElement('style'); css.id = 'x5bCalm';
 css.textContent = 'html.xapple .works .muted:only-child,html.xapple .hk-body > .muted:only-child{animation:none!important;color:var(--ink3,#8E8E93)!important;background:none!important;min-height:0!important}' +
   'html.xapple .drop b::before{animation:none!important}';
 document.head.appendChild(css);
+})();
+/* 2026-11-07 パソコンが暗い設定で、請求ナビを明るくしているとき：「パソコンが暗いとき用」の色（表の黄色・見出し行の紺など）が混ざらないよう、
+   その条件を 請求ナビの明るさ（data-theme）に合わせて書きかえる */
+(function(){
+const root = document.documentElement, mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+const MQO = new WeakMap(); let done = false;
+function dark(){ return root.dataset.theme === 'dark' || root.classList.contains('lux-dark'); }
+function remap(){
+  const D = dark(), os = !!(mq && mq.matches); if(!done && D === os) return; done = true;
+  const fix = rules => { for(const r of rules){ if(r.type === 4 && r.media){ let o = MQO.get(r); if(o === undefined){ o = r.media.mediaText; MQO.set(r, o); }
+      if(/prefers-color-scheme/.test(o)){ const n = o.replace(/\(\s*prefers-color-scheme\s*:\s*dark\s*\)/g, D ? '(min-width: 0px)' : '(max-width: 0px)').replace(/\(\s*prefers-color-scheme\s*:\s*light\s*\)/g, D ? '(max-width: 0px)' : '(min-width: 0px)'); if(r.media.mediaText !== n) try{ r.media.mediaText = n; }catch(e){} } }
+    if(r.cssRules) fix(r.cssRules); } };
+  for(const sh of document.styleSheets){ try{ fix(sh.cssRules); }catch(e){} }
+}
+remap(); window.addEventListener('load', () => { remap(); setTimeout(remap, 1500); });
+if(mq){ try{ mq.addEventListener('change', remap); }catch(e){} }
+let last = dark(); new MutationObserver(() => { const d = dark(); if(d !== last){ last = d; remap(); } }).observe(root, { attributes:true, attributeFilter:['class', 'data-theme'] });
 })();
 
 /* 請求ナビ Web：大リニューアル 第3段階（ext5c.js）提案 F1・F3・F4・F5・F7・F13・F16
