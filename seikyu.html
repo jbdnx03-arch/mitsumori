@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-07 23:02-->
+<!--BUILD:2026-11-08 03:34-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3004,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-07 23:02';
+const BUILD = '2026-11-08 03:34';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3786,6 +3786,21 @@ const hm = s => s ? new Date(s).toLocaleString('ja-JP', { month:'numeric', day:'
 const cleanCust = s => String(s || '').normalize('NFKC').replace(/[\s　]/g, '').replace(/株式会社|有限会社|\(株\)|\(有\)|㈱|㈲/g, '');
 const RO = () => !!(window.__ro);
 window.seikyuExt = window.seikyuExt || {};
+/* 行ごとの飾り（メモ・決まり・手で変えた欄・計算・✎・つまむ）：表を描いたあとに1行ずつ */
+window.seikyuExt.decoRow = function(tr){
+    const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
+    const td = tr.children[1];
+    td.querySelectorAll(':scope > .xmemo').forEach(x => x.remove());   /* 2026-11-06 残した行（ext6a）で2つにならないように */
+    if(l.memo || l.rule){ const d = document.createElement('div'); d.className = 'why xmemo'; d.innerHTML = (l.rule ? '<span class="tag rule">決まり：' + esc(l.rule) + '</span> ' : '') + (l.memo ? 'メモ：' + esc(l.memo) : ''); td.appendChild(d); }
+    if(l.rule) tr.classList.add('rulerow');
+    /* 手で変えた欄だけ黄色のマーカー（CSVの値とちがう欄）。行全体の色はやめて、左の線だけ */
+    markRow(tr, l);
+    const amt = tr.children[8]; if(amt){ amt.classList.add('xcalc'); amt.title = '押すと計算のしかた'; }
+    const bt = tr.querySelector('.lnbtn'); if(bt && !bt.querySelector('[data-x="lmemo"]')){ const b = document.createElement('button'); b.dataset.x = 'lmemo'; b.title = 'メモ（社内）・理由・決まりごと'; b.textContent = '✎'; bt.insertBefore(b, bt.firstChild); }
+    tr.draggable = false;
+    const rn = tr.querySelector('.rowno'); if(rn){ rn.draggable = true; if(rn.title.indexOf('つまんで上下に') < 0) rn.title += '・つまんで上下に動かせる'; }
+
+};
 
 /* ------------------------------------------------------------------
    得意先カード・決まりごと（N13・N38・N41）
@@ -4437,20 +4452,8 @@ drawSite = function(){
   /* 凡例（N5） */
   const tb = $('#siteBody table.ln');
   if(tb && !$('#siteBody .xleg')){ const lg = document.createElement('div'); lg.className = 'xleg'; lg.innerHTML = '<span><i class="c-sys"></i>システムどおり</span><span><i class="c-chg"></i>手で変えた欄（CSVとちがう）</span><span><i class="c-hand"></i>手直しした行（左の線）</span><span><i class="c-man"></i>手で足した行</span><span><i class="c-nb"></i>請求書に出さない</span><span><i class="c-rule"></i>決まりごと</span><span class="muted">金額を押すと計算のしかた</span>'; tb.parentNode.insertBefore(lg, tb); }
-  /* 行ごとのメモ・決まり・計算 */
-  $$('#siteBody tr[data-id]').forEach(tr => {
-    const l = S.lines.find(x => x.id === tr.dataset.id); if(!l) return;
-    const td = tr.children[1];
-    td.querySelectorAll(':scope > .xmemo').forEach(x => x.remove());   /* 2026-11-06 残した行（ext6a）で2つにならないように */
-    if(l.memo || l.rule){ const d = document.createElement('div'); d.className = 'why xmemo'; d.innerHTML = (l.rule ? '<span class="tag rule">決まり：' + esc(l.rule) + '</span> ' : '') + (l.memo ? 'メモ：' + esc(l.memo) : ''); td.appendChild(d); }
-    if(l.rule) tr.classList.add('rulerow');
-    /* 手で変えた欄だけ黄色のマーカー（CSVの値とちがう欄）。行全体の色はやめて、左の線だけ */
-    markRow(tr, l);
-    const amt = tr.children[8]; if(amt){ amt.classList.add('xcalc'); amt.title = '押すと計算のしかた'; }
-    const bt = tr.querySelector('.lnbtn'); if(bt && !bt.querySelector('[data-x="lmemo"]')){ const b = document.createElement('button'); b.dataset.x = 'lmemo'; b.title = 'メモ（社内）・理由・決まりごと'; b.textContent = '✎'; bt.insertBefore(b, bt.firstChild); }
-    tr.draggable = false;
-    const rn = tr.querySelector('.rowno'); if(rn){ rn.draggable = true; if(rn.title.indexOf('つまんで上下に') < 0) rn.title += '・つまんで上下に動かせる'; }
-  });
+  /* 行ごとのメモ・決まり・計算（中身は上の decoRow） */
+  $$('#siteBody tr[data-id]').forEach(tr => window.seikyuExt.decoRow(tr));
   /* 送付済のロック（N22） */
   $('#siteBody').classList.toggle('locked', (S.status === 'sent' || S.status === 'done') && !E().unlocked);
   /* 選んだ行をまとめて別の現場へ（N4） */
@@ -4622,8 +4625,13 @@ function kashiAsk(){
         + '.xkAsk .cancel{margin-top:8px;border-radius:14px;background:var(--surface,#fff);font-size:18px;font-weight:600}'
         + '@media (min-width:700px){.xkAsk{align-items:center}}@keyframes xkF{from{opacity:0}}@keyframes xkU{from{transform:translateY(40%);opacity:0}}';
       document.head.appendChild(c); }
-    d.addEventListener('click', ev => { const b = ev.target.closest('button'); if(!b && ev.target !== d) return; d.remove(); res(b ? (b.dataset.k || null) : null); });
+    /* 2026-11-07 Esc でも閉じる（キャンセルと同じ）。閉じ忘れの窓が残って画面が押せなくなっていた */
+    const done = k => { document.removeEventListener('keydown', kd, true); d.remove(); res(k); };
+    const kd = ev => { if(ev.key === 'Escape' && d.isConnected){ ev.preventDefault(); ev.stopPropagation(); done(null); } };
+    document.addEventListener('keydown', kd, true);
+    d.addEventListener('click', ev => { const b = ev.target.closest('button'); if(!b && ev.target !== d) return; done(b ? (b.dataset.k || null) : null); });
     document.body.appendChild(d);
+    setTimeout(() => { const b = d.querySelector('button[data-k="out"]'); if(b) try{ b.focus({ preventScroll:true }); }catch(e){} }, 0);
   });
 }
 /* 社内用：仕入先・伝票・営業店は、この端末で web見積に読んだ「貸出状況照会」のCSV（同じ品・同じ貸出日）から取る */
@@ -16009,7 +16017,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 23:02';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-08 03:34';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -19482,9 +19490,23 @@ const RAW = new WeakMap();
 let lastSh = null;
 const st = X.morphStat = { full:0, morph:0, keep:0, fresh:0 };
 function remember(tb){ if(!tb) return; for(const tr of tb.children) RAW.set(tr, tr.outerHTML); }
+/* 2026-11-07 速く：行の元の文字（lineRow が作ったもの）を覚えておき、変わっていない行は読みこみ（解析）もしない */
+const SRC = new WeakMap();
+function rowsOf(h){
+  const cap = X.rowCap || []; X.rowCap = [];
+  const t0 = h.indexOf('<table class="ln">'); if(t0 < 0) return null;
+  const a = h.indexOf('<tbody>', t0), b = a < 0 ? -1 : h.indexOf('</tbody></table>', a); if(a < 0 || b < 0) return null;
+  const inner = h.slice(a + 7, b); let tot = 0, s = cap.length;
+  while(s > 0 && tot < inner.length) tot += cap[--s].length;
+  if(tot !== inner.length) return inner.length ? null : { a, b, rows: [] };
+  const rows = cap.slice(s); if(rows.join('') !== inner) return null;
+  return { a, b, rows };
+}
 function full(B, h, id, why){
+  const R = rowsOf(h);
   st.why = why || 0; B.innerHTML = h; lastSh = id; st.full++;
   const tb = B.querySelector(':scope > .card > div > table.ln > tbody'); remember(tb);
+  if(tb && R && R.rows.length === tb.children.length) [...tb.children].forEach((tr, i) => SRC.set(tr, R.rows[i]));
   const th = tb && tb.parentNode.tHead; if(th) RAW.set(th, th.outerHTML);
 }
 X.siteFull = () => { lastSh = null; };
@@ -19494,7 +19516,8 @@ X.siteMorph = function(B, h, id){
     const card = B.firstElementChild;
     const oTb = card && B.querySelector(':scope > .card > div > table.ln > tbody');
     if(!oTb || B.querySelectorAll(':scope > .card').length !== 1) return full(B, h, id, 2);
-    const T = document.createElement('template'); T.innerHTML = h;
+    const R = X.fastOff ? (X.rowCap = [], null) : rowsOf(h);
+    const T = document.createElement('template'); T.innerHTML = R ? h.slice(0, R.a + 7) + h.slice(R.b) : h;
     const C = T.content, nCard = C.firstElementChild;
     const nTb = nCard && nCard.classList.contains('card') && nCard.querySelector(':scope > div > table.ln > tbody');
     if(!nTb || C.children.length !== 1) return full(B, h, id, 3);
@@ -19506,20 +19529,33 @@ X.siteMorph = function(B, h, id){
     if(RAW.get(oTable.tHead) !== nThRaw){ oTable.replaceChild(nTh, oTable.tHead); RAW.set(nTh, nThRaw); }
     /* 行：同じ行（中身がひと文字もちがわない）は残す */
     const old = new Map();
-    for(const tr of oTb.children){ const k = tr.getAttribute('data-id'); if(k && RAW.has(tr) && !old.has(k)) old.set(k, tr); }
+    for(const tr of oTb.children){ const k = tr.getAttribute('data-id'); if(k && !old.has(k) && (RAW.has(tr) || SRC.has(tr))) old.set(k, tr); }
     const want = [];
-    for(const tr of [...nTb.children]){
-      const raw = tr.outerHTML, k = tr.getAttribute('data-id'), o = k && old.get(k);
-      if(o && RAW.get(o) === raw){ want.push(o); old.delete(k); st.keep++; }
-      else if(o){
-        /* 同じ行で中身が変わった：行（tr）はそのまま、中だけ入れかえる（下の行まで計算し直しにならない） */
-        for(const a of [...o.attributes]) if(!tr.hasAttribute(a.name)) o.removeAttribute(a.name);
-        for(const a of tr.attributes) if(o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
-        for(const x of Object.keys(o)) try{ delete o[x]; }catch(e){}
-        o.replaceChildren(...tr.childNodes);
-        RAW.set(o, raw); want.push(o); old.delete(k); st.inplace = (st.inplace || 0) + 1;
+    const inplace = (o, tr) => {
+      /* 同じ行で中身が変わった：行（tr）はそのまま、中だけ入れかえる（下の行まで計算し直しにならない） */
+      for(const a of [...o.attributes]) if(!tr.hasAttribute(a.name)) o.removeAttribute(a.name);
+      for(const a of tr.attributes) if(o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
+      for(const x of Object.keys(o)) try{ delete o[x]; }catch(e){}
+      o.replaceChildren(...tr.childNodes);
+    };
+    if(R){
+      const pt = document.createElement('tbody');
+      for(const src of R.rows){
+        const m = /^<tr[^>]*\sdata-id="([^"]*)"/.exec(src), k = m && m[1], o = k && old.get(k);
+        if(o && SRC.get(o) === src){ want.push(o); old.delete(k); st.keep++; continue; }
+        pt.innerHTML = src; const tr = pt.firstElementChild;
+        if(!tr || pt.children.length !== 1){ X.fastOff = true; return full(B, h, id, 6); }
+        if(o){ inplace(o, tr); RAW.delete(o); SRC.set(o, src); want.push(o); old.delete(k); st.inplace = (st.inplace || 0) + 1; }
+        else { SRC.set(tr, src); want.push(tr); st.fresh++; }
       }
-      else { RAW.set(tr, raw); want.push(tr); st.fresh++; }
+      st.fast = (st.fast || 0) + 1;
+    } else {
+      for(const tr of [...nTb.children]){
+        const raw = tr.outerHTML, k = tr.getAttribute('data-id'), o = k && old.get(k);
+        if(o && RAW.get(o) === raw){ want.push(o); old.delete(k); st.keep++; }
+        else if(o){ inplace(o, tr); RAW.set(o, raw); SRC.delete(o); want.push(o); old.delete(k); st.inplace = (st.inplace || 0) + 1; }
+        else { RAW.set(tr, raw); want.push(tr); st.fresh++; }
+      }
     }
     const ws = new Set(want);
     for(const n of [...oTb.childNodes]) if(!ws.has(n)) n.remove();
@@ -19598,6 +19634,19 @@ X.siteMorph = function(B, h, id){
   };
 })();
 
+
+/* ---------- 表の描き直しを軽く：行の元の文字を覚える（2026-11-07） ----------
+   lineRow が作った行の文字を siteMorph に渡して、変わっていない行は読みこみ（解析）もしない。見た目は同じ */
+(function(){
+  if(typeof lineRow !== 'function') return;
+  const X = window.seikyuExt = window.seikyuExt || {};
+  const inner = lineRow;
+  lineRow = function(){
+    const h = inner.apply(this, arguments);
+    const c = X.rowCap || (X.rowCap = []); c.push(h); if(c.length > 4000) c.splice(0, 2000);
+    return h;
+  };
+})();
 
 </script>
 
