@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-08 03:34-->
+<!--BUILD:2026-11-08 07:17-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3004,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-08 03:34';
+const BUILD = '2026-11-08 07:17';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -16017,7 +16017,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-08 03:34';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-08 07:17';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -18756,6 +18756,56 @@ window.XAHome = { mount:mount, load:load, save:save, add:add, has:has, full:full
   exitAll:function(){ mounts.forEach(function(m){ m.exit(); }); } };
 })();
 
+/* 黒×金（2026-11-08）：差し色が金のとき、金の上に白い字・白い線がある所を黒い字・線にする（白だと読みにくい）
+   各アプリの見た目の決まり（CSS）を読んで「背景が差し色・字が白」のものだけ、金のときの決まりを足す。紙（印刷）にはさわらない */
+(function(){
+if(window.XAGold) return;
+var ACC = /var\(--(brand|ax|acc|xa-blue|lx-gold|gold|c-(load|sites|check|paper))\b/;
+var WHITE = /^(#fff|#ffffff|white|rgb\(255, 255, 255\))$/i;
+var INK = '#17120A';
+var PAPER = /(^|[\s,>~+(])(\.pp|\.xp|\.pg|\.pw|#paper|#pvpaper|#print|\.pvwrap|\.sheet-paper|\.paper|\.pgdoc|\.pgatt|\.pr-pg)\b/;
+var BLUE = /#007AFF|#0A84FF|#409CFF|#0060DF|#3395FF|rgba?\(\s*0\s*,\s*122\s*,\s*255|rgba?\(\s*10\s*,\s*132\s*,\s*255|rgb\(0, 122, 255\)|rgb\(10, 132, 255\)/gi;
+var GOLDOF = function(x){ x = x.toLowerCase(); if(x === '#409cff' || x === '#3395ff') return '#E3C98E'; if(x === '#0060df') return '#9C7A35'; if(x.charAt(0) === '#') return '#C9A45C'; if(/^rgb\(/.test(x) && /\)$/.test(x)) return 'rgb(201, 164, 92)'; return x.replace(/\(\s*(0\s*,\s*122|10\s*,\s*132)\s*,\s*255/, '(201,164,92'); };
+function split(s){ var o = [], d = 0, c = ''; for(var i = 0; i < s.length; i++){ var ch = s[i]; if(ch === '(') d++; else if(ch === ')') d--; if(ch === ',' && d === 0){ o.push(c); c = ''; } else c += ch; } o.push(c); return o; }
+function pre(sel, G){
+  return split(sel).map(function(p){ p = p.trim();
+    var m = /^(html|:root)((?:[.#][\w-]+|:not\((?:[^()]|\([^()]*\))*\)|\[[^\]]*\])*)/.exec(p);
+    if(m) return m[1] + m[2] + G + p.slice(m[0].length);
+    return 'html' + G + ' ' + p; }).join(',');
+}
+function scan(G){
+  G = G || XAGold.G; if(!G) return;
+  var out = [], seen = {};
+  var walk = function(rules, media){ for(var i = 0; i < rules.length; i++){ var r = rules[i];
+    if(r.type === 4){ try{ walk(r.cssRules, r.media.mediaText); }catch(e){} continue; }
+    if(r.cssRules && !r.style){ try{ walk(r.cssRules, media); }catch(e){} continue; }
+    if(!r.style || !r.selectorText) continue;
+    if(/print/.test(media || '') || PAPER.test(r.selectorText)) continue;
+    var dec = [];
+    /* じかに書いてある青（Apple の青）も金に */
+    for(var q = 0; q < r.style.length; q++){ var pn = r.style[q]; if(pn.indexOf('--') === 0) continue; var pv = r.style.getPropertyValue(pn); if(BLUE.test(pv)){ BLUE.lastIndex = 0; dec.push(pn + ':' + pv.replace(BLUE, function(x){ return GOLDOF(x); }) + '!important'); } BLUE.lastIndex = 0; }
+    var bg = (r.style.getPropertyValue('background') || '') + ' ' + (r.style.getPropertyValue('background-color') || '') + ' ' + (r.style.getPropertyValue('background-image') || '');
+    var bgBlue = BLUE.test(bg); BLUE.lastIndex = 0;
+    if(!ACC.test(bg) && !bgBlue){ if(dec.length){ var rr = pre(r.selectorText, G) + '{' + dec.join(';') + '}'; if(media) rr = '@media ' + media + '{' + rr + '}'; if(!seen[rr]){ seen[rr] = 1; out.push(rr); } } continue; }
+    var col = (r.style.getPropertyValue('color') || '').trim();
+    if(WHITE.test(col)) dec.push('color:' + INK + '!important');
+    if(/linear-gradient\(\s*(#fff|#ffffff|white|rgb\(255, 255, 255\))/i.test(bg)){ var b2 = r.style.getPropertyValue('background'); if(b2) dec.push('background:' + b2.replace(/(#fff\b|#ffffff\b|white\b|rgb\(255, 255, 255\))/gi, INK) + '!important'); }
+    var sh = r.style.getPropertyValue('box-shadow'); if(sh && /(0, ?122, ?255|10, ?132, ?255)/.test(sh)) dec.push('box-shadow:' + sh.replace(/(0, ?122, ?255|10, ?132, ?255)/g, '201,164,92') + '!important');
+    if(!dec.length) continue;
+    var rule = pre(r.selectorText, G) + '{' + dec.join(';') + '}'; if(media) rule = '@media ' + media + '{' + rule + '}';
+    if(!seen[rule]){ seen[rule] = 1; out.push(rule); } } };
+  for(var k = 0; k < document.styleSheets.length; k++){ var ss = document.styleSheets[k]; if(ss.ownerNode && ss.ownerNode.id === 'xaGoldCss') continue; try{ walk(ss.cssRules, ''); }catch(e){} }
+  var el = document.getElementById('xaGoldCss'); if(!el){ el = document.createElement('style'); el.id = 'xaGoldCss'; }
+  var txt = out.join('\n'); if(el.textContent !== txt) el.textContent = txt;
+  if(el.parentNode !== document.head || el !== document.head.lastElementChild) document.head.appendChild(el);
+}
+var T = 0; function later(){ clearTimeout(T); T = setTimeout(function(){ scan(); }, 300); }
+window.XAGold = { G:'', INK:INK, scan:function(G){ if(G) XAGold.G = G; scan(); }, later:later };
+/* あとから足される見た目（窓・メニュー）にも：<head> に style が増えたら読み直す */
+try{ new MutationObserver(function(ms){ for(var i = 0; i < ms.length; i++){ for(var j = 0; j < ms[i].addedNodes.length; j++){ var n = ms[i].addedNodes[j]; if(n.nodeName === 'STYLE' && n.id !== 'xaGoldCss'){ later(); return; } } } }).observe(document.head, { childList:true }); }catch(e){}
+window.addEventListener('load', function(){ later(); setTimeout(later, 2000); });
+})();
+
 
 /* ---------- 〔元 ext5b.js〕 ---------- */
 /* 請求ナビ Web：大リニューアル 第2段階「Apple（macOS／iOS）の見た目と操作」（ext5b.js）
@@ -18772,8 +18822,13 @@ window.XAHome = { mount:mount, load:load, save:save, add:add, has:has, full:full
 const root = document.documentElement;
 const KEY = 'seikyu.skin', KAUTO = 'seikyu.apple.themeAuto';
 const LS = (k, v) => { try{ if(v === undefined) return localStorage.getItem(k); if(v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){ return null; } };
-const isApple = () => LS(KEY) !== 'gold';
+/* 2026-11-08「形と操作は Apple、色だけ黒×金」：ふだんは 黒×金（Apple の形・黒い地・金の差し色）。'apple'＝青（明るい／暗いは自動）、'gold'＝前の黒×金 */
+if(LS('seikyu.ag') !== '1'){ LS('seikyu.ag', '1'); LS(KEY, null); LS(KAUTO, null); }
+const skin = () => { const v = LS(KEY); return v === 'gold' ? 'gold' : v === 'apple' ? 'apple' : 'ag'; };
+const isApple = () => skin() !== 'gold';
 root.classList.toggle('xapple', isApple());
+root.classList.toggle('xag', skin() === 'ag');
+if(window.XAGold){ XAGold.G = '.xag.lux-dark:not(#xg_)'; XAGold.later(); }
 
 /* ---- 金の色（ext3t・ext4a などは CSS の変数で色を持っている）：ふだんは金、Apple では青 ---- */
 const css = document.createElement('style'); css.id = 'x5bApple';
@@ -18796,6 +18851,9 @@ AD + '{--ax:#0A84FF;--ax-rgb:10,132,255;--ax2:#409CFF;--axd:#0A84FF;--axd-rgb:10
   '--warn:#FF9F0A;--warnbg:#2E2210;--ng:#FF453A;--ngbg:#3A1614;--ok:#30D158;--okbg:#0F2A17;--hand:#BF5AF2;--handbg:#2A1736;' +
   '--fill:rgba(118,118,128,.24);--fill2:rgba(118,118,128,.16);--mat:rgba(28,28,30,.72);--mat2:rgba(22,22,24,.82);' +
   '--shadow:0 0 0 .5px rgba(255,255,255,.06);--shadow2:0 24px 70px -20px rgba(0,0,0,.9),0 0 0 .5px rgba(255,255,255,.1);--r:12px;--grad-top:none;--lx-gold:#0A84FF;--lx-teal:#0A84FF}',
+/* ---------- 黒×金（Apple の形のまま、差し色だけ金。金の上の字は黒） ---------- */
+'html.xapple.xag.lux-dark{--ax:#C9A45C;--ax-rgb:201,164,92;--ax2:#E3C98E;--axd:#C9A45C;--axd-rgb:201,164,92;--axdd:#9C7A35;--axm:#B8923F;--lsoft:rgba(201,164,92,.18);' +
+  '--brand:#C9A45C;--brand2:#E3C98E;--soft:rgba(201,164,92,.16);--acc:#C9A45C;--acc2:#E3C98E;--acc-soft:rgba(201,164,92,.16);--c-load:#C9A45C;--c-sites:#C9A45C;--c-check:#C9A45C;--c-paper:#C9A45C;--lx-gold:#C9A45C;--lx-teal:#C9A45C;--xa-blue:#C9A45C}',
 A + ' body[data-tab]{--acc:var(--brand);--acc2:var(--brand2);--acc-soft:var(--soft)}',
 /* 背景：飾り・にじみをやめて Apple の灰色／黒 */
 A + ', ' + A + ' body{background:var(--bg)!important;background-image:none!important}',
@@ -18905,6 +18963,7 @@ document.head.appendChild(css);
 /* ---------- 暗い／明るいを Mac・iPhone の設定に合わせる ---------- */
 const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
 function follow(){
+  if(skin() === 'ag'){ try{ const W = window.WQLUX; if(W && W.applyTheme && W.curTheme && W.curTheme() !== 'dark') W.applyTheme('dark'); }catch(e){} if(window.XAGold) XAGold.later(); return; }
   if(!isApple() || LS(KAUTO) === '0' || !mq) return;
   const want = mq.matches ? 'dark' : 'light';
   try{ const W = window.WQLUX; if(W && W.applyTheme && W.curTheme && W.curTheme() !== want) W.applyTheme(want); }catch(e){}
@@ -18912,19 +18971,20 @@ function follow(){
 if(mq){ (mq.addEventListener ? mq.addEventListener('change', follow) : mq.addListener(follow)); }
 setTimeout(follow, 0); setTimeout(follow, 600);
 /* 上の「暗く／明るく」を押したら、この端末は手動（自動をやめる） */
-document.addEventListener('click', ev => { if(ev.target.closest && ev.target.closest('#btnTheme')) LS(KAUTO, '0'); }, true);
+document.addEventListener('click', ev => { if(ev.target.closest && ev.target.closest('#btnTheme')){ if(skin() === 'ag'){ LS(KEY, 'apple'); root.classList.remove('xag'); } LS(KAUTO, '0'); } }, true);   /* 黒×金のときに「明るく」を押したら 青・手動 に */
 
 /* ---------- 外観の切りかえ（左の下）：Apple（自動）→ Apple（手動のまま）／金 ---------- */
 function skinBtn(){
   const low = document.querySelector('#xRail .xr-low'); if(!low || document.getElementById('x5bSkin')) return;
   const b = document.createElement('button'); b.type = 'button'; b.id = 'x5bSkin'; b.className = 'latest';
-  const paint = () => { b.textContent = isApple() ? (LS(KAUTO) === '0' ? ' 外観：手動' : ' 外観：自動') : '✦ デザイン：金'; b.title = isApple() ? '押すと：外観を Mac・iPhone の設定に合わせる（自動）／前の黒×金にもどす' : '押すと Apple のデザインにもどす'; };
+  const paint = () => { const k = skin(); b.textContent = k === 'ag' ? '✦ 外観：黒×金' : k === 'apple' ? (LS(KAUTO) === '0' ? ' 外観：青（手動）' : ' 外観：青（自動）') : '✦ デザイン：前の金'; b.title = '押すと 黒×金 → 青（Mac・iPhone の明るさに合わせる）→ 前の黒×金 の順に変わる（この端末に覚える）'; };
   b.addEventListener('click', ev => {
     ev.preventDefault(); ev.stopPropagation();
-    if(!isApple()){ LS(KEY, null); LS(KAUTO, null); root.classList.add('xapple'); follow(); }
-    else if(LS(KAUTO) === '0'){ LS(KAUTO, null); follow(); }
-    else { LS(KEY, 'gold'); root.classList.remove('xapple'); }
-    paint(); try{ toast(isApple() ? (LS(KAUTO) === '0' ? '外観：手動' : '外観：自動（Mac・iPhone の設定に合わせる）') : '前の黒×金のデザインにした', 2400); }catch(e){}
+    const k = skin();
+    if(k === 'ag'){ LS(KEY, 'apple'); LS(KAUTO, null); root.classList.remove('xag'); root.classList.add('xapple'); follow(); }
+    else if(k === 'apple'){ if(LS(KAUTO) === '0'){ LS(KAUTO, null); follow(); } else { LS(KEY, 'gold'); root.classList.remove('xapple', 'xag'); } }
+    else { LS(KEY, null); LS(KAUTO, null); root.classList.add('xapple', 'xag'); follow(); }
+    paint(); const k2 = skin(); try{ toast(k2 === 'ag' ? '黒×金（Apple の形）にした' : k2 === 'apple' ? (LS(KAUTO) === '0' ? '外観：青（手動）' : '外観：青（Mac・iPhone の設定に合わせる）') : '前の黒×金のデザインにした', 2400); }catch(e){}
   });
   paint(); low.appendChild(b);
 }
