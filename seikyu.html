@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-07 20:36-->
+<!--BUILD:2026-11-07 21:07-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3004,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-07 20:36';
+const BUILD = '2026-11-07 21:07';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -15871,7 +15871,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 20:36';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-07 21:07';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -18342,6 +18342,245 @@ css.textContent = '#tab-sites[hidden],#tab-check[hidden]{display:block!important
 document.head.appendChild(css);
 })();
 
+/* ☰ メニューの「アプリ」：iPhoneのホーム画面のように自分で並べる（2026-11-07）
+   ・長押し（PCは右クリック・「編集」）→ ブルブル震える → × で外す・ドラッグで並べかえ・＋ で足す
+   ・震えている間は、下のメニューの行にも ＋ が付いて、押すとその機能をアプリに足せる
+   ・並びはこの端末に覚える（web見積・請求ナビ・車両…どのアプリでも同じ並び） */
+(function(){
+if(window.XAHome) return;
+var KEY = 'wq.apps.grid', FKEY = 'wq.apps.fns', SKEY = 'wq.apps.skfns';
+var BUILTIN = [
+  ['home', 'ホーム', './index.html', '#8E8E93', '<path d="M2.5 7.5 8 3l5.5 4.5V13a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1z"/><path d="M6.5 14V10h3v4"/>'],
+  ['seikyu', '請求ナビ', './seikyu.html', '#007AFF', '<rect x="2.5" y="2" width="11" height="12" rx="1.5"/><path d="M5 5.5h6M5 8h6M5 10.5h3.5"/><path d="M10.5 10.5l1 1 2-2.5"/>'],
+  ['quote', 'WEB見積書', './index.html?go=new', '#5856D6', '<path d="M4 1.8h6l3 3V14H4z"/><path d="M10 1.8V5h3M6 8h5M6 10.5h5"/>'],
+  ['miShirabe', '単価をしらべる', './index.html?go=miShirabe', '#FF9500', '<circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 14 14M5.2 7h3.6M7 5.2v3.6"/>'],
+  ['kashi-menu', '貸出状況', './index.html?go=kashi-menu', '#30B0C7', '<rect x="2" y="3" width="12" height="10.5" rx="1.5"/><path d="M2 6.5h12M5 1.8v2.6M11 1.8v2.6M4.8 9h1.5M7.3 9h1.5M9.8 9h1.5"/>'],
+  ['fax-menu', 'FAX・送付状', './index.html?go=fax-menu', '#5AC8FA', '<rect x="2" y="6" width="12" height="7" rx="1.3"/><path d="M4.5 6V2h7v4M5 10h6"/>'],
+  ['meshitsu', '滅失・中古販売申請書', './meshitsu.html', '#FF3B30', '<path d="M3 2h7l3 3v9H3z"/><path d="M10 2v3h3M5.5 8.5l5 3M10.5 8.5l-5 3"/>'],
+  ['sharyo', '車両管理報告書', './sharyo.html', '#A2845E', '<path d="M1.5 10.5V7.8l1.8-3.3h7.4l2.3 3.3h1.5v2.7z"/><circle cx="4.5" cy="11" r="1.5"/><circle cx="11.2" cy="11" r="1.5"/>'],
+  ['zoto', 'お中元・お歳暮', './zoto.html', '#FF2D55', '<rect x="2" y="6" width="12" height="8" rx="1"/><path d="M1.5 4h13v2h-13zM8 4v10"/>'],
+  ['rental', 'レンタル機購入申請書', './rental.html', '#AF52DE', '<path d="M2 12.5h12M3.5 12.5V8l3-2h4l2 3v3.5"/><path d="M6.5 6V3.5h3L11 6"/>']
+];
+var BI = {}; BUILTIN.forEach(function(a){ BI[a[0]] = { k:a[0], t:a[1], h:a[2], c:a[3], i:a[4] }; });
+/* web見積の機能（ログインしてメニューを開くと、その端末の最新の名前に入れかわる） */
+var WQF = [['btnNew','新しい見積'],['btnSaved','保存した見積'],['miToday','今日のやること'],['miCal','搬入・回収の予定'],['miMap','現場案内図'],['miMail','メール文を作る'],['miCust','得意先の情報'],['shorui-menu','現場の書類'],['field-mi','手配・書類'],['keiri-menu','与信・現場・ルート'],['repair-menu','修理見積書'],['shinki-menu','新規ユーザー登録申請書'],['miStock','保有台数の登録'],['dash-mi-main','営業の見える化'],['dash-mi-search','控えの全文検索'],['miStat','集計'],['tools-mi-report','月次レポート'],['miExp','期限が近い見積'],['export-mi','Excelで書き出す'],['export-mi-csv','受注見積の単価CSV（請求ナビ用）'],['price-mi-rules','価格：値引きルール'],['datax-mi-main','データ・単価のメンテ'],['datax-mi-karte','得意先カルテ'],['offer-mi-main','提案資料'],['pdfpass-menu','PDFにパスワード'],['base-mi-company','会社情報'],['miGuide','使い方ガイド']];
+var SKF = [['load','読み込み'],['sites','現場'],['check','チェック'],['paper','印刷・PDF'],['pv','プレビュー'],['hikae','控え'],['close','別の請求書'],['cmd','コマンド']];
+var PAL = ['#FF9500','#34C759','#5856D6','#FF2D55','#30B0C7','#AF52DE','#FF3B30','#007AFF','#A2845E','#5AC8FA','#FFCC00','#64D2FF'];
+function ls(k, v){ try{ if(v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return null; } }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+function hash(s){ var h = 0; for(var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+function short(t){ return String(t || '').replace(/\s+/g, ' ').replace(/新$/, '').replace(/[（(].*$/, '').trim() || String(t || '').trim(); }
+function fnList(key, def){ var a = ls(key); return Array.isArray(a) && a.length ? a : def; }
+function full(o){
+  if(!o || !o.k) return null;
+  if(BI[o.k]) return BI[o.k];
+  var t = o.t, h = o.h;
+  if(o.k.indexOf('wq:') === 0){ var id = o.k.slice(3); if(!t){ var f = fnList(FKEY, WQF).find(function(x){ return x[0] === id; }); t = f ? f[1] : id; } h = h || './index.html?go=' + encodeURIComponent(id); }
+  else if(o.k.indexOf('sk:') === 0){ var id2 = o.k.slice(3); if(!t){ var f2 = fnList(SKEY, SKF).find(function(x){ return x[0] === id2; }); t = f2 ? f2[1] : id2; } h = h || './seikyu.html?go=' + encodeURIComponent(id2); }
+  if(!t || !h) return null;
+  return { k:o.k, t:short(t), full:t, h:h, c:PAL[hash(o.k) % PAL.length] };
+}
+function load(){ var a = ls(KEY); if(Array.isArray(a)) return a.filter(function(o){ return full(o); }); return BUILTIN.map(function(b){ return { k:b[0] }; }); }
+function save(a){ ls(KEY, a.map(function(o){ return BI[o.k] ? { k:o.k } : { k:o.k, t:o.t, h:o.h }; })); fire(); }
+var mounts = [];
+function fire(){ mounts.forEach(function(m){ if(m.el.isConnected) m.draw(); }); }
+window.addEventListener('storage', function(e){ if(e.key === KEY) fire(); });
+function has(k){ return load().some(function(o){ return o.k === k; }); }
+function add(o){ var a = load(); if(a.some(function(x){ return x.k === o.k; })) return false; a.push(o); save(a); return true; }
+function glyph(it){
+  if(it.i) return '<svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + it.i + '</svg>';
+  var ch = it.t.replace(/^[^\wぁ-んァ-ヶ一-龠ｦ-ﾟＡ-Ｚａ-ｚ０-９]+/, '').replace(/^価格：/, '').charAt(0) || '・';
+  return '<b class="xaApp-l">' + esc(ch) + '</b>';
+}
+var CSS = ''
+  + '.xaApps{margin:4px 0 10px;padding:0 0 10px;border-bottom:.5px solid var(--xa-sep,rgba(60,60,67,.2));-webkit-user-select:none;user-select:none}'
+  + '.xaApps-hd{display:flex;align-items:center;gap:8px;margin:6px 4px 6px;min-height:22px}.xaApps-h{font-size:12px;font-weight:600;color:var(--ink-3,var(--ink3,#8E8E93))}'
+  + '.xaApps-b{margin-left:auto;font-size:13px;font-weight:600;color:var(--xa-blue,#007AFF);cursor:pointer;padding:3px 8px;border-radius:999px;-webkit-tap-highlight-color:transparent}.xaApps-b:hover{background:rgba(0,122,255,.1)}'
+  + '.xaApps.xa-edit .xaApps-b{background:var(--xa-blue,#007AFF);color:#fff}'
+  + '.xaApps-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:6px;touch-action:pan-y}'
+  + '.xaApp{position:relative;display:block;padding:8px 2px;border-radius:12px;cursor:pointer;color:var(--ink,#1D1D1F);-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;outline:none}'
+  + '.xaApp-w{display:flex;flex-direction:column;align-items:center;gap:5px}'
+  + '.xaApps:not(.xa-edit) .xaApp:hover{background:var(--xa-fill2,rgba(118,118,128,.08))}.xaApps:not(.xa-edit) .xaApp:active .xaApp-w{transform:scale(.94)}.xaApp:focus-visible{box-shadow:0 0 0 2px var(--xa-blue,#007AFF)}'
+  + '.xaApp-i{position:relative;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.15);background-image:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0))}'
+  + '.xaApp-i svg{width:24px;height:24px}.xaApp-l{color:#fff;font-size:20px;font-weight:700;line-height:1}'
+  + '.xaApp-t{font-size:11px;line-height:1.25;font-weight:500;text-align:center;color:inherit;word-break:keep-all;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%}'
+  + '.xaApp.cur .xaApp-i{outline:2.5px solid var(--xa-blue,#007AFF);outline-offset:2px}.xaApp.cur .xaApp-t{color:var(--xa-blue,#007AFF);font-weight:700}'
+  + '.xaApp-x{display:none;position:absolute;left:-7px;top:-7px;width:22px;height:22px;border-radius:50%;background:rgba(110,110,118,.92);color:#fff;font:600 15px/22px -apple-system,system-ui,sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer;z-index:2}'
+  + '.xa-edit .xaApp-x{display:block}.xa-edit .xaApp.cur .xaApp-i{outline:0}'
+  + '@keyframes xaJig{0%{transform:rotate(-1.7deg)}50%{transform:rotate(1.7deg)}100%{transform:rotate(-1.7deg)}}'
+  + '@keyframes xaJig2{0%{transform:rotate(1.5deg) translateY(.5px)}50%{transform:rotate(-1.6deg)}100%{transform:rotate(1.5deg) translateY(.5px)}}'
+  + '.xa-edit .xaApp .xaApp-w{animation:xaJig .26s ease-in-out infinite}.xa-edit .xaApp:nth-child(2n) .xaApp-w{animation-name:xaJig2;animation-duration:.29s}.xa-edit .xaApp:nth-child(3n) .xaApp-w{animation-duration:.31s;animation-delay:-.12s}'
+  + '.xa-edit .xaApp{touch-action:none;cursor:grab}.xaApp.xa-ph .xaApp-w{visibility:hidden}.xaApp.xa-out{transition:transform .2s,opacity .2s;transform:scale(.3);opacity:0}'
+  + '.xaAdd .xaApp-i{background:transparent!important;box-shadow:none;border:1.5px dashed rgba(120,120,128,.55)}.xaAdd .xaApp-i b{color:var(--xa-blue,#007AFF);font:300 30px/1 -apple-system,system-ui,sans-serif}.xa-edit .xaAdd .xaApp-w{animation:none!important}'
+  + '.xaApps-tip{font-size:11px;color:var(--ink-3,var(--ink3,#8E8E93));margin:4px 6px 0}'
+  + '.xaGhost{position:fixed;z-index:2147483600;pointer-events:none;margin:0;padding:8px 2px;transform:scale(1.12);transition:transform .15s;filter:drop-shadow(0 8px 14px rgba(0,0,0,.28));color:var(--ink,#1D1D1F)}.xaGhost .xaApp-x{display:none}'
+  /* 下のメニューの行：震えている間は左に ＋（押すとアプリに足す） */
+  + '.xa-adding .xa-canadd{position:relative!important;padding-left:40px!important}'
+  + '.xa-adding .xa-canadd::before{content:"+";position:absolute;left:10px;top:50%;margin-top:-11px;width:22px;height:22px;border-radius:50%;background:#34C759;color:#fff;font:600 18px/21px -apple-system,system-ui,sans-serif;text-align:center}'
+  + '.xa-adding .xa-canadd.xa-in::before{content:"✓";background:#8E8E93;font-size:13px}'
+  /* ＋ で開くシート */
+  + '#xaPick{position:fixed;inset:0;z-index:2147483500;display:flex;align-items:flex-end;justify-content:center}#xaPick[hidden]{display:none}'
+  + '#xaPick .v{position:absolute;inset:0;background:rgba(0,0,0,.3);animation:xaF .2s both}'
+  + '#xaPick .s{position:relative;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;background:#F2F2F7;color:#1D1D1F;border-radius:14px 14px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.2);animation:xaU .32s cubic-bezier(.32,.72,0,1) both;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",system-ui,sans-serif;padding-bottom:env(safe-area-inset-bottom,0px)}'
+  + '@media (min-width:700px){#xaPick{align-items:center}#xaPick .s{border-radius:14px}}'
+  + '#xaPick .t{display:flex;align-items:center;padding:14px 16px 8px}#xaPick .t b{font-size:17px;flex:1;text-align:center}#xaPick .t span{color:#007AFF;font-size:16px;font-weight:600;cursor:pointer;min-width:56px;text-align:right}#xaPick .t i{min-width:56px}'
+  + '#xaPick input{margin:0 16px 8px;padding:9px 12px;border:0;border-radius:10px;background:rgba(118,118,128,.14);font:inherit;font-size:16px;color:inherit;outline:none}'
+  + '#xaPick .b{overflow:auto;-webkit-overflow-scrolling:touch;padding:0 16px 16px}#xaPick .h{font-size:12px;font-weight:600;color:#8E8E93;margin:12px 6px 6px}'
+  + '#xaPick .g{background:#fff;border-radius:12px;overflow:hidden}#xaPick .r{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:.5px solid rgba(60,60,67,.18);cursor:pointer}#xaPick .r:last-child{border-bottom:0}#xaPick .r:active{background:rgba(118,118,128,.12)}'
+  + '#xaPick .r .xaApp-i{width:32px;height:32px;border-radius:8px;flex:none}#xaPick .r .xaApp-i svg{width:18px;height:18px}#xaPick .r .xaApp-l{font-size:15px}#xaPick .r span.n{flex:1;font-size:15px}#xaPick .r em{font-style:normal;width:22px;height:22px;border-radius:50%;background:#34C759;color:#fff;text-align:center;font:600 18px/21px -apple-system,system-ui,sans-serif}'
+  + '#xaPick .r.on em{background:#8E8E93;font-size:13px}#xaPick .rs{display:block;margin:16px auto 0;color:#FF3B30;font-size:14px;cursor:pointer;text-align:center}'
+  + 'html.lux-dark #xaPick .s,html[data-theme="dark"] #xaPick .s{background:#1C1C1E;color:#F5F5F7}html.lux-dark #xaPick .g,html[data-theme="dark"] #xaPick .g{background:#2C2C2E}html.lux-dark #xaPick .r,html[data-theme="dark"] #xaPick .r{border-color:rgba(84,84,88,.5)}'
+  + '@keyframes xaF{from{opacity:0}}@keyframes xaU{from{transform:translateY(100%)}}';
+function css(){ if(document.getElementById('xaHomeCss')) return; var c = document.createElement('style'); c.id = 'xaHomeCss'; c.textContent = CSS; (document.head || document.documentElement).appendChild(c); }
+function tileHtml(it, cur){
+  return '<div class="xaApp' + (it.k === cur ? ' cur' : '') + '" role="button" tabindex="0" data-k="' + esc(it.k) + '" title="' + esc(it.full || it.t) + '"><div class="xaApp-w"><span class="xaApp-i" style="background-color:' + it.c + '">' + glyph(it) + '<span class="xaApp-x" role="button" aria-label="' + esc(it.t) + 'を外す">×</span></span><span class="xaApp-t">' + esc(it.t) + '</span></div></div>';
+}
+function vib(){ try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){} }
+function flip(grid, fn){
+  var ts = [].slice.call(grid.children), r = new Map(); ts.forEach(function(t){ r.set(t, t.getBoundingClientRect()); });
+  fn();
+  ts.forEach(function(t){ var a = r.get(t), b = t.getBoundingClientRect(), dx = a.left - b.left, dy = a.top - b.top; if(!dx && !dy) return;
+    t.style.transition = 'none'; t.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; void t.offsetWidth; t.style.transition = 'transform .26s cubic-bezier(.2,.8,.2,1)'; t.style.transform = ''; });
+}
+/* host：入れる場所 / o.cur：いまのアプリ / o.go(it)：押したとき / o.scope・o.below・o.item：下のメニューの行から足す */
+function mount(host, o){
+  css(); o = o || {};
+  var el = document.createElement('div'); el.className = 'xaApps'; host.appendChild(el);
+  var m = { el:el, edit:false };
+  function draw(){
+    var list = load().map(full).filter(Boolean);
+    el.innerHTML = '<div class="xaApps-hd"><span class="xaApps-h">アプリ</span><span class="xaApps-b" role="button" tabindex="0">' + (m.edit ? '完了' : '編集') + '</span></div><div class="xaApps-g">'
+      + list.map(function(it){ return tileHtml(it, o.cur); }).join('')
+      + (m.edit || !list.length ? '<div class="xaApp xaAdd" role="button" tabindex="0" data-add="1"><div class="xaApp-w"><span class="xaApp-i"><b>＋</b></span><span class="xaApp-t">追加</span></div></div>' : '')
+      + '</div>' + (m.edit ? '<div class="xaApps-tip">ドラッグで並べかえ・× で外す・下のメニューの ＋ でも足せる</div>' : '');
+    el.classList.toggle('xa-edit', m.edit); marks();
+  }
+  m.draw = draw;
+  function marks(){
+    var sc = o.scope; if(!sc || !o.below) return;
+    sc.classList.toggle('xa-adding', m.edit);
+    sc.querySelectorAll('.xa-canadd').forEach(function(b){ if(!m.edit) b.classList.remove('xa-canadd', 'xa-in'); });
+    if(!m.edit) return;
+    var ks = {}; load().forEach(function(x){ ks[x.k] = 1; });
+    sc.querySelectorAll(o.below).forEach(function(b){ if(el.contains(b)) return; var it = o.item(b); if(!it) return; b.classList.add('xa-canadd'); b.classList.toggle('xa-in', !!ks[it.k]); });
+  }
+  function enter(){ if(m.edit) return; m.edit = true; vib(); draw(); }
+  function exit(){ if(!m.edit) return; m.edit = false; draw(); }
+  m.enter = enter; m.exit = exit;
+  var press = null, drag = null, eat = false;
+  el.addEventListener('pointerdown', function(e){
+    eat = false; if(e.button && e.button !== 0) return;
+    var t = e.target.closest('.xaApp'); if(!t || t.dataset.add || e.target.closest('.xaApp-x')) return;
+    press = { t:t, x:e.clientX, y:e.clientY, id:e.pointerId, armed:m.edit };
+    if(!m.edit) press.tm = setTimeout(function(){ if(!press) return; press.armed = true; eat = true; enter(); press.t = el.querySelector('.xaApp[data-k="' + CSS_esc(t.dataset.k) + '"]') || t; }, 480);
+  });
+  el.addEventListener('pointermove', function(e){
+    if(drag){ move(e); return; }
+    if(!press || e.pointerId !== press.id) return;
+    var d = Math.abs(e.clientX - press.x) + Math.abs(e.clientY - press.y);
+    if(d < 7) return;
+    if(press.armed) start(e); else { clearTimeout(press.tm); press = null; }
+  });
+  function end(e){
+    if(press){ clearTimeout(press.tm); }
+    if(drag){ drop(); }
+    press = null;
+  }
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  el.addEventListener('touchmove', function(e){ if(drag || (press && press.armed)) e.preventDefault(); }, { passive:false });
+  el.addEventListener('contextmenu', function(e){ if(e.target.closest('.xaApp')){ e.preventDefault(); if(press){ clearTimeout(press.tm); } enter(); } });
+  function start(e){
+    var t = press.t; if(!t || !t.isConnected) return;
+    var r = t.getBoundingClientRect(), g = t.cloneNode(true);
+    g.className = 'xaApp xaGhost'; g.style.width = r.width + 'px'; g.style.left = r.left + 'px'; g.style.top = r.top + 'px';
+    document.body.appendChild(g); t.classList.add('xa-ph');
+    drag = { t:t, g:g, dx:e.clientX - r.left, dy:e.clientY - r.top, over:null };
+    try{ el.setPointerCapture(e.pointerId); }catch(x){}
+    eat = true;
+  }
+  function move(e){
+    drag.g.style.left = (e.clientX - drag.dx) + 'px'; drag.g.style.top = (e.clientY - drag.dy) + 'px';
+    var u = document.elementFromPoint(e.clientX, e.clientY), tt = u && u.closest && u.closest('.xaApp');
+    var grid = el.querySelector('.xaApps-g');
+    if(!tt || tt === drag.t || tt.dataset.add || !grid.contains(tt) || tt === drag.over) { if(!tt) drag.over = null; return; }
+    drag.over = tt;
+    var all = [].slice.call(grid.children), a = all.indexOf(drag.t), b = all.indexOf(tt);
+    flip(grid, function(){ grid.insertBefore(drag.t, a < b ? tt.nextSibling : tt); });
+  }
+  function drop(){
+    var d = drag; drag = null;
+    var r = d.t.getBoundingClientRect(); d.g.style.transition = 'left .2s,top .2s,transform .2s'; d.g.style.left = r.left + 'px'; d.g.style.top = r.top + 'px'; d.g.style.transform = 'scale(1)';
+    setTimeout(function(){ d.g.remove(); d.t.classList.remove('xa-ph'); }, 200);
+    var ks = [].slice.call(el.querySelectorAll('.xaApps-g .xaApp[data-k]')).map(function(x){ return x.dataset.k; });
+    var cur = load(), by = {}; cur.forEach(function(x){ by[x.k] = x; });
+    var next = ks.map(function(k){ return by[k]; }).filter(Boolean);
+    if(next.map(function(x){ return x.k; }).join() !== cur.map(function(x){ return x.k; }).join()){ mounts.forEach(function(mm){ if(mm !== m && mm.el.isConnected) mm.draw(); }); ls(KEY, next.map(function(x){ return BI[x.k] ? { k:x.k } : x; })); }
+  }
+  el.addEventListener('click', function(e){
+    var x = e.target.closest('.xaApp-x');
+    if(x){ e.preventDefault(); e.stopPropagation(); var t = x.closest('.xaApp'), k = t.dataset.k; t.classList.add('xa-out');
+      setTimeout(function(){ save(load().filter(function(o2){ return o2.k !== k; })); }, 180); return; }
+    if(e.target.closest('.xaApps-b')){ e.preventDefault(); e.stopPropagation(); m.edit ? exit() : enter(); return; }
+    var t2 = e.target.closest('.xaApp');
+    if(eat){ eat = false; e.preventDefault(); e.stopPropagation(); return; }
+    if(!t2){ if(m.edit && e.target.closest('.xaApps-g')) exit(); return; }
+    e.preventDefault(); e.stopPropagation();
+    if(t2.dataset.add){ pick(o); return; }
+    if(m.edit) return;
+    var it = full(load().find(function(z){ return z.k === t2.dataset.k; })); if(it && o.go) o.go(it);
+  });
+  el.addEventListener('keydown', function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.closest('.xaApp,.xaApps-b')){ e.preventDefault(); e.target.click(); } });
+  /* 下のメニューの行：震えている間は押すとアプリに足す */
+  if(o.scope && o.below){
+    o.scope.addEventListener('click', function(e){
+      if(!m.edit) return; var b = e.target.closest(o.below); if(!b || el.contains(b) || !o.scope.contains(b)) return;
+      var it = o.item(b); if(!it) return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      if(has(it.k)) save(load().filter(function(z){ return z.k !== it.k; })); else add(it);
+    }, true);
+  }
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && m.edit && el.isConnected && !document.getElementById('xaPick')){ e.stopPropagation(); exit(); } }, true);
+  mounts.push(m); draw();
+  return m;
+}
+function CSS_esc(s){ return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/"/g, '\\"'); }
+function pick(o){
+  css();
+  var d = document.createElement('div'); d.id = 'xaPick'; document.body.appendChild(d);
+  var q = '';
+  function rows(arr){ var ks = {}; load().forEach(function(x){ ks[x.k] = 1; });
+    return arr.filter(function(it){ return !q || (it.full || it.t).indexOf(q) >= 0; }).map(function(it){
+      return '<div class="r' + (ks[it.k] ? ' on' : '') + '" data-k="' + esc(it.k) + '"><span class="xaApp-i" style="background-color:' + it.c + '">' + glyph(it) + '</span><span class="n">' + esc(it.full || it.t) + '</span><em>' + (ks[it.k] ? '✓' : '+') + '</em></div>'; }).join(''); }
+  var apps = BUILTIN.map(function(b){ return BI[b[0]]; });
+  var sk = fnList(SKEY, SKF).map(function(x){ return full({ k:'sk:' + x[0], t:x[1] }); }).filter(Boolean);
+  var wq = fnList(FKEY, WQF).map(function(x){ return full({ k:'wq:' + x[0], t:x[1] }); }).filter(Boolean);
+  var src = { a:apps, s:sk, w:wq };
+  function body(){ var h = [['アプリ', 'a'], ['請求ナビ', 's'], ['web見積の機能', 'w']].map(function(p){ var r = rows(src[p[1]]); return r ? '<div class="h">' + p[0] + '</div><div class="g">' + r + '</div>' : ''; }).join('');
+    return (h || '<div class="h">見つからない</div>') + '<span class="rs" role="button" data-reset="1">最初の並びにもどす</span>'; }
+  d.innerHTML = '<div class="v"></div><div class="s" role="dialog" aria-label="アプリを追加"><div class="t"><i></i><b>アプリ・機能を追加</b><span role="button" data-done="1">完了</span></div><input type="search" placeholder="さがす（例：請求・単価・FAX）" aria-label="さがす"><div class="b">' + body() + '</div></div>';
+  var B = d.querySelector('.b'), I = d.querySelector('input');
+  function close(){ d.remove(); document.removeEventListener('keydown', kd, true); }
+  function kd(e){ if(e.key === 'Escape'){ e.stopPropagation(); e.preventDefault(); close(); } }
+  document.addEventListener('keydown', kd, true);
+  I.addEventListener('input', function(){ q = I.value.trim(); B.innerHTML = body(); });
+  d.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(e.target.classList.contains('v') || e.target.closest('[data-done]')){ close(); return; }
+    if(e.target.closest('[data-reset]')){ if(confirmReset()){ ls(KEY, BUILTIN.map(function(b){ return { k:b[0] }; })); fire(); B.innerHTML = body(); } return; }
+    var r = e.target.closest('.r'); if(!r) return;
+    var k = r.dataset.k, it = [].concat(apps, sk, wq).find(function(z){ return z.k === k; }); if(!it) return;
+    if(has(k)) save(load().filter(function(z){ return z.k !== k; })); else add(BI[k] ? { k:k } : { k:k, t:it.full || it.t, h:it.h });
+    B.innerHTML = body();
+  });
+  if(!matchMedia('(pointer:coarse)').matches) setTimeout(function(){ I.focus(); }, 50);
+}
+function confirmReset(){ return true; }
+/* 下のメニューの名前を覚えておく（ほかのアプリの ＋ でも出せるように） */
+function remember(key, arr){ if(arr && arr.length) ls(key, arr); }
+window.XAHome = { mount:mount, load:load, save:save, add:add, has:has, full:full, BUILTIN:BUILTIN, remember:remember, FKEY:FKEY, SKEY:SKEY, short:short,
+  exitAll:function(){ mounts.forEach(function(m){ m.exit(); }); } };
+})();
+
 /* 請求ナビ Web：大リニューアル 第2段階「Apple（macOS／iOS）の見た目と操作」（ext5b.js）
    2026-11-06「私 apple製品が好きだから mac や iPhone iOS の仕様にして欲しい。見た目も操作も全て」
    ・色：Apple のシステムカラー（青のアクセント・灰色の背景・白のカード）。暗い／明るいは Mac・iPhone の設定に自動で合わせる
@@ -18581,24 +18820,22 @@ function put(){
 }
 
 /* ☰ のメニュー：web見積のホームのメニューと同じ形。いちばん上に「アプリ」（請求ナビ・見積・単価…はかならず）、その下に請求ナビの画面・作業 */
-const APPS = [
-  ['home', 'ホーム', './index.html', '#8E8E93', '<path d="M2.5 7.5 8 3l5.5 4.5V13a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1z"/><path d="M6.5 14V10h3v4"/>'],
-  ['seikyu', '請求ナビ', './seikyu.html', '#007AFF', '<rect x="2.5" y="2" width="11" height="12" rx="1.5"/><path d="M5 5.5h6M5 8h6M5 10.5h3.5"/><path d="M10.5 10.5l1 1 2-2.5"/>'],
-  ['quote', 'WEB見積書', './index.html?go=new', '#5856D6', '<path d="M4 1.8h6l3 3V14H4z"/><path d="M10 1.8V5h3M6 8h5M6 10.5h5"/>'],
-  ['miShirabe', '単価をしらべる', './index.html?go=miShirabe', '#FF9500', '<circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 14 14M5.2 7h3.6M7 5.2v3.6"/>'],
-  ['kashi-menu', '貸出状況', './index.html?go=kashi-menu', '#30B0C7', '<rect x="2" y="3" width="12" height="10.5" rx="1.5"/><path d="M2 6.5h12M5 1.8v2.6M11 1.8v2.6M4.8 9h1.5M7.3 9h1.5M9.8 9h1.5"/>'],
-  ['fax-menu', 'FAX・送付状', './index.html?go=fax-menu', '#5AC8FA', '<rect x="2" y="6" width="12" height="7" rx="1.3"/><path d="M4.5 6V2h7v4M5 10h6"/>'],
-  ['meshitsu', '滅失・中古販売申請書', './meshitsu.html', '#FF3B30', '<path d="M3 2h7l3 3v9H3z"/><path d="M10 2v3h3M5.5 8.5l5 3M10.5 8.5l-5 3"/>'],
-  ['sharyo', '車両管理報告書', './sharyo.html', '#A2845E', '<path d="M1.5 10.5V7.8l1.8-3.3h7.4l2.3 3.3h1.5v2.7z"/><circle cx="4.5" cy="11" r="1.5"/><circle cx="11.2" cy="11" r="1.5"/>'],
-  ['zoto', 'お中元・お歳暮', './zoto.html', '#FF2D55', '<rect x="2" y="6" width="12" height="8" rx="1"/><path d="M1.5 4h13v2h-13zM8 4v10"/>'],
-  ['rental', 'レンタル機購入申請書', './rental.html', '#AF52DE', '<path d="M2 12.5h12M3.5 12.5V8l3-2h4l2 3v3.5"/><path d="M6.5 6V3.5h3L11 6"/>']
-];
 const SEC = [
-  ['画面', [['読み込み', () => setTab('load'), '1'], ['現場', () => setTab('sites'), '2'], ['チェック', () => setTab('check'), '3'], ['印刷・PDF', () => setTab('paper'), '4']]],
-  ['作業', [['プレビュー', () => clk('btnTopPv'), 'V'], ['控え（保存した作業をぜんぶ）', () => clk('btnHikae'), 'K'], ['別の請求書を作る・開く', () => clk('btnCloseWork'), ''], ['元に戻す', () => clk('btnUndo'), '⌘Z']]],
-  ['そのほか', [['したいことを打ってさがす（全部の操作）', () => clk('btnCmd'), '⌘K'], ['明るい／暗い', () => clk('btnTheme'), ''], ['最新版にする', () => clk('btnLatest'), ''], ['キーの一覧', () => document.dispatchEvent(new KeyboardEvent('keydown', { key:'?', bubbles:true })), '?']]]
+  ['画面', [['load', '読み込み', () => setTab('load'), '1'], ['sites', '現場', () => setTab('sites'), '2'], ['check', 'チェック', () => setTab('check'), '3'], ['paper', '印刷・PDF', () => setTab('paper'), '4']]],
+  ['作業', [['pv', 'プレビュー', () => clk('btnTopPv'), 'V'], ['hikae', '控え（保存した作業をぜんぶ）', () => clk('btnHikae'), 'K'], ['close', '別の請求書を作る・開く', () => clk('btnCloseWork'), ''], ['undo', '元に戻す', () => clk('btnUndo'), '⌘Z']]],
+  ['そのほか', [['cmd', 'したいことを打ってさがす（全部の操作）', () => clk('btnCmd'), '⌘K'], ['theme', '明るい／暗い', () => clk('btnTheme'), ''], ['latest', '最新版にする', () => clk('btnLatest'), ''], ['keys', 'キーの一覧', () => document.dispatchEvent(new KeyboardEvent('keydown', { key:'?', bubbles:true })), '?']]]
 ];
+const SK = {}; SEC.forEach(s => s[1].forEach(x => { SK[x[0]] = x; }));
+const TL = { cmd:'コマンド', hikae:'控え', close:'別の請求書', paper:'印刷・PDF' }; const tl = x => TL[x[0]] || x[1].replace(/（.*$/, '');
 function clk(id){ const e = document.getElementById(id); if(e && !e.disabled) e.click(); }
+function runSk(k){ const x = SK[k]; if(x) setTimeout(() => { try{ x[2](); }catch(e){ console.warn('side', e); } }, 0); }
+/* ほかのアプリの ☰ からも「請求ナビの○○」を足せるように名前を覚えておく */
+try{ if(window.XAHome) XAHome.remember(XAHome.SKEY, SEC.flatMap(s => s[1].filter(x => x[0] !== 'keys' && x[0] !== 'latest' && x[0] !== 'theme').map(x => [x[0], tl(x)]))); }catch(e){}
+/* ほかのアプリから seikyu.html?go=sites のように来たとき */
+(function(){ let g = ''; try{ g = new URLSearchParams(location.search).get('go') || ''; }catch(e){}
+  if(!g || !SK[g]) return; try{ history.replaceState(null, '', location.pathname + location.hash); }catch(e){}
+  const t0 = Date.now(); const w = () => { if((typeof S !== 'undefined' && (S.built || g === 'load' || g === 'hikae' || g === 'cmd' || g === 'close')) || Date.now() - t0 > 6000) runSk(g); else setTimeout(w, 250); };
+  setTimeout(w, 600); })();
 const css2 = document.createElement('style'); css2.id = 'x5bSideCss';
 css2.textContent = '#x5bSide{position:fixed;inset:0;z-index:2147482000;display:flex}#x5bSide[hidden]{display:none}#x5bSide .veil{position:absolute;inset:0;background:rgba(0,0,0,.28);animation:x5sF .2s ease both}'
   + '#x5bSide .pan{position:relative;width:min(380px,88vw);height:100%;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--surface2,#F2F2F7);color:var(--ink,#1D1D1F);box-shadow:0 0 40px rgba(0,0,0,.25);padding:calc(14px + env(safe-area-inset-top,0px)) 12px calc(20px + env(safe-area-inset-bottom,0px));animation:x5sS .3s cubic-bezier(.32,.72,0,1) both;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",system-ui,sans-serif}'
@@ -18613,23 +18850,31 @@ css2.textContent = '#x5bSide{position:fixed;inset:0;z-index:2147482000;display:f
   + '#x5bSide .it:last-child{border-bottom:0}#x5bSide .it:active,#x5bSide .it:hover{background:rgba(118,118,128,.1)}#x5bSide .it kbd{margin-left:auto;font:inherit;font-size:12px;color:var(--ink3,#8E8E93);background:none;border:0}#x5bSide .it.on{color:var(--brand,#007AFF);font-weight:600}'
   + '@keyframes x5sF{from{opacity:0}}@keyframes x5sS{from{transform:translateX(-100%)}}';
 document.head.appendChild(css2);
+document.head.appendChild(Object.assign(document.createElement('style'), { textContent:'#x5bSide .xaApps{border-bottom:0;margin:0 0 4px}#x5bSide .xa-adding .it.xa-canadd::before{left:10px}' }));
+let sideM = null;
 function sideOpen(){
   let d = document.getElementById('x5bSide');
   if(!d){ d = document.createElement('div'); d.id = 'x5bSide'; document.body.appendChild(d);
+    d.innerHTML = '<div class="veil"></div><div class="pan" role="dialog" aria-label="メニュー"><div class="xhost"></div>'
+      + SEC.map(sec => '<div class="h">請求ナビ：' + sec[0] + '</div><div class="grp">' + sec[1].map(x => '<button type="button" class="it" data-si="' + x[0] + '">' + x[1] + (x[3] ? '<kbd>' + x[3] + '</kbd>' : '') + '</button>').join('') + '</div>').join('') + '</div>';
+    const pan = d.querySelector('.pan');
+    if(window.XAHome) sideM = XAHome.mount(d.querySelector('.xhost'), { cur:'seikyu', scope:pan, below:'#x5bSide .it[data-si]',
+      item: b => { const x = SK[b.dataset.si]; return x ? { k:'sk:' + x[0], t:tl(x), h:'./seikyu.html?go=' + x[0] } : null; },
+      go: it => { sideClose();
+        if(it.k === 'seikyu') return;
+        if(it.k.indexOf('sk:') === 0){ runSk(it.k.slice(3)); return; }
+        location.href = it.h; } });
     d.addEventListener('click', ev => {
       if(ev.target.classList.contains('veil')){ sideClose(); return; }
-      const a = ev.target.closest('#x5bSide .ap[data-app]'); if(a){ const k = a.dataset.app; sideClose(); if(k !== 'seikyu') location.href = a.dataset.href; return; }
-      const it = ev.target.closest('#x5bSide [data-si]'); if(it){ const [i, j] = it.dataset.si.split('-').map(Number); sideClose(); setTimeout(() => { try{ SEC[i][1][j][1](); }catch(e){ console.warn("side", e); } }, 0); }
+      const it = ev.target.closest('#x5bSide .it[data-si]'); if(it){ sideClose(); runSk(it.dataset.si); }
     });
-    document.addEventListener('keydown', ev => { if(ev.key === 'Escape' && !d.hidden){ ev.stopPropagation(); sideClose(); } }, true); }
+    document.addEventListener('keydown', ev => { if(ev.key === 'Escape' && !d.hidden && !document.getElementById('xaPick') && !(sideM && sideM.edit)){ ev.stopPropagation(); sideClose(); } }, true); }
   const tab = (typeof S !== 'undefined' && S.tab) || '';
-  const TABS = { '読み込み':'load', '現場':'sites', 'チェック':'check', '印刷・PDF':'paper' };
-  d.innerHTML = '<div class="veil"></div><div class="pan" role="dialog" aria-label="メニュー"><div class="h">アプリ</div><div class="g">'
-    + APPS.map(a => '<button type="button" class="ap' + (a[0] === 'seikyu' ? ' cur' : '') + '" data-app="' + a[0] + '" data-href="' + a[2] + '"><i style="background-color:' + a[3] + '"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + a[4] + '</svg></i><span>' + a[1] + '</span></button>').join('')
-    + '</div>' + SEC.map((sec, i) => '<div class="h">請求ナビ：' + sec[0] + '</div><div class="grp">' + sec[1].map((x, j) => '<button type="button" class="it' + (TABS[x[0]] && TABS[x[0]] === tab ? ' on' : '') + '" data-si="' + i + '-' + j + '">' + x[0] + (x[2] ? '<kbd>' + x[2] + '</kbd>' : '') + '</button>').join('') + '</div>').join('') + '</div>';
+  d.querySelectorAll('.it[data-si]').forEach(b => b.classList.toggle('on', b.dataset.si === tab));
+  if(sideM) sideM.draw();
   d.hidden = false;
 }
-function sideClose(){ const d = document.getElementById('x5bSide'); if(d) d.hidden = true; }
+function sideClose(){ const d = document.getElementById('x5bSide'); if(d) d.hidden = true; if(sideM) sideM.exit(); }
 window.seikyuExt.sideMenu = sideOpen;
 if(!put()){ let n = 0; const t = setInterval(function(){ if(put() || ++n > 40) clearInterval(t); }, 250); }
 })();
