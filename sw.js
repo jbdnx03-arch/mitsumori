@@ -6,7 +6,7 @@
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-6';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-7';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -14,7 +14,8 @@ var CDN = [
 ];
 var SCOPE = new URL('./', self.location.href);
 var INDEX = new URL('./index.html', SCOPE).href;
-var LOCAL = ['./manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'].map(function(p){ return new URL(p, SCOPE).href; });
+var LOCAL = ['./manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './worksmin.woff2']   /* 2026-11-08 紙の字も最初に入れておく（電波なしでも紙が同じ字で出る） */
+.map(function(p){ return new URL(p, SCOPE).href; });
 
 self.addEventListener('install', function(ev){
   ev.waitUntil((async function(){

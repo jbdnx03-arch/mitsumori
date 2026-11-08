@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-08 07:17-->
+<!--BUILD:2026-11-08 12:57-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3004,7 +3004,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-08 07:17';
+const BUILD = '2026-11-08 12:57';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -16017,7 +16017,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-08 07:17';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-08 12:57';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -18773,9 +18773,17 @@ function pre(sel, G){
     if(m) return m[1] + m[2] + G + p.slice(m[0].length);
     return 'html' + G + ' ' + p; }).join(',');
 }
+/* 2026-11-08 軽く：見た目の決まり（style）ごとに結果を覚える。変わっていない style は読み直さない。
+   中身が同じ style の結果は端末にも覚えておき、次に開いたときは読まずに使う。金でないときは読まない */
+var CACHE = (typeof WeakMap === 'function') ? new WeakMap() : null, LSK = 'xa.goldc1', LSO = null, want = false;
+function lsGet(){ if(LSO) return LSO; try{ LSO = JSON.parse(localStorage.getItem(LSK) || '{}') || {}; }catch(e){ LSO = {}; } return LSO; }
+function sig(n, t){ var h = t.length, st = Math.max(1, Math.floor(t.length / 512)); for(var i = 0; i < t.length; i += st) h = (h * 31 + t.charCodeAt(i)) | 0; return (n.id || (n.getAttribute && n.getAttribute('data-mod')) || '') + ':' + t.length + ':' + h; }
+function goldOn(G){ try{ return document.documentElement.matches(G.replace(/:not\(#xg_\)/g, '')); }catch(e){ return true; } }
 function scan(G){
   G = G || XAGold.G; if(!G) return;
-  var out = [], seen = {};
+  if(!goldOn(G)){ want = true; return; }
+  want = false;
+  var out = null, seen = {};
   var walk = function(rules, media){ for(var i = 0; i < rules.length; i++){ var r = rules[i];
     if(r.type === 4){ try{ walk(r.cssRules, r.media.mediaText); }catch(e){} continue; }
     if(r.cssRules && !r.style){ try{ walk(r.cssRules, media); }catch(e){} continue; }
@@ -18794,16 +18802,94 @@ function scan(G){
     if(!dec.length) continue;
     var rule = pre(r.selectorText, G) + '{' + dec.join(';') + '}'; if(media) rule = '@media ' + media + '{' + rule + '}';
     if(!seen[rule]){ seen[rule] = 1; out.push(rule); } } };
-  for(var k = 0; k < document.styleSheets.length; k++){ var ss = document.styleSheets[k]; if(ss.ownerNode && ss.ownerNode.id === 'xaGoldCss') continue; try{ walk(ss.cssRules, ''); }catch(e){} }
+  var ls = lsGet(), keep = {}, dirty = false, all = [], uniq = {};
+  for(var k = 0; k < document.styleSheets.length; k++){ var ss = document.styleSheets[k], nd = ss.ownerNode; if(nd && nd.id === 'xaGoldCss') continue;
+    var res = null, key = null, isSt = !!(nd && nd.nodeName === 'STYLE'), tx = isSt ? (nd.textContent || '') : '';
+    if(isSt){ key = G + '|' + sig(nd, tx); var c = CACHE && CACHE.get(nd); if(c && c.key === key) res = c.res; else if(ls[key]) res = ls[key]; }
+    if(!res){ out = []; seen = {}; try{ walk(ss.cssRules, ''); }catch(e){} res = out; if(key) dirty = true; }
+    if(isSt){ if(CACHE) CACHE.set(nd, { key: key, res: res }); keep[key] = res; }
+    for(var j = 0; j < res.length; j++){ if(!uniq[res[j]]){ uniq[res[j]] = 1; all.push(res[j]); } } }
+  if(dirty){ var mg = {}, kl = Object.keys(ls); if(kl.length < 240) kl.forEach(function(x){ mg[x] = ls[x]; }); Object.keys(keep).forEach(function(x){ mg[x] = keep[x]; }); LSO = mg; try{ localStorage.setItem(LSK, JSON.stringify(mg)); }catch(e){} }   /* 消えてまた足される style もあるので、前の分も残す（多くなったら今の分だけに） */
   var el = document.getElementById('xaGoldCss'); if(!el){ el = document.createElement('style'); el.id = 'xaGoldCss'; }
-  var txt = out.join('\n'); if(el.textContent !== txt) el.textContent = txt;
+  var txt = all.join('\n'); if(el.textContent !== txt) el.textContent = txt;
   if(el.parentNode !== document.head || el !== document.head.lastElementChild) document.head.appendChild(el);
 }
 var T = 0; function later(){ clearTimeout(T); T = setTimeout(function(){ scan(); }, 300); }
 window.XAGold = { G:'', INK:INK, scan:function(G){ if(G) XAGold.G = G; scan(); }, later:later };
+/* 金に切りかえたとき、まだ読んでいなければ読む */
+try{ new MutationObserver(function(){ if(want && XAGold.G && goldOn(XAGold.G)) later(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); }catch(e){}
 /* あとから足される見た目（窓・メニュー）にも：<head> に style が増えたら読み直す */
 try{ new MutationObserver(function(ms){ for(var i = 0; i < ms.length; i++){ for(var j = 0; j < ms[i].addedNodes.length; j++){ var n = ms[i].addedNodes[j]; if(n.nodeName === 'STYLE' && n.id !== 'xaGoldCss'){ later(); return; } } } }).observe(document.head, { childList:true }); }catch(e){}
 window.addEventListener('load', function(){ later(); setTimeout(later, 2000); });
+})();
+
+/* 2026-11-08 軽く：見た目の決まりの「:is(…) で終わる書き方」は、ブラウザが全部の要素（紙の何万もの字）で毎回ためすので重い。
+   :where(A):is(A, B, …) のように1つずつに分けて書き直す（当たる所も強さ〈詳しさ〉も同じ。:where は強さに足されない）。
+   ほかに、ルートだけにある ::view-transition-…(…) には html を付ける（同じ意味） */
+(function(){
+if(window.XASel) return;
+var done = (typeof WeakSet === 'function') ? new WeakSet() : null, n = 0;
+function splitTop(s, ch){ var o = [], d = 0, q = '', c = ''; for(var i = 0; i < s.length; i++){ var x = s[i];
+  if(q){ c += x; if(x === '\\'){ c += s[++i] || ''; continue; } if(x === q) q = ''; continue; }
+  if(x === '"' || x === "'"){ q = x; c += x; continue; }
+  if(x === '\\'){ c += x + (s[++i] || ''); continue; }
+  if(x === '(' || x === '[') d++; else if(x === ')' || x === ']') d--;
+  if(x === ch && d === 0){ o.push(c); c = ''; } else c += x; }
+  o.push(c); return o; }
+/* いちばん右の「ひとかたまり」がどこから始まるか（かっこ・[]・引用の外の 空白 > + ~ のあと） */
+function lastStart(s){ var d = 0, q = '', at = 0; for(var i = 0; i < s.length; i++){ var x = s[i];
+  if(q){ if(x === '\\'){ i++; continue; } if(x === q) q = ''; continue; }
+  if(x === '"' || x === "'"){ q = x; continue; }
+  if(x === '\\'){ i++; continue; }
+  if(x === '(' || x === '[') d++; else if(x === ')' || x === ']') d--;
+  else if(d === 0 && (x === ' ' || x === '>' || x === '+' || x === '~')) at = i + 1; }
+  return at; }
+function closeAt(s, i){ var d = 0, q = ''; for(var j = i; j < s.length; j++){ var x = s[j];
+  if(q){ if(x === '\\'){ j++; continue; } if(x === q) q = ''; continue; }
+  if(x === '"' || x === "'"){ q = x; continue; }
+  if(x === '\\'){ j++; continue; }
+  if(x === '(') d++; else if(x === ')'){ d--; if(d === 0) return j; } }
+  return -1; }
+function one(cx){
+  var t = cx.trim(); if(!t) return null;
+  var a = lastStart(t), comp = t.slice(a);
+  if(/^::view-transition-/.test(comp) && a === 0) return ['html' + comp];
+  if(comp.indexOf(':is(') !== 0) return null;
+  var e = closeAt(comp, 3); if(e < 0) return null;
+  var inner = comp.slice(4, e), rest = comp.slice(e + 1), args = splitTop(inner, ',').map(function(x){ return x.trim(); }).filter(Boolean);
+  if(args.length < 1 || args.length > 24) return null;
+  if(args.some(function(x){ return x.indexOf('::') >= 0 || /:(?:host|scope)\b/.test(x); })) return null;
+  var head = t.slice(0, a), whole = ':is(' + inner + ')';
+  return args.map(function(x){ return head + ':where(' + x + ')' + whole + rest; });
+}
+function fix(rule){
+  var st = rule.selectorText; if(!st || (st.indexOf(':is(') < 0 && st.indexOf('::view-transition-') < 0)) return;
+  var parts = splitTop(st, ','), out = [], ch = false;
+  for(var i = 0; i < parts.length; i++){ var r = one(parts[i]); if(r){ ch = true; out.push.apply(out, r); } else out.push(parts[i].trim()); }
+  if(!ch) return;
+  var nt = out.join(', ');
+  try{ rule.selectorText = nt; if(rule.selectorText !== st) n++; }catch(e){}
+}
+function walk(rules){ for(var i = 0; i < rules.length; i++){ var r = rules[i];
+  if(r.selectorText !== undefined && r.style) fix(r);
+  if(r.cssRules && r.cssRules.length && !(r.selectorText !== undefined && r.style)){ try{ walk(r.cssRules); }catch(e){} } } }
+function run(){
+  var ss = document.styleSheets;
+  for(var k = 0; k < ss.length; k++){ var s = ss[k]; if(done && done.has(s)) continue;
+    try{ walk(s.cssRules); if(done) done.add(s); }catch(e){} }
+}
+var T = 0; function later(){ if(T) return; T = setTimeout(function(){ T = 0; run(); }, 0); }
+window.XASel = { run: run, count: function(){ return n; } };
+run();
+/* 見張るのは <head> の中と <body> のすぐ下だけ（紙の何万もの字の出し入れは見ない） */
+try{ var mo = new MutationObserver(function(ms){ for(var i = 0; i < ms.length; i++){ var m = ms[i];
+    if(m.type === 'characterData' || (m.target && m.target.nodeName === 'STYLE')){ later(); return; }
+    for(var j = 0; j < m.addedNodes.length; j++){ var x = m.addedNodes[j]; if(x.nodeName === 'STYLE' || x.nodeName === 'LINK'){ later(); return; } } } });
+  mo.observe(document.head || document.documentElement, { childList: true, subtree: true, characterData: true });
+  var ob = function(){ if(document.body) mo.observe(document.body, { childList: true }); }; if(document.body) ob(); else document.addEventListener('DOMContentLoaded', ob);
+}catch(e){}
+document.addEventListener('DOMContentLoaded', run);
+window.addEventListener('load', run);
 })();
 
 
