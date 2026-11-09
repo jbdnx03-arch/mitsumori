@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-08 12:57-->
+<!--BUILD:2026-11-09 12:21-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -1603,7 +1603,7 @@ const WK = (function(){
     let out = [];
     try{ out = await tx('readonly', st => st.getAll()) || []; }catch(e){}
     try{ for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.indexOf(LKP) === 0){ try{ const o = JSON.parse(localStorage.getItem(k)); if(o && !out.some(x => x.id === o.id)) out.push(o); }catch(e){} } } }catch(e){}
-    return out.map(o => ({ id: o.id, custCode: o.custCode, custName: o.custName, seikyuDate: o.seikyuDate, savedAt: o.savedAt, net: o.net, sysNet: o.sysNet != null ? o.sysNet : (o.meta && o.meta.sysNet != null && o.meta.sysNet !== '' ? o.meta.sysNet : null), tax: o.tax, nLines: o.nLines, sites: o.sites, cloudAt: o.cloudAt || '', status: o.status || 'draft', printedAt: o.printedAt || '', siteNames: o.siteNames || '' }));
+    return out.map(o => ({ id: o.id, custCode: o.custCode, custName: o.custName, seikyuDate: o.seikyuDate, savedAt: o.savedAt, net: o.net, sysNet: o.sysNet != null ? o.sysNet : (o.meta && o.meta.sysNet != null && o.meta.sysNet !== '' ? o.meta.sysNet : null), tax: o.tax, gross: o.gross, sysGross: o.sysGross != null ? o.sysGross : (o.meta && o.meta.sysTax !== '' && o.meta.sysTax != null && num(o.meta.sysTax) ? num(o.meta.sysNet) + num(o.meta.sysTax) : null), sysNetG: o.sysNetG, sysFrom: o.sysFrom || '', nLines: o.nLines, sites: o.sites, cloudAt: o.cloudAt || '', status: o.status || 'draft', printedAt: o.printedAt || '', siteNames: o.siteNames || '' }));
   }
   async function all(){
     let out = [];
@@ -1817,11 +1817,15 @@ async function workAction(ev, rows, redraw){
   }
 }
 /* 実際の請求（税抜）とシステム（CSV）の金額、その差 */
+/* 2026-11-08「三貴 4円違う」：税込は現場ごとに消費税を切り捨てて足したもの（保存した gross・sysGross）。合計に10%をかけると端数の分ずれる。
+   本物の請求書PDFを入れた作業は、システムの金額＝本物の鑑の数字 */
+const wGross = w => w.gross != null ? num(w.gross) : (w.tax != null ? num(w.net) + num(w.tax) : taxIn(w.net));
 function sysLine(w){
-  const sv = w.sysNet != null && w.sysNet !== '' ? num(w.sysNet) : (w.meta && w.meta.sysNet != null && w.meta.sysNet !== '' ? num(w.meta.sysNet) : null);
+  const sv = w.sysNetG != null ? num(w.sysNetG) : w.sysNet != null && w.sysNet !== '' ? num(w.sysNet) : (w.meta && w.meta.sysNet != null && w.meta.sysNet !== '' ? num(w.meta.sysNet) : null);
   if(sv == null) return '<div class="wcs muted">システムの金額：開いて保存し直すと出ます</div>';
-  const d = num(w.net) - sv;
-  return '<div class="wcs"><span>システム 税込 ' + ytiH(sv) + '</span><span class="' + (d ? (d > 0 ? 'up' : 'dn') : 'eq') + '">差 ' + (d ? ytiH(d, true) : '0（システムどおり）') + '</span></div>';
+  const sg = w.sysGross != null ? num(w.sysGross) : taxIn(sv), d = num(w.net) - sv, dg = wGross(w) - sg;
+  const gH = (g, n, sign) => { const z = v => sign ? (v > 0 ? '+' : v < 0 ? '−' : '') : ''; return z(g) + yen(Math.abs(g)) + '<small class="xti">（税抜 ' + z(n) + yen(Math.abs(n)) + '）</small>'; };
+  return '<div class="wcs"><span>システム' + (w.sysFrom === 'real' ? '（本物の請求書）' : '') + ' 税込 ' + gH(sg, sv) + '</span><span class="' + (d || dg ? ((dg || d) > 0 ? 'up' : 'dn') : 'eq') + '">差 ' + (d || dg ? gH(dg, d, true) : '0（システムどおり）') + '</span></div>';
 }
 function workCard(x){
   const w = x.w, isNow = S.built && S.workId === x.id, stt = STATUS[w.status || 'draft'] || STATUS.draft;
@@ -1848,8 +1852,8 @@ async function drawWorks(reload){
     const ym = (mon.length ? mon : qs).map(x => (x.w.seikyuDate || '').slice(0, 7)).filter(Boolean).sort().pop() || '';
     const qShow = qs.filter(x => (x.w.status || 'draft') !== 'done' || (x.w.seikyuDate || '').slice(0, 7) === ym);
     const show = ym ? mon.filter(x => (x.w.seikyuDate || '').slice(0, 7) === ym) : mon.slice(0, 5);
-    const rest = rows.length - show.length, net = show.reduce((a, x) => a + num(x.w.net), 0), done = show.filter(x => (x.w.status || 'draft') !== 'draft').length;
-    L.innerHTML = (ym ? '<div class="wmh"><b>' + (+ym.slice(0, 4)) + '年' + (+ym.slice(5, 7)) + '月締め</b><span>' + show.length + '件</span><span>税込 ' + yti(net) + '</span><span>' + done + '件 印刷・送付済</span></div>' : '') +
+    const rest = rows.length - show.length, net = show.reduce((a, x) => a + num(x.w.net), 0), gro = show.reduce((a, x) => a + wGross(x.w), 0), done = show.filter(x => (x.w.status || 'draft') !== 'draft').length;
+    L.innerHTML = (ym ? '<div class="wmh"><b>' + (+ym.slice(0, 4)) + '年' + (+ym.slice(5, 7)) + '月締め</b><span>' + show.length + '件</span><span>税込 ' + yen(gro) + '（税抜 ' + yen(net) + '）</span><span>' + done + '件 印刷・送付済</span></div>' : '') +
       (() => { const fin = show.filter(x => x.w.status === 'done'), act = show.filter(x => x.w.status !== 'done');   /* 2026-11-02 完了は下に分ける */
         return act.map(workCard).join('') + (fin.length ? '<div class="wmh wfin"><b>✓ 完了</b><span>' + fin.length + '件</span></div><div class="wfinL">' + fin.map(workCard).join('') + '</div>' : '') +
           (qShow.length ? '<div class="wmh wq"><b>見積から作った請求書</b><span>' + qShow.length + '件（月の締めとは別）</span></div>' + qShow.map(workCard).join('') : ''); })() + (rest - qShow.length > 0 ? '<div class="muted" style="margin-top:6px">前の月の ' + (rest - qShow.length) + ' 件は「控え」で見られます</div>' : '');
@@ -1896,9 +1900,9 @@ async function drawHikae(reload){
   const g = {};
   list.forEach(x => { const k = (x.w.seikyuDate || '').slice(0, 7) || '不明'; (g[k] = g[k] || []).push(x); });
   L.innerHTML = Object.keys(g).sort().reverse().map(k => {
-    const xs = g[k], net = xs.reduce((a, x) => a + num(x.w.net), 0);
+    const xs = g[k], net = xs.reduce((a, x) => a + num(x.w.net), 0), gro = xs.reduce((a, x) => a + wGross(x.w), 0);
     const lab = k === '不明' ? '締め不明' : (+k.slice(0, 4)) + '年' + (+k.slice(5, 7)) + '月締め';
-    return '<div class="hk-g"><div class="hk-gh"><b>' + lab + '</b><span>' + xs.length + '件</span><span>税込 ' + yti(net) + '</span><span>' + xs.filter(x => (x.w.status || 'draft') !== 'draft').length + '件 印刷・送付済</span></div>' + xs.map(workCard).join('') + '</div>';
+    return '<div class="hk-g"><div class="hk-gh"><b>' + lab + '</b><span>' + xs.length + '件</span><span>税込 ' + yen(gro) + '（税抜 ' + yen(net) + '）</span><span>' + xs.filter(x => (x.w.status || 'draft') !== 'draft').length + '件 印刷・送付済</span></div>' + xs.map(workCard).join('') + '</div>';
   }).join('');
   L.onclick = ev => workAction(ev, rows, () => drawHikae(false));
 }
@@ -1935,12 +1939,16 @@ function drawKpis(){
   const T = totals(), m = S.meta;
   const hand = S.lines.filter(l => l.carried || l.edited).length;
   /* 2026-11-05「何で(税抜)消えた？」：大きい数字に（税抜）も。請求しない現場のシステムの分は税込でも外す（前は税込と税抜で＋−が逆になっていた） */
-  const gd = T.gross - num(m.sysNet) - num(m.sysTax);
-  const diffTxt = T.diff === 0 ? 'システムと同じ' : '税抜 ' + (T.diff > 0 ? '＋' : '−') + yen(Math.abs(T.diff)) + '（手直し・外した現場のぶん）';
+  /* 2026-11-08「システム金額は請求書PDFを送った時点で合わせて」：本物の請求書PDFを入れたら、システムの金額は本物の鑑（現場ごとの御買上計＋その消費税）。なければCSV */
+  const XK = window.seikyuExt || {}, rg = XK.realGross ? XK.realGross() : null, rn = XK.realNet ? XK.realNet() : null;
+  const sN = rg != null ? rn : num(m.sysNet), sG = rg != null ? rg : num(m.sysNet) + num(m.sysTax), sT = sG - sN;
+  const dN = T.net - sN, gd = T.gross - sG;
+  const diffTxt = dN === 0 ? (rg != null ? '本物の請求書と同じ' : 'システムと同じ') : '税抜 ' + (dN > 0 ? '＋' : '−') + yen(Math.abs(dN)) + '（手直し・外した現場のぶん）';
+  const csvNote = rg != null && rn !== num(m.sysNet) ? '<div class="s" style="color:var(--warn,#E0A020)">CSV は 税込 ' + yen(num(m.sysNet) + num(m.sysTax)) + '（税抜 ' + yen(m.sysNet) + '）＝CSVを取ったあとにシステムで変わった</div>' : '';
   $('#kpis').innerHTML =
-    '<div class="kpi"><div class="k">システムの合計（CSV）税込</div><div class="v">' + yen(num(m.sysNet) + num(m.sysTax)) + '</div><div class="s">税抜 ' + yen(m.sysNet) + '（消費税 ' + yen(m.sysTax) + '）</div></div>' +
+    '<div class="kpi"><div class="k">システムの合計（' + (rg != null ? '本物の請求書' : 'CSV') + '）税込</div><div class="v">' + yen(sG) + '</div><div class="s">税抜 ' + yen(sN) + '（消費税 ' + yen(sT) + '）</div>' + csvNote + '</div>' +
     '<div class="kpi"><div class="k">鑑の合計 税込</div><div class="v">' + yen(T.gross) + '</div><div class="s">税抜 ' + yen(T.net) + '（消費税 ' + yen(T.tax) + '）</div></div>' +
-    '<div class="kpi ' + (T.diff === 0 ? 'ok' : '') + '"><div class="k">システムとの差 税込</div><div class="v">' + (T.diff === 0 ? '0' : (gd > 0 ? '+' : '') + yen(gd) + '<small class="xti" style="font-size:.5em;font-weight:700;opacity:.75;margin-left:4px">（税抜 ' + (T.diff > 0 ? '+' : '−') + yen(Math.abs(T.diff)) + '）</small>') + '</div><div class="s">' + diffTxt + '</div></div>' +
+    '<div class="kpi ' + (dN === 0 && gd === 0 ? 'ok' : '') + '"><div class="k">システムとの差 税込</div><div class="v">' + (dN === 0 && gd === 0 ? '0' : (gd > 0 ? '+' : gd < 0 ? '−' : '') + yen(Math.abs(gd)) + '<small class="xti" style="font-size:.5em;font-weight:700;opacity:.75;margin-left:4px">（税抜 ' + (dN > 0 ? '+' : dN < 0 ? '−' : '') + yen(Math.abs(dN)) + '）</small>') + '</div><div class="s">' + diffTxt + '</div></div>' +
     '<div class="kpi"><div class="k">現場・行</div><div class="v">' + S.sheets.length + '<small style="font-size:12px"> 現場</small></div><div class="s">' + S.lines.length + ' 行（手直し ' + hand + '）</div></div>';
 }
 function drawSites(){
@@ -2178,7 +2186,7 @@ function addHead(){
 function checks(){
   const out = [], P = S.prev;
   const T = totals();
-  if(T.diff) out.push({ lv:'warn', t:'鑑の合計が、システムと 税込 ' + yti(T.diff, true) + ' 違う', s:'手直し・調整の合計です。意図どおりか確かめて（外した現場があればそのぶんも）' });
+  if(T.diff) out.push({ lv:'warn', t:'鑑の合計が、システムと 税込 ' + (function(){ const g = T.gross - num(S.meta.sysNet) - num(S.meta.sysTax), z = v => v > 0 ? '+' : v < 0 ? '−' : ''; return num(S.meta.sysTax) ? z(g) + yen(Math.abs(g)) + '（税抜 ' + z(T.diff) + yen(Math.abs(T.diff)) + '）' : yti(T.diff, true); })() + ' 違う', s:'手直し・調整の合計です。意図どおりか確かめて（外した現場があればそのぶんも）' });
   S.lines.forEach(l => {
     const sh = sheetById(l.sheet);
     if(l.nb) return;
@@ -3004,7 +3012,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-08 12:57';
+const BUILD = '2026-11-09 12:21';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8270,7 +8278,7 @@ function dockRender(){
   try{ fitPages(B); XR.fitShrink(B); XR.sysFit(B); window.seikyuExt.markPaper(B, ks); }catch(e){}
   B.scrollTop = st;
   const t = document.getElementById('xDockT');
-  if(t) t.textContent = dockAll ? '全現場（' + B.querySelectorAll('.xp').length + '枚・税込 ' + yti(ks.reduce((a, s) => a + sheetNet(s), 0)) + '）' : sh.name + '　税込 ' + yti(sheetNet(sh));
+  if(t) t.textContent = dockAll ? '全現場（' + B.querySelectorAll('.xp').length + '枚・税込 ' + window.seikyuExt.gTxt(ks.reduce((a, s) => a + taxIn(sheetNet(s)), 0), ks.reduce((a, s) => a + sheetNet(s), 0)) + '）' : sh.name + '　税込 ' + yti(sheetNet(sh));
   /* 全現場のときは、いま左で直している現場のページに印 */
   if(dockAll && sh) B.querySelectorAll('.xp').forEach(p => p.classList.toggle('xcurpg', [sh.name, 'y' + sh.name, 's' + sh.name].includes(p.dataset.pg)));
 }
@@ -9067,7 +9075,21 @@ openWork = function(o){ const r = _open.apply(this, arguments); S.real = (o && o
   if(S.pmOrd < 3 && S.built){ const all = !!S.real; S.pmOrd = 3; let n = 0; const nm = []; try{ S.sheets.forEach(sh => { const k = restorePrevOrder(sh, all ? null : aboveOwner); if(k){ n += k; nm.push(sh.name); } }); }catch(e){ console.warn(e); } if(n){ setTimeout(() => { save(); drawSites(); toast('手で足した行（親綱・緊張器など）を前月と同じ場所にもどした：' + nm.slice(0, 4).join('・') + (nm.length > 4 ? ' ほか' : '') + '（↶でもどせる）', 9000); }, 1200); } }
   if(S.real && !S.inputs.real) S.inputs.real = { at: S.real.at || '', name: S.real.file || S.real.name || '' }; { const pr = takePendingFor(S.meta); if(pr){ S.real = pr; S.inputs = S.inputs || {}; S.inputs.real = { at: pr.at, name: pr.file || pr.name }; setTimeout(() => { save(); drawSites(); realReport(true); }, 900); } } if(pendingReal && S.meta && (!pendingReal.cust || String(S.meta.custCode).split('-')[0] === String(pendingReal.cust))){ S.real = pendingReal; pendingReal = null; save(); setTimeout(() => realReport(true), 900); } return r; };
 const _snap = snapshot;
-snapshot = function(){ const o = _snap.apply(this, arguments); o.real = S.real || null; o.pmOrd = S.pmOrd || 0; o.nbFix = S.nbFix || 0; o.inputs = S.inputs || {}; try{ o.inTimes = JSON.stringify(S.inputs || {}); }catch(e){} return o; };
+/* 2026-11-08「三貴 4円違う」：税込は 現場ごとに消費税を切り捨てて足す（本物・CSVと同じ）。合計に10%をかけると端数の分ずれる。
+   システムの金額は、本物の請求書PDFを入れたら本物の鑑の数字（現場ごとの御買上計＋その消費税）、なければCSVの 当月御買上額＋消費税額 */
+const XG = window.seikyuExt = window.seikyuExt || {};
+XG.siteGross = n => taxIn(num(n));
+XG.realGross = () => { try{ const v = S.real && S.real.sites ? Object.values(S.real.sites) : []; if(!v.length || v.some(r => r.total == null)) return null; return v.reduce((a, r) => a + taxIn(num(r.total)), 0); }catch(e){ return null; } };
+XG.realNet = () => { try{ const v = S.real && S.real.sites ? Object.values(S.real.sites) : []; if(!v.length || v.some(r => r.total == null)) return null; return v.reduce((a, r) => a + num(r.total), 0); }catch(e){ return null; } };
+XG.sysGross = () => { const rg = XG.realGross(); if(rg != null) return rg; const m = S.meta || {};
+  if(m.sysTax !== '' && m.sysTax != null && (num(m.sysTax) || !num(m.sysNet))) return num(m.sysNet) + num(m.sysTax);
+  return S.sheets.reduce((a, sh) => a + taxIn(sheetSys(sh)), 0); };
+XG.sysNetNow = () => { const rn = XG.realNet(); if(rn != null) return rn; const m = S.meta || {}; return m.sysNet != null && m.sysNet !== '' ? num(m.sysNet) : S.lines.reduce((a, l) => a + sysAmt(l), 0); };
+XG.gTxt = (g, n, sign) => { const z = v => sign ? (v > 0 ? '+' : v < 0 ? '−' : '') : (v < 0 ? '−' : ''); return z(g) + yen(Math.abs(g)) + '（税抜 ' + z(n) + yen(Math.abs(n)) + '）'; };
+XG.diffTxt = T => XG.gTxt(T.gross - XG.sysGross(), T.net - XG.sysNetNow(), true);
+XG.diffZero = T => !(T.gross - XG.sysGross()) && !(T.net - XG.sysNetNow());
+snapshot = function(){ const o = _snap.apply(this, arguments); o.real = S.real || null;
+  try{ o.gross = totals().gross; o.sysGross = XG.sysGross(); o.sysNetG = XG.sysNetNow(); o.sysFrom = XG.realGross() != null ? 'real' : 'csv'; }catch(e){} o.pmOrd = S.pmOrd || 0; o.nbFix = S.nbFix || 0; o.inputs = S.inputs || {}; try{ o.inTimes = JSON.stringify(S.inputs || {}); }catch(e){} return o; };
 if(typeof SUMF !== 'undefined' && SUMF.indexOf('inTimes') < 0) SUMF.push('inTimes');
 /* 前月のファイルを、開いている作業に照らし直したとき */
 const _tp = takePrev;
@@ -9833,11 +9855,11 @@ if(window.matchMedia('(display-mode: standalone)').matches || navigator.standalo
 const tb = document.createElement('div'); tb.id = 'xTot'; tb.hidden = true; document.body.appendChild(tb);
 function paintTot(){
   if(!mob() || !S.built || S.tab === 'load'){ tb.hidden = true; return; }
-  let net = 0, sys = 0; try{ S.sheets.forEach(s => { if(s.inKagami) net += sheetNet(s); sys += sheetSys(s); }); }catch(e){}
+  let net = 0, sys = 0, gN = 0, gS = 0; try{ S.sheets.forEach(s => { if(s.inKagami){ net += sheetNet(s); gN += taxIn(sheetNet(s)); } }); sys = X.sysNetNow(); gS = X.sysGross(); }catch(e){}
   /* 2026-10-31：上のタブの数字を読んでいたので、描きなおす前だと 0 ✓ と出ていた（チェックは 236 なのに）→ その場で数える */
   let w = ''; try{ const c = checks().filter(x => x.lv !== 'sales' && !chkDone(x)); const ng = c.filter(x => x.never).length; w = c.length ? String(c.length) + (ng ? '・ダメ' + ng : '') : ''; }catch(e){ const cnt = document.querySelector('.tabs button[data-tab="check"] .cnt'); w = cnt ? cnt.textContent : ''; }
   const d = net - sys;
-  tb.innerHTML = '<span><small>鑑 税込（税抜）</small><b>' + yen(taxIn(net)) + '<small class="xti">（' + yen(net) + '）</small></b></span><span><small>システムとの差 税込</small><b class="' + (d ? 'd' : 'z') + '">' + (d ? (d > 0 ? '+' : '−') + yen(Math.abs(taxIn(d))) + '<small class="xti">（' + (d > 0 ? '+' : '−') + yen(Math.abs(d)) + '）</small>' : '0 ✓') + '</b></span><span><small>要確認</small><b class="' + (w && w !== '✓' ? 'w' : 'z') + '">' + (w && w !== '✓' ? w : '0 ✓') + '</b></span>';
+  tb.innerHTML = '<span><small>鑑 税込（税抜）</small><b>' + yen(gN) + '<small class="xti">（' + yen(net) + '）</small></b></span><span><small>システムとの差 税込</small><b class="' + (d || gN - gS ? 'd' : 'z') + '">' + (d || gN - gS ? (gN - gS > 0 ? '+' : gN - gS < 0 ? '−' : '') + yen(Math.abs(gN - gS)) + '<small class="xti">（' + (d > 0 ? '+' : '−') + yen(Math.abs(d)) + '）</small>' : '0 ✓') + '</b></span><span><small>要確認</small><b class="' + (w && w !== '✓' ? 'w' : 'z') + '">' + (w && w !== '✓' ? w : '0 ✓') + '</b></span>';
   tb.hidden = false;
 }
 const _sv = save; save = function(){ const r = _sv.apply(this, arguments); clearTimeout(window.__xTotT); window.__xTotT = setTimeout(() => { try{ paintTot(); allSeen(); }catch(e){} }, 500); return r; };
@@ -11612,7 +11634,7 @@ async function openPanel(){
   const G = groups();
   if(!G.length){ toast('前月から引き継ぐものはない（本物の請求書どおり）', 3000); return; }
   const T = totals();
-  const body = '<p style="margin:0 0 6px">いまの合計 <b>税込 ' + yti(T.net) + '</b>　システム（本物）との差 <b>' + (T.diff ? yti(T.diff, true) : 'ぴったり ✓') + '</b></p>' +
+  const body = '<p style="margin:0 0 6px">いまの合計 <b>税込 ' + window.seikyuExt.gTxt(T.gross, T.net) + '</b>　システム（本物）との差 <b>' + (!window.seikyuExt.diffZero(T) ? window.seikyuExt.diffTxt(T) : 'ぴったり ✓') + '</b></p>' +
     '<p style="margin:0 0 8px"><b>チェックした行＝入れる・請求書に出す</b>／チェックを外した行＝入れない・出さない。グループごとに「ぜんぶ」で一括。</p>' +
     '<p style="margin:0 0 8px"><button type="button" class="btn sm primary" data-cgreal>ぜんぶ本物どおり（システムと同じ）にする</button> <small class="muted">押してから「決めた」</small></p>' +
     G.map((g, gi) => '<div class="xcg" data-g="' + gi + '"' + (g.out ? ' data-out="1"' : '') + ' style="margin:10px 0 0;border:1px solid var(--line,#dde5e6);border-radius:10px;overflow:hidden">' +
@@ -11630,7 +11652,7 @@ async function openPanel(){
   const n = apply(G, on);
   save(); try{ drawSites(); }catch(e){} try{ if(S.tab === 'check') drawChecks(); }catch(e){}
   try{ const pv = document.getElementById('spvBody'); if(pv && pv.offsetParent !== null){ const st = pv.scrollTop; sitePreview(typeof pvAll !== 'undefined' ? pvAll : false); const B2 = document.getElementById('spvBody'); if(B2) B2.scrollTop = st; } }catch(e){}
-  const T2 = totals(); toast('前月の引き継ぎ：' + n + ' 件を変えた。いまの合計 税込 ' + yti(T2.net) + '・システムとの差 ' + (T2.diff ? yti(T2.diff, true) : 'ぴったり'), 6000);
+  const T2 = totals(); toast('前月の引き継ぎ：' + n + ' 件を変えた。いまの合計 税込 ' + window.seikyuExt.gTxt(T2.gross, T2.net) + '・システムとの差 ' + (!window.seikyuExt.diffZero(T2) ? window.seikyuExt.diffTxt(T2) : 'ぴったり'), 6000);
 }
 X.carryPanel = openPanel;
 
@@ -12159,9 +12181,9 @@ window.addEventListener('click', async ev => {
   if(pin && typeof prevData !== 'undefined' && prevData && prevData.label && S.meta && prevData.label < (S.meta.seikyuDate || '')){ try{ const rr = relinkPrev(prevData); save(); drawSites(); toast('読み込みに入っている前月で照らし直した：つながった行 ' + rr.pv, 5000); }catch(e){ toast('照らし直せなかった：' + (e.message || e)); } return; }
   if(pin){ const f = document.createElement('input'); f.type = 'file'; f.accept = '.xlsm,.xlsx,.json'; f.onchange = () => { if(f.files && f.files[0] && window.seikyuExt.takeAny) window.seikyuExt.takeAny([f.files[0]]); else if(f.files && f.files[0]) document.getElementById('fAny') && (() => { const dt = new DataTransfer(); dt.items.add(f.files[0]); const fa = document.getElementById('fAny'); fa.files = dt.files; fa.dispatchEvent(new Event('change', { bubbles: true })); })(); }; f.click(); return; }
   if(ra){ const X = window.seikyuExt; if(!X.carryGroups || !X.carryApply){ toast('いまは使えない'); return; }
-    const T0 = totals(); const v = await askDialog('ぜんぶ本物どおりにする', 'いま <b>税込 ' + yti(T0.net) + '</b>（システムとの差 ' + (T0.diff ? yti(T0.diff, true) : 'ぴったり') + '）<br>前月の手直し・前月に手で足した行・前月と同じ見出しは外し、ETC888 などの「出さない」品はぜんぶ出して、システム（本物）と同じにします。<br><small>今月自分で直した行・足した行はそのまま（↶ でもどせる）</small>', [{ t:'本物どおりにする', v:'ok', primary:true, k:'Y' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
+    const T0 = totals(); const v = await askDialog('ぜんぶ本物どおりにする', 'いま <b>税込 ' + window.seikyuExt.gTxt(T0.gross, T0.net) + '</b>（システムとの差 ' + (!window.seikyuExt.diffZero(T0) ? window.seikyuExt.diffTxt(T0) : 'ぴったり') + '）<br>前月の手直し・前月に手で足した行・前月と同じ見出しは外し、ETC888 などの「出さない」品はぜんぶ出して、システム（本物）と同じにします。<br><small>今月自分で直した行・足した行はそのまま（↶ でもどせる）</small>', [{ t:'本物どおりにする', v:'ok', primary:true, k:'Y' }, { t:'やめる', v:null, ghost:true, k:'N' }]);
     if(v !== 'ok') return; const n = X.carryApply(true); save(); try{ drawSites(); }catch(e){}
-    const T = totals(); toast('本物どおりにした（' + n + ' 件）。システムとの差 ' + (T.diff ? yti(T.diff, true) : 'ぴったり ✓'), 6000); }
+    const T = totals(); toast('本物どおりにした（' + n + ' 件）。システムとの差 ' + (!window.seikyuExt.diffZero(T) ? window.seikyuExt.diffTxt(T) : 'ぴったり ✓'), 6000); }
 }, true);
 
 
@@ -16017,7 +16039,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-08 12:57';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-09 12:21';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
