@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-11 00:53-->
+<!--BUILD:2026-11-11 12:06-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3014,7 +3014,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-11 00:53';
+const BUILD = '2026-11-11 12:06';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -16041,7 +16041,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-11 00:53';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-11 12:06';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -19820,4 +19820,232 @@ X.siteMorph = function(B, h, id){
 
 </script>
 
+<script id="wq-motion">
+window.WQ_MOTION = { sheets: false, swipe: false };
+/* ===== wqmotion：全アプリ共通の「Apple風の動き」（2026-11-11） =====
+   単価をしらべるで作った動きを、web見積・請求ナビ・車両・滅失・レンタル・お中元で同じに使う部品。
+   ・押すと沈む（バネ）　・選んだつまみ・タブがぽんと弾む　・シート（全画面の窓）を開くと中のまとまりが ぼかしから順に出る
+   ・候補の一覧・知らせは バネでふわっと出る　・スマホのシートは上を下に引っぱって閉じる（バネでもどる）
+   ・日付の欄（年/月/日の欄）は数字で打てる欄＋カレンダーに（datefix をここにまとめた）
+   紙（見積書・請求書・申請書・報告書）と印刷にはさわらない。
+   使い方：アプリの最後で読むだけ。window.WQ_MOTION = { sheets:false } のように一部を止められる */
+(function(){
+  if(window.__wqMotion) return; window.__wqMotion = true;
+  var OPT = window.WQ_MOTION || {};
+  var RM = false; try{ RM = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  var SPRING = 'cubic-bezier(.34,1.36,.5,1)', EASE = 'cubic-bezier(.22,1.12,.36,1)';
+  var PAPER = '.pp, #paper, .paper, .xp, #print, #pv, #spvBody, .srp-page, [data-nomotion]';
+  function anim(el, kf, o){ if(RM || !el || !el.animate) return null; try{ return el.animate(kf, o); }catch(e){ return null; } }
+  function inPaper(el){ try{ return !!(el.closest && el.closest(PAPER)); }catch(e){ return false; } }
+  function shown(el){ if(!el || el.hidden) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }
+  function buzz(){ try{ if(navigator.vibrate) navigator.vibrate(6); }catch(e){} }
+
+  /* ---- 1. 押すと沈む（transform ではなく scale を使う＝もとの位置合わせを壊さない） ---- */
+  var css = document.createElement('style'); css.id = 'wq-motion-css';
+  css.textContent =
+    ':where(button,.btn,[role=button],.chip,.seg>*,.tab):not(:disabled){transition-property:scale,background-color,color,box-shadow,border-color,opacity;transition-duration:.38s,.2s,.2s,.2s,.2s,.2s;transition-timing-function:' + SPRING + ',ease,ease,ease,ease,ease}' +
+    ':where(button,.btn,[role=button],.chip,.seg>*,.tab):not(:disabled):active{scale:.95}' +
+    ':where(.pp,#paper,.paper,.xp,#print,#pv) :where(button,.btn){transition:none;scale:none}' +
+    '.withcal.wq-dw{display:flex;align-items:center}.withcal.wq-dw>input.wq-dt{flex:1 1 auto!important;min-width:0!important;padding-right:40px!important}' +
+    '.sheetwrap .sheethead.wq-grab{position:relative;touch-action:none}' +
+    '@media (pointer:coarse){.sheetwrap .sheethead.wq-grab::before{content:"";position:absolute;top:5px;left:50%;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:rgba(128,128,128,.5);pointer-events:none}}' +
+    '.sheetwrap.wq-drag{transition:none!important}' +
+    '.cussug:not([hidden]){border-radius:14px;overflow:hidden auto;box-shadow:0 18px 50px rgba(0,0,0,.25)}' +
+    '@media (prefers-reduced-motion:reduce){:where(button,.btn,[role=button],.chip,.seg>*,.tab){transition:none!important;scale:none!important}}';
+  (document.head || document.documentElement).appendChild(css);
+
+  /* ---- 2. 選んだつまみ・タブ・チップがぽんと弾む ---- */
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest && ev.target.closest('button, [role=tab], .chip, .seg > *, .tab');
+    if(!b || inPaper(b)) return;
+    requestAnimationFrame(function(){
+      var on = b.classList.contains('on') || b.classList.contains('active') || b.classList.contains('sel') || b.classList.contains('cur') ||
+               b.getAttribute('aria-selected') === 'true' || b.getAttribute('aria-pressed') === 'true';
+      if(!on) return;
+      var sib = b.parentNode && b.parentNode.children.length > 1;
+      if(!sib) return;
+      anim(b, [{ scale: '.9' }, { scale: '1.05', offset: .45 }, { scale: '1' }], { duration: 480, easing: 'ease-out' });
+      buzz();
+    });
+  }, true);
+
+  /* ---- 3. 出てきたもの：シート（中のまとまりを ぼかしから順に）・候補の一覧・知らせ ---- */
+  var POPRE = /sug|cand|kouho|dropdown|popover|listbox/i;
+  function staggerIn(root){
+    if(OPT.sheets === false) return;
+    var body = root.querySelector('.sheetbody, .sheet-body, [class*="-body"]') || root;
+    var pick = [], seen = 0;
+    var walk = function(box, depth){
+      for(var i = 0; i < box.children.length && pick.length < 16; i++){
+        var c = box.children[i];
+        if(c.classList.contains('sheethead') || c.tagName === 'SCRIPT' || c.tagName === 'STYLE' || inPaper(c) || c.matches(PAPER)) continue;
+        if(!shown(c)) continue;
+        var r = c.getBoundingClientRect();
+        if(r.top > innerHeight + 40) return;
+        if(depth < 2 && c.children.length > 1 && r.height > innerHeight * .7) walk(c, depth + 1);
+        else pick.push(c);
+      }
+    };
+    walk(body, 0);
+    pick.forEach(function(el, i){
+      anim(el, [{ opacity: 0, transform: 'translateY(18px) scale(.975)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
+        { duration: 620, delay: 60 + i * 34, easing: EASE, fill: 'backwards' });
+    });
+  }
+  function popIn(el){
+    anim(el, [{ opacity: 0, transform: 'scale(.9) translateY(-6px)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: 420, easing: SPRING });
+  }
+  function toastIn(el){
+    anim(el, [{ opacity: 0, transform: 'translateY(14px) scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 460, easing: SPRING });
+  }
+  try{
+    new MutationObserver(function(ms){
+      for(var i = 0; i < ms.length; i++){
+        var el = ms[i].target; if(el.nodeType !== 1 || el.hidden || inPaper(el)) continue;
+        if(el.classList.contains('sheetwrap')){ grab(el); (function(x){ requestAnimationFrame(function(){ staggerIn(x); }); })(el); continue; }
+        if(el.id === 'toast' || /(^|\s)(toast|hud)(\s|$)/i.test(el.className)){ toastIn(el); continue; }
+        var nm = (el.id || '') + ' ' + (typeof el.className === 'string' ? el.className : '');
+        if(POPRE.test(nm) && el.children.length) popIn(el);
+      }
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['hidden'], subtree: true });
+  }catch(e){}
+
+  /* ---- 4. スマホのシート：上のつまみを下に引っぱって閉じる ---- */
+  var CLOSE_RE = /^(閉じる|とじる|完了|もどる|戻る|×|✕|キャンセル)$/;
+  function closer(sw){
+    var h = sw.querySelector('.sheethead'); if(!h) return null;
+    var bs = h.querySelectorAll('button');
+    for(var i = 0; i < bs.length; i++){ var t = String(bs[i].textContent || '').replace(/\s/g, ''); if(/close/i.test(bs[i].id || '') || CLOSE_RE.test(t)) return bs[i]; }
+    return null;
+  }
+  function grab(sw){
+    if(OPT.swipe === false) return;
+    var h = sw.querySelector('.sheethead'); if(!h || h.__wqg || !closer(sw)) return;
+    h.__wqg = true; h.classList.add('wq-grab');
+  }
+  (function(){
+    var y0 = 0, dy = 0, on = false, sw = null, t0 = 0;
+    document.addEventListener('pointerdown', function(e){
+      if(e.pointerType === 'mouse') return;
+      var h = e.target.closest && e.target.closest('.sheetwrap .sheethead.wq-grab'); if(!h || e.target.closest('button, input, select, textarea, a')) return;
+      sw = h.closest('.sheetwrap'); if(!sw || sw.hidden) return;
+      on = true; y0 = e.clientY; dy = 0; t0 = Date.now(); sw.classList.add('wq-drag');
+    }, true);
+    document.addEventListener('pointermove', function(e){
+      if(!on || !sw) return;
+      dy = Math.max(0, e.clientY - y0);
+      sw.style.transform = 'translateY(' + dy + 'px)';
+      sw.style.opacity = String(Math.max(.55, 1 - dy / 900));
+    }, true);
+    var end = function(){
+      if(!on || !sw) return; on = false; var s = sw; s.classList.remove('wq-drag');
+      var v = dy / Math.max(1, Date.now() - t0);
+      if(dy > 140 || (dy > 50 && v > .6)){
+        var a = anim(s, [{ transform: 'translateY(' + dy + 'px)', opacity: s.style.opacity || 1 }, { transform: 'translateY(100%)', opacity: .4 }], { duration: 260, easing: 'cubic-bezier(.3,.7,.4,1)' });
+        var done = function(){ s.style.transform = ''; s.style.opacity = ''; var c = closer(s); if(c) c.click(); };
+        if(a) a.onfinish = done; else done();
+      }else{
+        anim(s, [{ transform: 'translateY(' + dy + 'px)' }, { transform: 'translateY(-6px)', offset: .6 }, { transform: 'none' }], { duration: 420, easing: 'ease-out' });
+        s.style.transform = ''; s.style.opacity = '';
+      }
+    };
+    document.addEventListener('pointerup', end, true);
+    document.addEventListener('pointercancel', end, true);
+  })();
+  try{ Array.prototype.forEach.call(document.querySelectorAll('.sheetwrap'), grab); }catch(e){}
+
+  /* ---- 5. 日付の欄：年/月/日の欄（type=date）は使わない → 数字で打てる欄＋横のカレンダー ---- */
+  if(OPT.date !== false) (function(){
+    var SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+    var desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    function pad(n){ return (n < 10 ? '0' : '') + n; }
+    function yomi(v){
+      try{ if(window.WQ && typeof window.WQ.日付よみ === 'function'){ var r = window.WQ.日付よみ(v); if(/^\d{4}-\d{2}-\d{2}$/.test(r || '')) return r; } }catch(e){}
+      var t = String(v || '').normalize('NFKC').trim().replace(/[年月]/g, '/').replace(/日/g, '').replace(/[.\-]/g, '/').replace(/\s+/g, '').replace(/\/+$/, '');
+      if(!t) return '';
+      var now = new Date(), y, m, d, a = t.split('/').filter(function(x){ return x !== ''; });
+      if(a.length === 3){ y = +a[0]; m = +a[1]; d = +a[2]; }
+      else if(a.length === 2){ y = now.getFullYear(); m = +a[0]; d = +a[1]; }
+      else if(/^\d{8}$/.test(t)){ y = +t.slice(0, 4); m = +t.slice(4, 6); d = +t.slice(6, 8); }
+      else if(/^\d{6}$/.test(t)){ y = +t.slice(0, 2); m = +t.slice(2, 4); d = +t.slice(4, 6); }
+      else if(/^\d{3,4}$/.test(t)){ y = now.getFullYear(); m = +t.slice(0, t.length - 2); d = +t.slice(-2); }
+      else return '';
+      if(y < 100) y += 2000;
+      var dt = new Date(y, m - 1, d);
+      if(!(m >= 1 && m <= 12) || dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return '';
+      return y + '-' + pad(m) + '-' + pad(d);
+    }
+    function show(iso){ return iso ? String(iso).replace(/-/g, '/') : ''; }
+    function skip(el){
+      if(el.__wqdf || el.tabIndex === -1 || el.getAttribute('tabindex') === '-1') return true;
+      return !!el.closest('.calbtn, .dwrap, .withcal, .xqt-dw, [data-nodatefix]') || inPaper(el);
+    }
+    function fix(el){
+      if(skip(el)) return;
+      el.__wqdf = true;
+      var cs = getComputedStyle(el), ow = el.offsetWidth;
+      var w = document.createElement('span'); w.className = 'withcal wq-dw';
+      if(cs.display !== 'block' && cs.display !== 'flex'){ w.style.display = 'inline-flex'; w.style.verticalAlign = 'middle'; if(ow > 0) w.style.width = Math.max(ow, 128) + 'px'; }
+      if(cs.flexGrow && cs.flexGrow !== '0') w.style.flex = cs.flex;
+      var t = document.createElement('input'); t.type = 'text'; t.className = (el.className || '') + ' wq-dt';
+      t.inputMode = 'numeric'; t.autocomplete = 'off'; t.placeholder = el.placeholder || '1130 や 11/30';
+      t.style.width = '100%'; t.style.boxSizing = 'border-box';
+      if(el.disabled) t.disabled = true; if(el.readOnly) t.readOnly = true;
+      var lab = el.getAttribute('aria-label'); if(lab) t.setAttribute('aria-label', lab);
+      t.value = show(desc.get.call(el));
+      var b = document.createElement('span'); b.className = 'calbtn'; b.innerHTML = SVG;
+      el.parentNode.insertBefore(w, el);
+      w.appendChild(t); w.appendChild(b); b.appendChild(el);
+      el.tabIndex = -1;
+      try{ Object.defineProperty(el, 'value', { configurable: true,
+        get: function(){ return desc.get.call(this); },
+        set: function(v){ desc.set.call(this, v); if(document.activeElement !== t) t.value = show(desc.get.call(this)); } }); }catch(e){}
+      function put(iso){
+        if(desc.get.call(el) === iso) return;
+        desc.set.call(el, iso);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      t.addEventListener('input', function(ev){ ev.stopPropagation(); var iso = yomi(t.value); t.classList.remove('bad'); if(iso) put(iso); else if(!t.value.trim()) put(''); }, true);
+      t.addEventListener('change', function(ev){ ev.stopPropagation(); }, true);
+      t.addEventListener('blur', function(){
+        var iso = yomi(t.value);
+        if(iso){ t.value = show(iso); put(iso); t.classList.remove('bad'); t.title = ''; return; }
+        if(!t.value.trim()){ t.value = ''; put(''); t.classList.remove('bad'); return; }
+        t.classList.add('bad'); t.title = '日付として読めない。1130 や 11/30 のように入れて';
+      });
+      t.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); t.blur(); } });
+      el.addEventListener('change', function(){ t.value = show(desc.get.call(el)); t.classList.remove('bad'); });
+      el.addEventListener('input', function(){ if(document.activeElement !== t) t.value = show(desc.get.call(el)); });
+    }
+    function scan(){ var a = document.querySelectorAll('input[type=date]'); for(var i = 0; i < a.length; i++) try{ fix(a[i]); }catch(e){} }
+    var T = 0;
+    function later(){ if(T) return; T = setTimeout(function(){ T = 0; scan(); }, 30); }
+    try{ new MutationObserver(function(ms){ for(var i = 0; i < ms.length; i++){ if(ms[i].addedNodes && ms[i].addedNodes.length){ later(); return; } } }).observe(document.documentElement, { childList: true, subtree: true }); }catch(e){}
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan); else scan();
+  })();
+
+  /* ---- 6. 得意先の候補（data-nm のボタンの一覧）：左に色つきの丸い頭文字 ---- */
+  if(OPT.avatar !== false) (function(){
+    var COL = ['#0A84FF', '#30B0C7', '#34C759', '#FF9F0A', '#FF375F', '#AF52DE', '#5E5CE6', '#FF6B3D', '#64D2FF', '#A2845E'];
+    var st = document.createElement('style');
+    st.textContent = '.cusit.wq-avb .cn{flex:1 1 auto;min-width:0}.wq-avb{display:flex!important;align-items:center;gap:10px}.wq-av{flex:0 0 28px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700;box-shadow:inset 0 -5px 10px rgba(0,0,0,.12)}';
+    (document.head || document.documentElement).appendChild(st);
+    function head(nm){ var t = ['株式会社', '有限会社', '合同会社', '㈱', '㈲', '㈾', '(株)', '(有)'].reduce(function(a, x){ return a.split(x).join(''); }, String(nm || '').normalize('NFKC')).trim(); return (t[0] || '・').toUpperCase(); }
+    function hue(nm){ var h = 0; for(var i = 0; i < nm.length; i++) h = (h * 31 + nm.charCodeAt(i)) >>> 0; return COL[h % COL.length]; }
+    function deco(box){
+      var bs = box.querySelectorAll('button[data-nm]:not(.wq-avb), .cusit:not(.wq-avb)');
+      for(var i = 0; i < bs.length; i++){
+        var b = bs[i]; if(b.querySelector('.wq-av, .sx-av')) continue;
+        var nm = b.dataset.nm || ((b.querySelector('.cn') || b).textContent || '');
+        b.classList.add('wq-avb');
+        var av = document.createElement('span'); av.className = 'wq-av'; av.textContent = head(nm); av.style.background = hue(nm);
+        b.insertBefore(av, b.firstChild);
+      }
+    }
+    var SEL = (OPT.avatarSel || '#cusSug, .cussug, .csug');
+    try{ new MutationObserver(function(ms){ for(var i = 0; i < ms.length; i++){ var t = ms[i].target; if(t.nodeType === 1 && t.matches && t.matches(SEL)) deco(t); } }).observe(document.documentElement, { childList: true, subtree: true }); }catch(e){}
+  })();
+})();
+</script>
 </body></html>
