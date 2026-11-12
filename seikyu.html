@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-11 12:06-->
+<!--BUILD:2026-11-11 23:55-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3014,7 +3014,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-11 12:06';
+const BUILD = '2026-11-11 23:55';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -16041,7 +16041,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-11 12:06';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-11 23:55';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -19847,6 +19847,10 @@ window.WQ_MOTION = { sheets: false, swipe: false };
     ':where(button,.btn,[role=button],.chip,.seg>*,.tab):not(:disabled):active{scale:.95}' +
     ':where(.pp,#paper,.paper,.xp,#print,#pv) :where(button,.btn){transition:none;scale:none}' +
     '.withcal.wq-dw{display:flex;align-items:center}.withcal.wq-dw>input.wq-dt{flex:1 1 auto!important;min-width:0!important;padding-right:40px!important}' +
+    /* 2026-11-11 カレンダーボタンの形を自分で持つ（レンタル・お中元には .calbtn の形が無く、もとの日付の欄が大きく出ていた） */
+    '.withcal.wq-dw{position:relative}.wq-dw>.calbtn{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:var(--surface,rgba(128,128,128,.12));border:1px solid var(--line,rgba(128,128,128,.3));cursor:pointer;overflow:hidden}' +
+    '.wq-dw>.calbtn svg{width:16px;height:16px;stroke:currentColor;opacity:.75;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}' +
+    '.wq-dw>.calbtn input[type=date]{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;opacity:0!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;cursor:pointer}' +
     '.sheetwrap .sheethead.wq-grab{position:relative;touch-action:none}' +
     '@media (pointer:coarse){.sheetwrap .sheethead.wq-grab::before{content:"";position:absolute;top:5px;left:50%;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:rgba(128,128,128,.5);pointer-events:none}}' +
     '.sheetwrap.wq-drag{transition:none!important}' +
@@ -19888,12 +19892,12 @@ window.WQ_MOTION = { sheets: false, swipe: false };
     };
     walk(body, 0);
     pick.forEach(function(el, i){
-      anim(el, [{ opacity: 0, transform: 'translateY(18px) scale(.975)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
+      anim(el, [{ opacity: 0, transform: 'translateY(18px) scale(.975)' }, { opacity: 1, transform: 'none' }],
         { duration: 620, delay: 60 + i * 34, easing: EASE, fill: 'backwards' });
     });
   }
   function popIn(el){
-    anim(el, [{ opacity: 0, transform: 'scale(.9) translateY(-6px)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: 420, easing: SPRING });
+    anim(el, [{ opacity: 0, transform: 'scale(.9) translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: SPRING });
   }
   function toastIn(el){
     anim(el, [{ opacity: 0, transform: 'translateY(14px) scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 460, easing: SPRING });
@@ -19923,34 +19927,79 @@ window.WQ_MOTION = { sheets: false, swipe: false };
     var h = sw.querySelector('.sheethead'); if(!h || h.__wqg || !closer(sw)) return;
     h.__wqg = true; h.classList.add('wq-grab');
   }
-  (function(){
-    var y0 = 0, dy = 0, on = false, sw = null, t0 = 0;
-    document.addEventListener('pointerdown', function(e){
-      if(e.pointerType === 'mouse') return;
-      var h = e.target.closest && e.target.closest('.sheetwrap .sheethead.wq-grab'); if(!h || e.target.closest('button, input, select, textarea, a')) return;
-      sw = h.closest('.sheetwrap'); if(!sw || sw.hidden) return;
-      on = true; y0 = e.clientY; dy = 0; t0 = Date.now(); sw.classList.add('wq-drag');
-    }, true);
-    document.addEventListener('pointermove', function(e){
-      if(!on || !sw) return;
-      dy = Math.max(0, e.clientY - y0);
-      sw.style.transform = 'translateY(' + dy + 'px)';
-      sw.style.opacity = String(Math.max(.55, 1 - dy / 900));
-    }, true);
-    var end = function(){
-      if(!on || !sw) return; on = false; var s = sw; s.classList.remove('wq-drag');
-      var v = dy / Math.max(1, Date.now() - t0);
-      if(dy > 140 || (dy > 50 && v > .6)){
-        var a = anim(s, [{ transform: 'translateY(' + dy + 'px)', opacity: s.style.opacity || 1 }, { transform: 'translateY(100%)', opacity: .4 }], { duration: 260, easing: 'cubic-bezier(.3,.7,.4,1)' });
-        var done = function(){ s.style.transform = ''; s.style.opacity = ''; var c = closer(s); if(c) c.click(); };
-        if(a) a.onfinish = done; else done();
-      }else{
-        anim(s, [{ transform: 'translateY(' + dy + 'px)' }, { transform: 'translateY(-6px)', offset: .6 }, { transform: 'none' }], { duration: 420, easing: 'ease-out' });
-        s.style.transform = ''; s.style.opacity = '';
+  /* 2026-11-11 スマホならではの動き：シートを指で払って閉じる（iPhone と同じ）
+     ・上の帯をつかんで下へ ／ 中身がいちばん上のときは中身から下へ引いても閉じる
+     ・画面の左はしから右へ払うと閉じる（もどる）
+     ・指についてくる。しきいを越えると軽くぶるっ（Android）。離す速さでも決まる。足りなければバネでもどる
+     window.wqSheetDrag(シート, 'y'|'x') … 中の窓（単価をしらべる）からも同じ動きを使えるように */
+  function sheetDrag(s, ax){
+    ax = ax || 'y';
+    var d = 0, passed = false, last = [], W = ax === 'y' ? (s.getBoundingClientRect().height || innerHeight) : (s.getBoundingClientRect().width || innerWidth);
+    var TH = Math.min(160, W * .28);
+    s.classList.add('wq-drag'); s.style.willChange = 'transform';
+    function put(v){ s.style.transform = ax === 'y' ? 'translate3d(0,' + v + 'px,0)' : 'translate3d(' + v + 'px,0,0)'; }
+    return {
+      move: function(raw){
+        d = raw > 0 ? raw : raw / 6;                 /* 逆向きは ゴムのように少しだけ */
+        put(d);
+        var k = Math.max(0, Math.min(1, d / W)); s.style.opacity = String(1 - k * .35);
+        if(!passed && d > TH){ passed = true; buzz(); } else if(passed && d < TH * .8) passed = false;
+        last.push([d, performance.now()]); if(last.length > 5) last.shift();
+      },
+      end: function(){
+        s.classList.remove('wq-drag');
+        var v = 0; if(last.length > 1){ var A = last[0], B = last[last.length - 1]; v = (B[0] - A[0]) / Math.max(1, B[1] - A[1]); }
+        if(d > TH || (d > 40 && v > .55)){
+          var to = ax === 'y' ? 'translate3d(0,' + W + 'px,0)' : 'translate3d(' + W + 'px,0,0)';
+          var dur = Math.max(160, Math.min(320, (W - d) / Math.max(.8, v)));
+          var an = anim(s, [{ transform: s.style.transform, opacity: s.style.opacity || 1 }, { transform: to, opacity: .5 }], { duration: dur, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
+          var done = function(){
+            s.style.visibility = 'hidden';
+            try{ var c = closer(s); if(c) c.click(); else if(s.__wqClose) s.__wqClose(); }catch(e){}
+            setTimeout(function(){ try{ if(an) an.cancel(); }catch(e){} s.style.transform = ''; s.style.opacity = ''; s.style.visibility = ''; s.style.willChange = ''; }, 480);
+          };
+          if(an) an.onfinish = done; else done();
+          return true;
+        }
+        var from = s.style.transform;
+        s.style.transform = ''; s.style.opacity = ''; s.style.willChange = '';
+        anim(s, [{ transform: from }, { transform: 'none' }], { duration: 520, easing: 'cubic-bezier(.34,1.56,.5,1)' });
+        return false;
       }
     };
-    document.addEventListener('pointerup', end, true);
-    document.addEventListener('pointercancel', end, true);
+  }
+  try{ window.wqSheetDrag = sheetDrag; }catch(e){}
+  (function(){
+    if(OPT.swipe === false) return;
+    var st = null;
+    var NO = 'input, textarea, select, canvas, video, [contenteditable], .pp, #paper, .leaflet-container, .map, [data-nogesture], .hsc, .sx-nog';
+    function openSheet(t){
+      var sw = t.closest && t.closest('.sheetwrap'); if(!sw || sw.hidden || !closer(sw)) return null;
+      var cs = getComputedStyle(sw); if(cs.display === 'none' || cs.visibility === 'hidden') return null;
+      return sw;
+    }
+    function atTop(el, sw){ for(var x = el; x && x !== document.documentElement; x = x.parentElement){ if(x.scrollTop > 0 && x.scrollHeight > x.clientHeight + 2) return false; if(x === sw) break; } return true; }
+    document.addEventListener('touchstart', function(e){
+      st = null; if(e.touches.length !== 1) return;
+      var t = e.target; if(t.closest && t.closest(NO)) return;
+      var sw = openSheet(t); if(!sw) return;
+      var p = e.touches[0];
+      st = { sw: sw, x: p.clientX, y: p.clientY, head: !!t.closest('.sheethead'), edge: p.clientX < 24, top: atTop(t, sw), c: null };
+    }, { passive: true, capture: true });
+    document.addEventListener('touchmove', function(e){
+      if(!st) return; var p = e.touches[0], dx = p.clientX - st.x, dy = p.clientY - st.y;
+      if(!st.c){
+        if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if(st.edge && dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.3){ st.ax = 'x'; st.c = sheetDrag(st.sw, 'x'); }
+        else if(dy > 0 && Math.abs(dy) > Math.abs(dx) * 1.2 && (st.head || st.top)){ st.ax = 'y'; st.c = sheetDrag(st.sw, 'y'); st.y = p.clientY; dy = 0; }
+        else { st = null; return; }
+      }
+      if(e.cancelable) e.preventDefault();
+      st.c.move(st.ax === 'x' ? dx : dy);
+    }, { passive: false, capture: true });
+    var end = function(){ if(st && st.c) st.c.end(); st = null; };
+    document.addEventListener('touchend', end, true);
+    document.addEventListener('touchcancel', end, true);
   })();
   try{ Array.prototype.forEach.call(document.querySelectorAll('.sheetwrap'), grab); }catch(e){}
 
@@ -20046,6 +20095,147 @@ window.WQ_MOTION = { sheets: false, swipe: false };
     var SEL = (OPT.avatarSel || '#cusSug, .cussug, .csug');
     try{ new MutationObserver(function(ms){ for(var i = 0; i < ms.length; i++){ var t = ms[i].target; if(t.nodeType === 1 && t.matches && t.matches(SEL)) deco(t); } }).observe(document.documentElement, { childList: true, subtree: true }); }catch(e){}
   })();
+})();
+</script>
+<script id="wq-lux">
+/* ===== 2026-11-11 wqlux：全アプリ共通「上品・ダイナミック・軽く」（黒×金のときの見た目と動き）
+   単価をしらべる（sx）と同じきまり：
+   ・ずっと動くものは transform／opacity だけ。ぼかし（filter・backdrop-filter）は黒×金では使わない
+   ・背景の光と粒子は 1枚の固定の層（スクロールで描き直さない）
+   ・紙（.pp）と印刷には何もしない ===== */
+(function(){
+  if(window.__wqLux) return; window.__wqLux = true;
+  var R = document.documentElement;
+  var RM = false; try{ RM = matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  function anim(el, kf, o){ if(RM || !el || !el.animate) return null; try{ return el.animate(kf, o); }catch(e){ return null; } }
+  var SERIF = '"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif';
+  var SANS = 'system-ui,-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif';
+  var NOISE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .95  0 0 0 0 .86  0 0 0 0 .66  0 0 0 .06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
+  var G = 'html.wl-gold:not(#wl_a):not(#wl_b):not(#wl_c) ';
+  var CARD = '.card:not(.pp .card),.hm-hero,.hm-card,.hm-app';
+  function each(sel){ return sel.split(',').map(function(s){ return G + s; }).join(','); }
+  var css = [
+    /* 背景：深い黒＋ゆっくり漂う金の光＋紙の粒子（1枚の層） */
+    'html.wl-gold:not(#wl_a):not(#wl_b):not(#wl_c){background:#060605!important;--xa-mat:rgba(15,14,12,.97)}',
+    '.wl-amb{display:none}',
+    G + '.wl-amb{display:block;position:fixed;inset:-30%;z-index:-2;pointer-events:none;contain:strict;will-change:transform;' +
+      'background:' + NOISE + ',radial-gradient(28% 24% at 28% 20%,rgba(201,164,92,.14),transparent 70%),radial-gradient(24% 20% at 78% 30%,rgba(241,220,166,.06),transparent 70%),radial-gradient(36% 32% at 58% 80%,rgba(142,107,46,.09),transparent 70%),radial-gradient(90% 60% at 50% 22%,#1C1811 0%,#0B0B0A 55%,#060605 100%);' +
+      'background-size:160px 160px,auto,auto,auto,auto;animation:wlDrift 36s ease-in-out infinite alternate}',
+    '@keyframes wlDrift{0%{transform:translate3d(-2%,-1.5%,0) scale(1)}100%{transform:translate3d(2%,2%,0) scale(1.05)}}',
+    /* 全画面のシート（ホーム・控えなど）：同じ深い黒＋光＋粒子（止まった絵） */
+    G + '.sheetwrap{background:' + NOISE + ',radial-gradient(40% 30% at 22% 8%,rgba(201,164,92,.12),transparent 70%),radial-gradient(36% 30% at 85% 30%,rgba(241,220,166,.05),transparent 70%),radial-gradient(100% 70% at 50% 0%,#1B1710 0%,#0A0A09 55%,#060605 100%)!important;background-size:160px 160px,auto,auto,auto!important;background-color:#060605!important}',
+    /* 上の帯：すりガラスをやめて ほぼ不透明の黒（スクロールが軽くなる）＋下に息をする金の線 */
+    each('#wqnav,.topbar,.actionbar,#xRail,.sheethead,.hm-top') + '{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    each('#wqnav,.topbar,#xRail') + '{background:linear-gradient(180deg,rgba(17,16,13,.985),rgba(11,11,10,.975))!important}',
+    G + '.actionbar{background:rgba(13,12,10,.975)!important}',
+    '.wl-hl{display:none}',
+    G + '.wl-hl{display:block;position:absolute;left:8%;right:8%;bottom:-.5px;height:1px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(241,220,166,.7),transparent);animation:wlBreath 6s ease-in-out infinite;will-change:opacity}',
+    '@keyframes wlBreath{0%,100%{opacity:.22}50%{opacity:.85}}',
+    /* 題：明朝・金のグラデーション、開いたとき1回だけ光る */
+    G + '.topbar h1,' + G + '.hm-hi b{-webkit-text-fill-color:transparent!important;font-family:' + SERIF + '!important;font-weight:600!important;letter-spacing:.1em!important;background:linear-gradient(100deg,#F1DCA6 0%,#C9A45C 45%,#F1DCA6 70%,#8E6B2E 100%)!important;background-size:260% 100%!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;animation:wlShine 2.4s cubic-bezier(.45,0,.2,1) .35s 1 backwards}',
+    '@keyframes wlShine{from{background-position:100% 0}to{background-position:0 0}}',
+    G + '.topbar h1,' + G + '.hm-hi b{background-position:0 0}',
+    /* カード：金の細い縁（内側の光）＋深い影。止まった絵なので軽い */
+    each(CARD) + '{box-shadow:inset 0 0 0 .5px rgba(201,164,92,.22),inset 0 1px 0 rgba(241,220,166,.14),0 26px 50px -34px rgba(0,0,0,.95)!important}',
+    /* カードの地：あたたかい深い黒（灰色の板にしない） */
+    each(CARD) + '{background:linear-gradient(180deg,#1A1915 0%,#131210 100%)!important}',
+    /* 入力欄：うすい金の縁・地はほんのり明るい黒（背景の絵（カレンダーなど）は消さない） */
+    each('.card:not(.pp .card) input:not([type=checkbox]):not([type=radio]):not([type=range]),.card:not(.pp .card) select,.card:not(.pp .card) textarea') + '{background-color:rgba(255,248,230,.05)!important;border-color:rgba(201,164,92,.16)!important}',
+    each('.card:not(.pp .card) input:focus,.card:not(.pp .card) select:focus,.card:not(.pp .card) textarea:focus') + '{border-color:rgba(201,164,92,.6)!important;box-shadow:0 0 0 3px rgba(201,164,92,.16),0 8px 22px -12px rgba(201,164,92,.35)!important}',
+    /* カードの見出し：明朝・字間。説明の小さい字はふつうの字 */
+    G + '.card:not(.pp .card)>h2{font-family:' + SERIF + '!important;font-weight:500!important;letter-spacing:.16em!important;color:#DCC898!important}',
+    G + '.card:not(.pp .card)>h2 *{font-family:' + SANS + '!important;letter-spacing:.02em!important}',
+    /* 数字：桁がそろう形 */
+    each('.card:not(.pp .card) input,.card:not(.pp .card) td,.tot,.actionbar') + '{font-variant-numeric:tabular-nums lining-nums}',
+    /* PCのマウスの光（1つの丸を transform で動かすだけ） */
+    '.wl-glow{position:fixed;left:0;top:0;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;pointer-events:none;z-index:5;opacity:0;background:radial-gradient(circle,rgba(241,220,166,.06),rgba(241,220,166,0) 62%);transition:opacity .5s ease;will-change:transform,opacity}',
+    '.wl-glow.on{opacity:1}',
+    /* 押したところから広がる光 */
+    '.wl-riph{position:relative;overflow:hidden}',
+    '.wl-rip{position:absolute;border-radius:50%;pointer-events:none;width:12px;height:12px;margin:-6px 0 0 -6px;background:radial-gradient(circle,rgba(10,132,255,.28),rgba(10,132,255,0) 70%);will-change:transform,opacity}',
+    G + '.wl-rip{background:radial-gradient(circle,rgba(241,220,166,.42),rgba(201,164,92,0) 70%)}',
+    '@media print{.wl-amb,.wl-hl,.wl-glow,.wl-rip{display:none!important}' + CARD + '{opacity:1!important;transform:none!important}}',
+    '@media (prefers-reduced-motion:reduce){.wl-amb,.wl-hl,' + G + '.topbar h1{animation:none!important}}'
+  ].join('\n');
+  try{ var st = document.createElement('style'); st.id = 'wq-lux'; st.textContent = css; (document.head || R).appendChild(st); }catch(e){}
+
+  /* 黒×金かどうか（外観を切りかえても追いかける） */
+  function gold(){
+    var g = R.classList.contains('xa-gold') || R.classList.contains('xag') || R.classList.contains('sx-gold');
+    if(!g){ try{ g = getComputedStyle(R).getPropertyValue('--brand').trim().toUpperCase() === '#C9A45C' && !R.classList.contains('xa-light') && !R.classList.contains('xa-dark-blue'); }catch(e){} }
+    if(R.classList.contains('wl-gold') !== g) R.classList.toggle('wl-gold', g);
+  }
+  gold();
+  try{ new MutationObserver(function(){ gold(); }).observe(R, { attributes: true, attributeFilter: ['class'] }); }catch(e){}
+
+  function ready(fn){ if(document.body) fn(); else document.addEventListener('DOMContentLoaded', fn); }
+  ready(function(){
+    gold();
+    /* 背景の層 */
+    try{ var am = document.createElement('div'); am.className = 'wl-amb'; am.setAttribute('aria-hidden', 'true'); document.body.insertBefore(am, document.body.firstChild); }catch(e){}
+    /* 上の帯の金の線：いちばん上で止まる帯に1本 */
+    try{
+      var pick = null, cand = ['.topbar', 'body .top', '#wqnav'];
+      for(var i = 0; i < cand.length && !pick; i++){
+        var l = document.querySelectorAll(cand[i]);
+        for(var k = 0; k < l.length; k++){ var p0 = getComputedStyle(l[k]).position; if(p0 === 'sticky' || p0 === 'fixed'){ pick = l[k]; break; } }
+      }
+      if(pick){ var hl = document.createElement('span'); hl.className = 'wl-hl'; hl.setAttribute('aria-hidden', 'true'); pick.appendChild(hl); }
+    }catch(e){}
+
+    /* カードが下から順に入る（はじめに開いたときだけ。画面の外のカードは近づいたら） */
+    (function(){
+      if(RM) return;
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.card, .hm-hero, .hm-card, .hm-app')).filter(function(c){ return !c.closest('.pp') && c.offsetParent; });
+      var io = null; try{ io = new IntersectionObserver(function(es){
+        es.forEach(function(e){ if(!e.isIntersecting) return; io.unobserve(e.target); e.target.style.opacity = '';
+          anim(e.target, [{ opacity: 0, transform: 'translateY(26px) scale(.985)' }, { opacity: 1, transform: 'none' }], { duration: 640, easing: 'cubic-bezier(.22,1.12,.36,1)' }); });
+      }, { rootMargin: '0px 0px -30px 0px' }); }catch(e){}
+      var n = 0;
+      cards.forEach(function(c){
+        var r = c.getBoundingClientRect();
+        if(r.top < innerHeight){ if(n < 8) anim(c, [{ opacity: 0, transform: 'translateY(22px) scale(.985)' }, { opacity: 1, transform: 'none' }], { duration: 680, delay: 60 + n * 70, easing: 'cubic-bezier(.22,1.12,.36,1)', fill: 'backwards' }); n++; }
+        else if(io && n < 60){ c.style.opacity = '0'; io.observe(c); n++; }
+      });
+      /* 念のため：何かで見えないままにならないように */
+      setTimeout(function(){ cards.forEach(function(c){ if(c.style.opacity === '0'){ c.style.opacity = ''; try{ io && io.unobserve(c); }catch(e){} } }); }, 8000);
+    })();
+
+    /* PCのマウスの光：カードの上にいるときだけ ついてくる */
+    (function(){
+      var hv = false; try{ hv = matchMedia('(hover:hover) and (pointer:fine)').matches; }catch(e){}
+      if(!hv || RM) return;
+      var g = document.createElement('div'); g.className = 'wl-glow'; document.body.appendChild(g);
+      var ev0 = null, F = 0, on = false;
+      document.addEventListener('pointermove', function(ev){
+        ev0 = ev; if(F) return;
+        F = requestAnimationFrame(function(){
+          F = 0; var e = ev0;
+          var hit = R.classList.contains('wl-gold') && e.target && e.target.closest && !!e.target.closest('.card, .hm-hero, .hm-card, .hm-app') && !e.target.closest('.pp');
+          if(hit !== on){ on = hit; g.classList.toggle('on', hit); }
+          if(hit) g.style.transform = 'translate3d(' + e.clientX + 'px,' + e.clientY + 'px,0)';
+        });
+      }, { passive: true });
+      document.addEventListener('pointerleave', function(){ on = false; g.classList.remove('on'); });
+    })();
+  });
+
+  /* 押したところから光が広がる（ボタン・カードの中の選ぶもの） */
+  document.addEventListener('pointerdown', function(ev){
+    if(RM) return;
+    var b = ev.target.closest && ev.target.closest('button, .btn, [role=button], .chip, .seg > *, .actionbar a');
+    if(!b || b.closest('.pp') || b.disabled) return;
+    var r = b.getBoundingClientRect(); if(r.width < 24 || r.height < 18 || r.width > 900) return;
+    var cs = getComputedStyle(b); if(cs.display === 'inline' || cs.display === 'contents') return;
+    var d = Math.hypot(r.width, r.height) * 2 / 12;
+    if(cs.position === 'static' || !b.classList.contains('wl-riph')){ if(cs.position === 'static' || cs.position === 'relative') b.classList.add('wl-riph'); else return; }
+    var s = document.createElement('span'); s.className = 'wl-rip';
+    s.style.left = (ev.clientX - r.left) + 'px'; s.style.top = (ev.clientY - r.top) + 'px';
+    b.appendChild(s);
+    var a = anim(s, [{ transform: 'scale(0)', opacity: 1 }, { transform: 'scale(' + d + ')', opacity: 0 }], { duration: 700, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    if(a) a.onfinish = function(){ s.remove(); };
+    setTimeout(function(){ if(s.parentNode) s.remove(); }, 900);
+  }, { passive: true, capture: true });
 })();
 </script>
 </body></html>
