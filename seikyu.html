@@ -1,6 +1,26 @@
 <!doctype html>
-<!--BUILD:2026-11-13 06:42-->
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
+<!--BUILD:2026-11-13 07:52-->
+<html lang="ja"><head><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
+   ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
+     （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
+(function(){
+  if(window.__wqPerf) return; window.__wqPerf = 1;
+  var si = window.setInterval;
+  var ric = window.requestIdleCallback ? function(f, t){ return window.requestIdleCallback(f, { timeout: t }); } : function(f){ return setTimeout(f, 1); };
+  window.setInterval = function(fn, ms){
+    var args = Array.prototype.slice.call(arguments, 2);
+    if(typeof fn === 'function' && ms >= 500 && ms <= 5000){
+      var busy = false;
+      return si(function(){
+        if(busy || document.hidden) return;
+        busy = true;
+        ric(function(){ busy = false; try{ fn.apply(window, args); }catch(e){ setTimeout(function(){ throw e; }, 0); } }, Math.min(ms, 1000));
+      }, ms);
+    }
+    return si.apply(window, arguments);
+  };
+})();
+</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
 :root{--bg:#F4F6F6;--surface:#fff;--ink:#16272B;--ink2:#4A5D60;--ink3:#7A8B8E;--line:#DCE4E5;--brand:#14646E;--brand2:#0E4C54;--soft:#E9F2F3;--warn:#B7791F;--warnbg:#FFF6E5;--ng:#B3412E;--ngbg:#FBEDEA;--ok:#2F7D4F;--okbg:#E8F4EC;--hand:#7A3FB0;--handbg:#F3ECFA}
@@ -3014,7 +3034,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-13 06:42';
+const BUILD = '2026-11-13 07:52';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -16041,7 +16061,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-13 06:42';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-09 12:21';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -20449,6 +20469,8 @@ window.WQ_MOTION = { sheets: false, swipe: false };
     '.wl-rip{position:absolute;border-radius:50%;pointer-events:none;width:12px;height:12px;margin:-6px 0 0 -6px;background:radial-gradient(circle,rgba(10,132,255,.28),rgba(10,132,255,0) 70%);will-change:transform,opacity}',
     G + '.wl-rip{background:radial-gradient(circle,rgba(var(--fa-a1r,241,220,166),.42),rgba(var(--fa-a2r,201,164,92),0) 70%)}',
     '@media print{.wl-amb,.wl-hl,.wl-glow,.wl-rip{display:none!important}' + CARD + '{opacity:1!important;transform:none!important}}',
+    /* 2026-11-13 軽く：スマホでは背景の光と線は止めた絵にする（電池と なめらかさ優先） */
+    '@media (pointer:coarse){.wl-amb,.wl-hl{animation:none!important;will-change:auto!important}' + G + '.wl-hl{opacity:.55}}',
     '@media (prefers-reduced-motion:reduce){.wl-amb,.wl-hl,' + G + '.topbar h1{animation:none!important}}'
   ].join('\n');
   try{ var st = document.createElement('style'); st.id = 'wq-lux'; st.textContent = css; (document.head || R).appendChild(st); }catch(e){}
