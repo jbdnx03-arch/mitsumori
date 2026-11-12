@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-12 21:45-->
+<!--BUILD:2026-11-13 06:42-->
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="manifest" href="seikyu.webmanifest"><link rel="apple-touch-icon" href="seikyu-icon-180.png"><meta name="theme-color" content="#0E4C54"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="請求ナビ"><!--WQHEAD--><script>(function(){try{var A="seikyu",r=document.documentElement,L=localStorage,d;if(A==='mitsumori')d=L.getItem('wq.skin')==='yoru';else if(A==='seikyu')d=L.getItem('seikyuNaviWeb.theme')==='dark';else d=L.getItem('wq.lux.theme')!=='light';if(d){r.classList.add('lux','lux-dark');r.style.backgroundColor='#05090C';r.style.colorScheme='dark';}}catch(e){}})();</script><!--/WQHEAD--><title>請求ナビ Web（試作）</title></head><body>
 
 <style>
@@ -3014,7 +3014,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-12 21:45';
+const BUILD = '2026-11-13 06:42';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -16041,7 +16041,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-12 21:45';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-13 06:42';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -19820,6 +19820,292 @@ X.siteMorph = function(B, h, id){
 
 </script>
 
+<script id="wq-fa">
+/* ===== 2026-11-12 F.Aツール：色・デザイン・見え方を えらぶ（全アプリ共通。単価をしらべるの窓の中でも動く）
+   ・えらんだものは この端末に覚える（wq.fa.c ／ wq.fa.s ／ wq.fa.v）。同じ場所のアプリ（見積・請求ナビ・車両…）はぜんぶ同じになる
+   ・色（10）：暗い地 8 ＋ 明るい地 2。暗い／明るいが変わるときだけ、ひと呼吸おいて開き直す（ほかは その場で変わる）
+   ・デザイン（10）：角の丸み・見出しの字・縁・影・ボタンの形
+   ・見え方（10）：文字の大きさ・つまり具合・くっきり・動きの量・背景・夜
+   ・紙（.pp など）と印刷には さわらない
+   この部品は 単価をしらべるの窓（テンプレートの文字列）にも入るので、逆スラッシュ・バッククォートは使わない ===== */
+(function(){
+  if(window.FA && window.FA.v) return;
+  var R = document.documentElement;
+  function LS(k, v){ try{ if(v === undefined) return localStorage.getItem(k); if(v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){ return null; } }
+  var SERIF = '"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif';
+  var SANS = '-apple-system,BlinkMacSystemFont,"SF Pro JP","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif';
+  function rgb(h){ h = h.replace('#', ''); return parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16); }
+
+  /* ---------- 色 ---------- */
+  var C = [
+    { id: 'gold',      n: '黒×金',            d: 'いつもの高級感',       b: 'dark',  a1: '#F1DCA6', a2: '#C9A45C', a3: '#8E6B2E', at: '#E6CB8A', on: '#17120A', glow: '#1E1A12', bg1: '#0B0B0A', bg0: '#060605', c0: '#1A1915', c1: '#131210', tint: '255,248,230', ink: '#F3EEE3', ink2: '#9C9178' },
+    { id: 'platinum',  n: '黒×プラチナ',      d: '銀のように静か',       b: 'dark',  a1: '#F2F4F7', a2: '#B9BEC7', a3: '#6E747E', at: '#DDE1E7', on: '#111214', glow: '#1A1C21', bg1: '#0B0C0D', bg0: '#050506', c0: '#1A1B1E', c1: '#121315', tint: '235,240,250', ink: '#F2F3F5', ink2: '#9097A1' },
+    { id: 'rose',      n: '黒×ローズゴールド', d: 'やわらかい華やかさ',   b: 'dark',  a1: '#F6D5CB', a2: '#D9998C', a3: '#9A5B51', at: '#EDBFB3', on: '#1C0E0B', glow: '#22151A', bg1: '#0D0A0B', bg0: '#070505', c0: '#1D1617', c1: '#141011', tint: '255,236,232', ink: '#F7EEEC', ink2: '#A8958F' },
+    { id: 'champagne', n: '紺×シャンパン',    d: '夜のホテルのように',   b: 'dark',  a1: '#F3E7C9', a2: '#D3B781', a3: '#8E7647', at: '#E7D4A8', on: '#141007', glow: '#15213B', bg1: '#0A101C', bg0: '#050912', c0: '#141C2C', c1: '#0E1522', tint: '230,236,255', ink: '#EEF1F7', ink2: '#98A2B6' },
+    { id: 'bordeaux',  n: 'ボルドー×金',      d: 'ワインのような深み',   b: 'dark',  a1: '#F1D9A8', a2: '#C9A45C', a3: '#8E6B2E', at: '#E6CB8A', on: '#17120A', glow: '#3A1421', bg1: '#160A0E', bg0: '#0B0507', c0: '#241318', c1: '#1A0D11', tint: '255,236,240', ink: '#F6ECEE', ink2: '#B39AA0' },
+    { id: 'emerald',   n: 'エメラルド×金',    d: '落ち着いた緑',         b: 'dark',  a1: '#EFDFAE', a2: '#C8A65E', a3: '#8C6C2F', at: '#E4CF95', on: '#15110A', glow: '#0F2B23', bg1: '#07120F', bg0: '#040A08', c0: '#12211B', c1: '#0C1713', tint: '230,255,245', ink: '#EEF5F1', ink2: '#93A99F' },
+    { id: 'sapphire',  n: '黒×サファイア',    d: '澄んだ青',             b: 'dark',  a1: '#D2E2FF', a2: '#76A2FF', a3: '#3858B2', at: '#AFC9FF', on: '#06102A', glow: '#111D3B', bg1: '#080C18', bg0: '#04060D', c0: '#141B2E', c1: '#0E1424', tint: '230,238,255', ink: '#EEF2FB', ink2: '#97A1B8' },
+    { id: 'graphite',  n: 'グラファイト×青',  d: 'iPhone のダーク',      b: 'dark',  a1: '#9CCBFF', a2: '#0A84FF', a3: '#0060DF', at: '#64AEFF', on: '#FFFFFF', glow: '#1C1C1E', bg1: '#0B0B0C', bg0: '#000000', c0: '#1C1C1E', c1: '#161618', tint: '255,255,255', ink: '#F5F5F7', ink2: '#98989D' },
+    { id: 'ivory',     n: 'アイボリー×金',    d: '明るい高級感',         b: 'light', brand: '#A27A28', bg: '#F5F0E6', card: '#FFFDF8', ink: '#2A2418' },
+    { id: 'apple',     n: 'ホワイト×青',      d: 'iPhone のライト',      b: 'light', brand: '#0A84FF', bg: '#F2F2F7', card: '#FFFFFF', ink: '#1C1C1E' }
+  ];
+  /* ---------- デザイン ---------- */
+  var S = [
+    { id: 'luxe',    n: 'ラグジュアリー', d: '明朝・金の細い縁',    r: 18, rb: 13, head: 'serif', hls: '.16em', line: 1,   sh: 'deep' },
+    { id: 'apple',   n: 'Apple',          d: 'すっきり・やわらか',  r: 14, rb: 10, head: 'sans',  hls: '.01em', line: .6,  sh: 'soft' },
+    { id: 'modern',  n: 'モダン',         d: '大きな角丸・太字',    r: 24, rb: 999, head: 'sansb', hls: '.02em', line: .5,  sh: 'mid' },
+    { id: 'sharp',   n: 'シャープ',       d: '角を立てて きりっと', r: 6,  rb: 5,  head: 'sans',  hls: '.06em', line: 1.3, sh: 'none' },
+    { id: 'minimal', n: 'ミニマル',       d: '縁も影もなし',        r: 12, rb: 10, head: 'sans',  hls: '.03em', line: 0,   sh: 'none' },
+    { id: 'classic', n: 'クラシック',     d: '明朝・二重の線',      r: 10, rb: 8,  head: 'serif', hls: '.2em',  line: 2,   sh: 'soft' },
+    { id: 'glass',   n: 'ガラス',         d: 'すりガラス（少し重い）', r: 20, rb: 14, head: 'sans', hls: '.02em', line: .8, sh: 'soft', glass: 1 },
+    { id: 'float',   n: 'フローティング', d: 'カードが浮かぶ',      r: 20, rb: 14, head: 'sans',  hls: '.03em', line: .5,  sh: 'float' },
+    { id: 'outline', n: 'アウトライン',   d: '線だけで描く',        r: 14, rb: 10, head: 'sans',  hls: '.05em', line: 3,   sh: 'none', hollow: 1 },
+    { id: 'soft',    n: 'ソフト',         d: 'まるく やさしく',     r: 28, rb: 999, head: 'sans', hls: '.02em', line: .4,  sh: 'glow' }
+  ];
+  /* ---------- 見え方 ---------- */
+  var V = [
+    { id: 'std',     n: '標準',           d: 'いつもの見え方' },
+    { id: 'big',     n: '文字 大きめ',    d: '少し大きく', z: 1.08 },
+    { id: 'xl',      n: '文字 特大',      d: 'いちばん読みやすく', z: 1.18 },
+    { id: 'compact', n: 'コンパクト',     d: 'たくさん見える', z: .92 },
+    { id: 'airy',    n: 'ゆったり',       d: '行間ひろめ' },
+    { id: 'clear',   n: 'くっきり',       d: '文字と線をはっきり' },
+    { id: 'calm',    n: '動き控えめ',     d: '背景は止めて 操作の動きだけ' },
+    { id: 'still',   n: '動きなし',       d: 'いちばん軽い' },
+    { id: 'plain',   n: '背景シンプル',   d: '光と粒子なし（軽い）' },
+    { id: 'night',   n: '夜',             d: '暗めで まぶしくない' }
+  ];
+  function find(L, id){ for(var i = 0; i < L.length; i++) if(L[i].id === id) return L[i]; return L[0]; }
+  function cur(){ return { c: find(C, LS('wq.fa.c') || 'gold'), s: find(S, LS('wq.fa.s') || 'luxe'), v: find(V, LS('wq.fa.v') || 'std') }; }
+
+  /* ---------- 色などを ページに入れる ---------- */
+  var P = 'html.fa:not(#fa_a):not(#fa_b):not(#fa_c):not(#fa_d) ';
+  var CARD = ['.card:not(.pp .card)', '.hm-hero', '.hm-card', '.hm-app', '.lst', '.chips', '.hsc', '.oya', '.addbar', '#dv .dvg', '#o > table', '#o2 > table', '#o3 > table'];
+  var HEAD = ['.card:not(.pp .card) > h2', '.sec', '#dv .dvgt', '#dv .dvt', '.topbar h1', 'body > header h1', '.hm-hi b', '.dash-h2'];
+  var BTNP = ['.btn.primary', '#dv .dvin', '#dv .dvsave', '.mini.go', '#wqInst .go', '#faPick .go'];
+  var BTN = ['.btn:not(.primary)', '.mini:not(.go)', '.newopen button'];
+  var INP = ['.card:not(.pp .card) input:not([type=checkbox]):not([type=radio]):not([type=range])', '.card:not(.pp .card) select', '.card:not(.pp .card) textarea', '.f input', '#dv .dvshi input', '#dv .dvadd input', '.addbar input'];
+  var ZOOM = ['.wrap:not(:has(.pp, #paper, #pvpaper))', '.wq-home .hm-body', '#o', '#o2', '#o3', '#dv .dvb'];
+  function sel(list, pre){ return list.map(function(x){ return (pre || P) + x; }).join(','); }
+  function shadow(k){
+    if(k === 'none') return 'none';
+    if(k === 'soft') return '0 10px 30px -18px rgba(0,0,0,.55)';
+    if(k === 'mid') return '0 18px 40px -22px rgba(0,0,0,.75)';
+    if(k === 'float') return '0 34px 70px -28px rgba(0,0,0,.95),0 8px 20px -12px rgba(0,0,0,.6)';
+    if(k === 'glow') return '0 16px 44px -20px rgba(var(--fa-a2r,201,164,92),.35)';
+    return '0 26px 50px -34px rgba(0,0,0,.95)';
+  }
+  function css(){
+    var x = cur(), s = x.s, v = x.v, c = x.c, dark = c.b === 'dark', out = [];
+    var line = s.line;
+    var edge = line === 0 ? 'none' : line === 2 ? 'inset 0 0 0 .5px rgba(var(--fa-a2r),.35),inset 0 0 0 3.5px rgba(0,0,0,0),inset 0 0 0 4px rgba(var(--fa-a2r),.18)' :
+      line === 3 ? 'inset 0 0 0 1px rgba(var(--fa-a2r),.55)' : 'inset 0 0 0 ' + (line >= 1.3 ? '1px' : '.5px') + ' rgba(var(--fa-a2r),' + (0.12 + 0.12 * Math.min(line, 1.3)).toFixed(2) + '),inset 0 1px 0 rgba(var(--fa-a1r),' + (0.06 + 0.06 * Math.min(line, 1)).toFixed(2) + ')';
+    if(!dark) edge = line === 0 ? 'none' : line === 3 ? 'inset 0 0 0 1px ' + c.brand : 'inset 0 0 0 .5px rgba(0,0,0,' + (0.06 + 0.05 * Math.min(line, 2)).toFixed(2) + ')';
+    out.push(sel(CARD) + '{border-radius:' + s.r + 'px!important;box-shadow:' + edge + (shadow(s.sh) === 'none' ? '' : ',' + shadow(s.sh)) + '!important' + (s.line !== 1 ? ';border-color:transparent!important' : '') + '}');
+    if(s.hollow) out.push(sel(CARD) + '{background:transparent!important}');
+    if(s.glass) out.push(sel(CARD) + '{background:' + (dark ? 'rgba(var(--fa-tintr),.06)' : 'rgba(255,255,255,.62)') + '!important;-webkit-backdrop-filter:saturate(160%) blur(18px);backdrop-filter:saturate(160%) blur(18px)}');
+    if(s.sh === 'float') out.push(sel(CARD) + '{transform:translateY(-1px)}');
+    var hf = s.head === 'serif' ? SERIF : SANS;
+    out.push(sel(HEAD) + '{font-family:' + hf + '!important;letter-spacing:' + s.hls + '!important;font-weight:' + (s.head === 'sansb' ? 800 : s.head === 'serif' ? 600 : 700) + '!important}');
+    out.push(sel(['.sec .secsub', '.card:not(.pp .card) > h2 *', '#dv .dvgt span']) + '{font-family:' + SANS + '!important;letter-spacing:.02em!important;font-weight:500!important}');
+    out.push(sel(BTNP) + '{border-radius:' + s.rb + 'px!important}');
+    out.push(sel(BTN) + '{border-radius:' + s.rb + 'px!important}');
+    out.push(sel(INP) + '{border-radius:' + Math.min(s.r, Math.max(6, s.rb === 999 ? 16 : s.rb)) + 'px!important}');
+    if(s.id === 'outline') out.push(sel(BTNP) + '{background:transparent!important;color:var(--brand)!important;box-shadow:inset 0 0 0 1px var(--brand)!important}');
+    /* 見え方 */
+    if(v.z) out.push(sel(ZOOM) + '{zoom:' + v.z + '}');
+    if(v.id === 'airy') out.push(sel(CARD) + '{line-height:1.8}' + sel(['.card:not(.pp .card)']) + '{margin-bottom:22px!important}');
+    if(v.id === 'calm' || v.id === 'still' || v.id === 'plain') out.push(sel(['.wl-amb', '.sx-amb', '.wl-hl', '.sx-hl']) + '{animation:none!important}' + sel(['.topbar h1', 'body > header h1']) + '{animation:none!important}');
+    if(v.id === 'plain') out.push(sel(['.wl-amb', '.sx-amb', '.wl-hl', '.sx-hl', '.wl-glow', '.sx-glow']) + '{display:none!important}');
+    if(v.id === 'still') out.push('html.fa-still *,html.fa-still *::before,html.fa-still *::after{animation-duration:.001s!important;animation-delay:0s!important;transition-duration:.001s!important}');
+    out.push('@media print{' + sel(ZOOM, 'html ') + '{zoom:1!important}}');
+    return out.join(' ');
+  }
+  function vars(){
+    var x = cur(), c = x.c, v = x.v, st = R.style, dark = c.b === 'dark';
+    var set = function(k, val){ try{ st.setProperty(k, val, 'important'); }catch(e){} };
+    var del = function(k){ try{ st.removeProperty(k); }catch(e){} };
+    var K = ['--fa-a1', '--fa-a2', '--fa-a3', '--fa-a1r', '--fa-a2r', '--fa-a3r', '--fa-at', '--fa-on', '--fa-glow', '--fa-bg1', '--fa-bg0', '--fa-card0', '--fa-card1', '--fa-tintr', '--fa-ink', '--fa-ink2',
+             '--brand', '--gold', '--gold2', '--sx-thumb', '--sx-on', '--on-brand', '--lx-g1', '--lx-g2', '--lx-g3', '--xa-blue', '--xa-gold-ink', '--bg', '--surface', '--xa-mat'];
+    K.forEach(del);
+    if(dark){
+      var ink = c.ink, ink2 = c.ink2, a1 = c.a1, a2 = c.a2, at = c.at;
+      if(v.id === 'clear'){ ink = '#FFFFFF'; ink2 = '#C8C2B4'; }
+      if(v.id === 'night'){ ink = '#CFC8B8'; ink2 = '#7E7666'; a1 = mix(a1, '#000000', .22); a2 = mix(a2, '#000000', .22); at = mix(at, '#000000', .22); }
+      set('--fa-a1', a1); set('--fa-a2', a2); set('--fa-a3', c.a3); set('--fa-at', at);
+      set('--fa-a1r', rgb(a1)); set('--fa-a2r', rgb(a2)); set('--fa-a3r', rgb(c.a3));
+      set('--fa-on', c.on); set('--fa-glow', v.id === 'night' ? mix(c.glow, '#000000', .4) : c.glow); set('--fa-bg1', c.bg1); set('--fa-bg0', c.bg0);
+      set('--fa-card0', c.c0); set('--fa-card1', c.c1); set('--fa-tintr', c.tint); set('--fa-ink', ink); set('--fa-ink2', ink2);
+      if(c.id !== 'gold' || v.id === 'night'){
+        set('--brand', a2); set('--gold', a2); set('--gold2', a1); set('--sx-thumb', a2); set('--sx-on', c.on); set('--on-brand', c.on);
+        set('--lx-g1', a1); set('--lx-g2', a2); set('--lx-g3', c.a3); set('--xa-blue', a2); set('--xa-gold-ink', c.on);
+      }
+    }else{
+      set('--brand', c.brand); set('--sx-thumb', c.brand); set('--xa-blue', c.brand);
+      if(c.id === 'ivory'){ set('--bg', c.bg); set('--surface', c.card); set('--xa-mat', 'rgba(250,246,236,.92)'); }
+    }
+  }
+  function mix(a, b, t){ var A = rgb(a).split(',').map(Number), B = rgb(b).split(',').map(Number); return '#' + A.map(function(n, i){ var m = Math.round(n + (B[i] - n) * t); return (m < 16 ? '0' : '') + m.toString(16); }).join(''); }
+  var STY = null;
+  function apply(){
+    var x = cur();
+    R.classList.add('fa');
+    ['c', 's', 'v'].forEach(function(k){ var on = 'fa-' + k + '-' + x[k].id; Array.prototype.slice.call(R.classList).forEach(function(n){ if(n.indexOf('fa-' + k + '-') === 0 && n !== on) R.classList.remove(n); }); R.classList.add(on); });
+    R.classList.toggle('fa-dark', x.c.b === 'dark'); R.classList.toggle('fa-light', x.c.b !== 'dark');
+    R.classList.toggle('fa-still', x.v.id === 'still');
+    vars();
+    if(!STY){ STY = document.createElement('style'); STY.id = 'fa-css'; }
+    STY.textContent = css() + lightCss(x.c);
+    (document.head || R).appendChild(STY);   /* いつも いちばん後ろに */
+  }
+  function lightCss(c){
+    if(c.b === 'dark' || c.id === 'apple') return '';
+    return ' ' + P + '{background:' + c.bg + '!important}' + P + 'body{background:transparent!important}' + sel(CARD) + '{background:' + c.card + '!important}' + sel(HEAD) + '{color:' + c.ink + '!important}' + sel(['.sheetwrap', '.wq-home']) + '{background:' + c.bg + '!important}' + sel(['.topbar h1', '.hm-hi b', 'body > header h1']) + '{font-family:' + SERIF + '!important;color:' + c.brand + '!important;-webkit-text-fill-color:' + c.brand + '!important}';
+  }
+
+  /* ---------- 暗い／明るい の土台（Apple の外観・請求ナビの外観）を合わせる ---------- */
+  function baseOf(c){ return c.b === 'dark' ? (c.id === 'graphite' ? 'dark' : 'gold') : 'light'; }
+  function baseNow(){ var m = LS('wq.apple.theme'); return (m === 'light' || m === 'dark' || m === 'auto') ? m : 'gold'; }
+  function setBase(c){
+    var b = baseOf(c);
+    LS('wq.apple.theme', b === 'gold' ? null : b);
+    LS('wq.lux.theme', b === 'light' ? 'light' : 'dark');
+    if(b === 'light'){ LS('seikyu.skin', 'apple'); LS('seikyu.apple.themeAuto', '0'); } else LS('seikyu.skin', null);
+  }
+  function needReload(c){
+    var b = baseOf(c), n = baseNow();
+    if(b === 'gold') return n !== 'gold';
+    return n !== b;
+  }
+
+  /* ---------- えらぶ画面 ---------- */
+  var PCSS = '#faPick{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:flex-end;justify-content:center;font-family:' + SANS + '}' +
+    '#faPick .fb{position:absolute;inset:0;background:rgba(0,0,0,.5)}' +
+    '#faPick .fp{position:relative;width:min(640px,100%);max-height:88vh;box-sizing:border-box;display:flex;flex-direction:column;margin:0 6px calc(6px + env(safe-area-inset-bottom,0px));border-radius:24px;overflow:hidden;' +
+      'background:linear-gradient(180deg,#1C1A16,#111010);color:#F3EEE3;box-shadow:inset 0 0 0 .5px rgba(201,164,92,.3),0 40px 100px rgba(0,0,0,.75)}' +
+    'html.fa-light #faPick .fp{background:#F2F2F7;color:#1C1C1E;box-shadow:0 40px 100px rgba(0,0,0,.3)}' +
+    '#faPick .fh{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}' +
+    '#faPick .fh b{flex:1;font-family:' + SERIF + ';font-size:18px;letter-spacing:.14em;font-weight:600}' +
+    '#faPick .fx{width:32px;height:32px;border:0;border-radius:50%;background:rgba(128,128,128,.2);color:inherit;font-size:15px;cursor:pointer}' +
+    '#faPick .ft{display:flex;margin:0 16px 10px;padding:3px;border-radius:12px;background:rgba(128,128,128,.16)}' +
+    '#faPick .ft button{flex:1;min-height:36px;border:0;border-radius:9px;background:transparent;color:inherit;font:inherit;font-size:14px;font-weight:700;cursor:pointer;opacity:.7}' +
+    '#faPick .ft button.on{background:linear-gradient(180deg,#F1DCA6,#C9A45C);color:#17120A;opacity:1;box-shadow:0 4px 12px -4px rgba(201,164,92,.5)}' +
+    'html.fa-light #faPick .ft button.on{background:#fff;color:#1C1C1E;box-shadow:0 2px 6px rgba(0,0,0,.12)}' +
+    '#faPick .fg{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:4px 14px 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}' +
+    '@media (min-width:560px){#faPick .fg{grid-template-columns:repeat(3,minmax(0,1fr))}}' +
+    '#faPick .fi{position:relative;display:flex;flex-direction:column;gap:6px;padding:10px;border:0;border-radius:16px;background:rgba(128,128,128,.12);color:inherit;font:inherit;text-align:left;cursor:pointer;transition:transform .35s cubic-bezier(.34,1.56,.5,1)}' +
+    '#faPick .fi:active{transform:scale(.96)}' +
+    '#faPick .fi.on{box-shadow:inset 0 0 0 2px #C9A45C}' +
+    'html.fa-light #faPick .fi.on{box-shadow:inset 0 0 0 2px var(--brand,#0A84FF)}' +
+    '#faPick .fi.on::after{content:"";position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:#C9A45C radial-gradient(circle,#17120A 0 2.5px,transparent 3px)}' +
+    '#faPick .fi b{font-size:14px;font-weight:700}' +
+    '#faPick .fi small{font-size:11.5px;opacity:.65;line-height:1.35}' +
+    '#faPick .pv{height:74px;border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:8px;gap:5px;box-sizing:border-box}' +
+    '#faPick .pv i{display:block;height:7px;border-radius:4px}' +
+    '#faPick .pv em{position:absolute;top:8px;left:8px;font-style:normal;font-size:15px;font-weight:700}' +
+    '#faPick .pv u{position:absolute;right:8px;bottom:8px;width:34px;height:16px;text-decoration:none}' +
+    '#faPick .fn{padding:0 16px 12px;font-size:11.5px;opacity:.6;line-height:1.5}' +
+    '#faCover{position:fixed;inset:0;z-index:2147483300;pointer-events:none;background:#060605}' +
+    '::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}';
+  function pvColor(c){
+    if(c.b === 'dark') return '<div class="pv" style="background:radial-gradient(120% 90% at 50% 0%,' + c.glow + ',' + c.bg0 + ')"><em style="color:' + c.a1 + ';font-family:' + SERIF + '">Aa</em>' +
+      '<i style="width:70%;background:linear-gradient(90deg,' + c.a1 + ',' + c.a2 + ')"></i><i style="width:46%;background:' + c.c0 + ';box-shadow:inset 0 0 0 .5px ' + c.a2 + '"></i><u style="border-radius:8px;background:linear-gradient(180deg,' + c.a1 + ',' + c.a2 + ')"></u></div>';
+    return '<div class="pv" style="background:' + c.bg + '"><em style="color:' + c.brand + '">Aa</em><i style="width:70%;background:' + c.card + ';box-shadow:0 0 0 .5px rgba(0,0,0,.12)"></i><i style="width:46%;background:' + c.brand + ';opacity:.25"></i><u style="border-radius:8px;background:' + c.brand + '"></u></div>';
+  }
+  function pvStyle(s){
+    var c = cur().c, dark = c.b === 'dark', bg = dark ? c.bg0 : c.bg, card = dark ? c.c0 : c.card, ac = dark ? c.a2 : c.brand;
+    var bd = s.line === 0 ? 'none' : s.line === 3 ? '1px solid ' + ac : s.line === 2 ? '3px double ' + ac : '.5px solid ' + ac;
+    var sh = s.sh === 'float' ? '0 10px 18px rgba(0,0,0,.6)' : s.sh === 'glow' ? '0 6px 16px ' + ac + '55' : s.sh === 'none' ? 'none' : '0 6px 12px rgba(0,0,0,.4)';
+    return '<div class="pv" style="background:' + bg + ';padding:10px"><div style="flex:1;border-radius:' + Math.min(s.r, 22) + 'px;background:' + (s.hollow ? 'transparent' : s.glass ? 'rgba(255,255,255,.1)' : card) + ';border:' + bd + ';box-shadow:' + sh + ';display:flex;align-items:center;justify-content:space-between;padding:0 10px">' +
+      '<span style="font-family:' + (s.head === 'serif' ? SERIF : SANS) + ';font-weight:' + (s.head === 'sansb' ? 800 : 600) + ';letter-spacing:' + s.hls + ';color:' + (dark ? c.a1 : c.ink) + ';font-size:13px">見積</span>' +
+      '<span style="width:30px;height:14px;border-radius:' + Math.min(s.rb, 9) + 'px;background:' + (s.id === 'outline' ? 'transparent' : ac) + ';box-shadow:inset 0 0 0 1px ' + ac + '"></span></div></div>';
+  }
+  function pvView(v){
+    var c = cur().c, dark = c.b === 'dark', bg = dark ? c.bg0 : c.bg, ink = dark ? c.ink : c.ink, ac = dark ? c.a2 : c.brand;
+    var fs = v.z ? Math.round(14 * v.z * (v.z > 1 ? 1.15 : 0.9)) : 14;
+    if(v.id === 'night'){ ink = '#9B9384'; }
+    if(v.id === 'clear'){ ink = dark ? '#FFFFFF' : '#000000'; }
+    var sub = v.id === 'compact' ? '<i style="width:80%;background:' + ac + ';opacity:.4;height:4px"></i><i style="width:60%;background:' + ac + ';opacity:.4;height:4px"></i><i style="width:70%;background:' + ac + ';opacity:.4;height:4px"></i>' :
+      v.id === 'airy' ? '<i style="width:60%;background:' + ac + ';opacity:.4;margin-bottom:6px"></i><i style="width:40%;background:' + ac + ';opacity:.4"></i>' :
+      (v.id === 'calm' || v.id === 'still') ? '<i style="width:' + (v.id === 'still' ? 0 : 30) + '%;background:' + ac + '"></i>' : '<i style="width:60%;background:' + ac + ';opacity:.5"></i>';
+    var amb = (v.id === 'plain' || !dark) ? '' : ';background-image:radial-gradient(80% 70% at 30% 0%,' + c.glow + ',transparent)';
+    return '<div class="pv" style="background:' + bg + amb + '"><em style="color:' + ink + ';font-size:' + fs + 'px">あア</em>' + sub + '</div>';
+  }
+  var TAB = 'c';
+  function open(){
+    var old = document.getElementById('faPick'); if(old) old.remove();
+    if(!document.getElementById('faPickCss')){ var st = document.createElement('style'); st.id = 'faPickCss'; st.textContent = PCSS; (document.head || R).appendChild(st); }
+    var w = document.createElement('div'); w.id = 'faPick';
+    w.innerHTML = '<div class="fb"></div><div class="fp" role="dialog" aria-modal="true" aria-label="見た目をえらぶ"><div class="fh"><b>見た目をえらぶ</b><button type="button" class="fx" aria-label="閉じる">✕</button></div>' +
+      '<div class="ft"><button type="button" data-t="c">色</button><button type="button" data-t="s">デザイン</button><button type="button" data-t="v">見え方</button></div>' +
+      '<div class="fg"></div><div class="fn">えらぶと すぐ変わります。この端末の F.Aツール（見積・請求ナビ・車両・申請書…）ぜんぶに効きます。見積書などの紙は変わりません。</div></div>';
+    document.body.appendChild(w);
+    var pn = w.querySelector('.fp'), bg = w.querySelector('.fb'), grid = w.querySelector('.fg');
+    function draw(slide){
+      var x = cur(), L = TAB === 'c' ? C : TAB === 's' ? S : V, h = '';
+      w.querySelectorAll('.ft button').forEach(function(b){ b.classList.toggle('on', b.dataset.t === TAB); });
+      L.forEach(function(it){
+        var on = x[TAB].id === it.id;
+        h += '<button type="button" class="fi' + (on ? ' on' : '') + '" data-id="' + it.id + '">' + (TAB === 'c' ? pvColor(it) : TAB === 's' ? pvStyle(it) : pvView(it)) + '<b>' + it.n + '</b><small>' + it.d + '</small></button>';
+      });
+      grid.innerHTML = h;
+      try{ Array.prototype.forEach.call(grid.children, function(el, i){ el.animate([{ opacity: 0, transform: 'translate(' + (slide || 0) + 'px,14px) scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: i * 28, easing: 'cubic-bezier(.22,1.12,.36,1)', fill: 'backwards' }); }); }catch(e){}
+    }
+    draw(0);
+    try{ pn.animate([{ transform: 'translateY(105%)' }, { transform: 'none' }], { duration: 480, easing: 'cubic-bezier(.2,.9,.25,1.04)' }); bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260 }); }catch(e){}
+    var gone = false;
+    function close(){ if(gone) return; gone = true; try{ var a = pn.animate([{ transform: getComputedStyle(pn).transform === 'none' ? 'none' : getComputedStyle(pn).transform }, { transform: 'translateY(105%)' }], { duration: 240, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' }); bg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' }); a.onfinish = function(){ w.remove(); }; }catch(e){ w.remove(); } }
+    bg.addEventListener('click', close); w.querySelector('.fx').addEventListener('click', close);
+    w.querySelector('.ft').addEventListener('click', function(e){ var b = e.target.closest('button[data-t]'); if(!b || b.dataset.t === TAB) return; var order = 'csv', d = order.indexOf(b.dataset.t) > order.indexOf(TAB) ? 30 : -30; TAB = b.dataset.t; draw(d); });
+    grid.addEventListener('click', function(e){
+      var b = e.target.closest('button.fi'); if(!b) return;
+      var key = TAB === 'c' ? 'wq.fa.c' : TAB === 's' ? 'wq.fa.s' : 'wq.fa.v';
+      if((LS(key) || (TAB === 'c' ? 'gold' : TAB === 's' ? 'luxe' : 'std')) === b.dataset.id) return;
+      choose(TAB, b.dataset.id, e.clientX, e.clientY, function(){ draw(0); });
+    });
+    /* 下へ払って閉じる */
+    var y0 = 0, dd = 0, on = false;
+    pn.addEventListener('touchstart', function(e){ if(e.target.closest('.fg')) return; y0 = e.touches[0].clientY; dd = 0; on = true; }, { passive: true });
+    pn.addEventListener('touchmove', function(e){ if(!on) return; dd = e.touches[0].clientY - y0; if(dd > 0){ if(e.cancelable) e.preventDefault(); pn.style.transform = 'translateY(' + dd + 'px)'; } }, { passive: false });
+    pn.addEventListener('touchend', function(){ if(!on) return; on = false; if(dd > 90) close(); else if(dd > 0){ var f = pn.style.transform; pn.style.transform = ''; try{ pn.animate([{ transform: f }, { transform: 'none' }], { duration: 460, easing: 'cubic-bezier(.34,1.56,.5,1)' }); }catch(er){} } });
+  }
+  /* えらんだ瞬間：押したところから 新しい見た目が丸く広がる（ビュー遷移がある端末）／ない端末は ふわっと切りかえ */
+  function choose(t, id, x, y, after){
+    var key = t === 'c' ? 'wq.fa.c' : t === 's' ? 'wq.fa.s' : 'wq.fa.v';
+    var nextC = t === 'c' ? find(C, id) : cur().c;
+    if(t === 'c' && needReload(nextC)){
+      LS(key, id); setBase(nextC);
+      var cv = document.createElement('div'); cv.id = 'faCover'; cv.style.background = nextC.b === 'dark' ? nextC.bg0 : nextC.bg; document.body.appendChild(cv);
+      try{ cv.animate([{ clipPath: 'circle(0px at ' + x + 'px ' + y + 'px)' }, { clipPath: 'circle(150% at ' + x + 'px ' + y + 'px)' }], { duration: 520, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }).onfinish = function(){ LS('wq.fa.reopen', '1'); location.reload(); }; }catch(e){ location.reload(); }
+      return;
+    }
+    var go = function(){ LS(key, id); apply(); if(after) after(); };
+    var rm = R.classList.contains('fa-still');
+    if(document.startViewTransition && !rm){
+      R.style.setProperty('--fa-vx', x + 'px'); R.style.setProperty('--fa-vy', y + 'px');
+      try{
+        var tr = document.startViewTransition(go);
+        tr.ready.then(function(){ document.documentElement.animate({ clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(150% at ' + x + 'px ' + y + 'px)'] }, { duration: 620, easing: 'cubic-bezier(.4,0,.2,1)', pseudoElement: '::view-transition-new(root)' }); }).catch(function(){});
+        return;
+      }catch(e){}
+    }
+    go();
+  }
+  /* ✦（外観）のボタン → この画面を出す */
+  window.addEventListener('click', function(e){
+    var t = e.target && e.target.closest && e.target.closest('[data-luxbtn], .hm-lx, .wqn.lx, #btnTheme, [data-fapick]');
+    if(!t) return;
+    e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    open();
+  }, true);
+  /* ほかのアプリ・窓で えらんだら、ここも合わせる */
+  window.addEventListener('storage', function(e){ if(e.key && e.key.indexOf('wq.fa.') === 0) apply(); });
+  window.FA = { v: 1, open: open, apply: apply, cur: cur, C: C, S: S, V: V };
+  apply();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  window.addEventListener('load', function(){ apply(); if(LS('wq.fa.reopen') === '1'){ LS('wq.fa.reopen', null); setTimeout(open, 500); } });
+})();
+</script>
 <script id="wq-motion">
 window.WQ_MOTION = { sheets: false, swipe: false };
 /* ===== wqmotion：全アプリ共通の「Apple風の動き」（2026-11-11） =====
@@ -20124,44 +20410,44 @@ window.WQ_MOTION = { sheets: false, swipe: false };
   function each(sel){ return sel.split(',').map(function(s){ return G + s; }).join(','); }
   var css = [
     /* 背景：深い黒＋ゆっくり漂う金の光＋紙の粒子（1枚の層） */
-    'html.wl-gold:not(#wl_a):not(#wl_b):not(#wl_c){background:#060605!important;--xa-mat:rgba(15,14,12,.97)}',
+    'html.wl-gold:not(#wl_a):not(#wl_b):not(#wl_c){background:var(--fa-bg0,#060605)!important;--xa-mat:rgba(15,14,12,.97)}',
     '.wl-amb{display:none}',
     G + '.wl-amb{display:block;position:fixed;inset:-30%;z-index:-2;pointer-events:none;contain:strict;will-change:transform;' +
-      'background:' + NOISE + ',radial-gradient(28% 24% at 28% 20%,rgba(201,164,92,.14),transparent 70%),radial-gradient(24% 20% at 78% 30%,rgba(241,220,166,.06),transparent 70%),radial-gradient(36% 32% at 58% 80%,rgba(142,107,46,.09),transparent 70%),radial-gradient(90% 60% at 50% 22%,#1C1811 0%,#0B0B0A 55%,#060605 100%);' +
+      'background:' + NOISE + ',radial-gradient(28% 24% at 28% 20%,rgba(var(--fa-a2r,201,164,92),.14),transparent 70%),radial-gradient(24% 20% at 78% 30%,rgba(var(--fa-a1r,241,220,166),.06),transparent 70%),radial-gradient(36% 32% at 58% 80%,rgba(var(--fa-a3r,142,107,46),.09),transparent 70%),radial-gradient(90% 60% at 50% 22%,var(--fa-glow,#1E1A12) 0%,var(--fa-bg1,#0B0B0A) 55%,var(--fa-bg0,#060605) 100%);' +
       'background-size:160px 160px,auto,auto,auto,auto;animation:wlDrift 36s ease-in-out infinite alternate}',
     '@keyframes wlDrift{0%{transform:translate3d(-2%,-1.5%,0) scale(1)}100%{transform:translate3d(2%,2%,0) scale(1.05)}}',
     /* 全画面のシート（ホーム・控えなど）：同じ深い黒＋光＋粒子（止まった絵） */
-    G + '.sheetwrap{background:' + NOISE + ',radial-gradient(40% 30% at 22% 8%,rgba(201,164,92,.12),transparent 70%),radial-gradient(36% 30% at 85% 30%,rgba(241,220,166,.05),transparent 70%),radial-gradient(100% 70% at 50% 0%,#1B1710 0%,#0A0A09 55%,#060605 100%)!important;background-size:160px 160px,auto,auto,auto!important;background-color:#060605!important}',
+    G + '.sheetwrap{background:' + NOISE + ',radial-gradient(40% 30% at 22% 8%,rgba(var(--fa-a2r,201,164,92),.12),transparent 70%),radial-gradient(36% 30% at 85% 30%,rgba(var(--fa-a1r,241,220,166),.05),transparent 70%),radial-gradient(100% 70% at 50% 0%,var(--fa-glow,#1E1A12) 0%,var(--fa-bg1,#0B0B0A) 55%,var(--fa-bg0,#060605) 100%)!important;background-size:160px 160px,auto,auto,auto!important;background-color:var(--fa-bg0,#060605)!important}',
     /* 上の帯：すりガラスをやめて ほぼ不透明の黒（スクロールが軽くなる）＋下に息をする金の線 */
     each('#wqnav,.topbar,.actionbar,#xRail,.sheethead,.hm-top') + '{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
     each('#wqnav,.topbar,#xRail') + '{background:linear-gradient(180deg,rgba(17,16,13,.985),rgba(11,11,10,.975))!important}',
     G + '.actionbar{background:rgba(13,12,10,.975)!important}',
     '.wl-hl{display:none}',
-    G + '.wl-hl{display:block;position:absolute;left:8%;right:8%;bottom:-.5px;height:1px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(241,220,166,.7),transparent);animation:wlBreath 6s ease-in-out infinite;will-change:opacity}',
+    G + '.wl-hl{display:block;position:absolute;left:8%;right:8%;bottom:-.5px;height:1px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(var(--fa-a1r,241,220,166),.7),transparent);animation:wlBreath 6s ease-in-out infinite;will-change:opacity}',
     '@keyframes wlBreath{0%,100%{opacity:.22}50%{opacity:.85}}',
     /* 題：明朝・金のグラデーション、開いたとき1回だけ光る */
-    G + '.topbar h1,' + G + '.hm-hi b{-webkit-text-fill-color:transparent!important;font-family:' + SERIF + '!important;font-weight:600!important;letter-spacing:.1em!important;background:linear-gradient(100deg,#F1DCA6 0%,#C9A45C 45%,#F1DCA6 70%,#8E6B2E 100%)!important;background-size:260% 100%!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;animation:wlShine 2.4s cubic-bezier(.45,0,.2,1) .35s 1 backwards}',
+    G + '.topbar h1,' + G + '.hm-hi b{-webkit-text-fill-color:transparent!important;font-family:' + SERIF + '!important;font-weight:600!important;letter-spacing:.1em!important;background:linear-gradient(100deg,var(--fa-a1,#F1DCA6) 0%,var(--fa-a2,#C9A45C) 45%,var(--fa-a1,#F1DCA6) 70%,var(--fa-a3,#8E6B2E) 100%)!important;background-size:260% 100%!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;animation:wlShine 2.4s cubic-bezier(.45,0,.2,1) .35s 1 backwards}',
     '@keyframes wlShine{from{background-position:100% 0}to{background-position:0 0}}',
     G + '.topbar h1,' + G + '.hm-hi b{background-position:0 0}',
     /* カード：金の細い縁（内側の光）＋深い影。止まった絵なので軽い */
-    each(CARD) + '{box-shadow:inset 0 0 0 .5px rgba(201,164,92,.22),inset 0 1px 0 rgba(241,220,166,.14),0 26px 50px -34px rgba(0,0,0,.95)!important}',
+    each(CARD) + '{box-shadow:inset 0 0 0 .5px rgba(var(--fa-a2r,201,164,92),.22),inset 0 1px 0 rgba(var(--fa-a1r,241,220,166),.14),0 26px 50px -34px rgba(0,0,0,.95)!important}',
     /* カードの地：あたたかい深い黒（灰色の板にしない） */
-    each(CARD) + '{background:linear-gradient(180deg,#1A1915 0%,#131210 100%)!important}',
+    each(CARD) + '{background:linear-gradient(180deg,var(--fa-card0,#1A1915) 0%,var(--fa-card1,#131210) 100%)!important}',
     /* 入力欄：うすい金の縁・地はほんのり明るい黒（背景の絵（カレンダーなど）は消さない） */
-    each('.card:not(.pp .card) input:not([type=checkbox]):not([type=radio]):not([type=range]),.card:not(.pp .card) select,.card:not(.pp .card) textarea') + '{background-color:rgba(255,248,230,.05)!important;border-color:rgba(201,164,92,.16)!important}',
-    each('.card:not(.pp .card) input:focus,.card:not(.pp .card) select:focus,.card:not(.pp .card) textarea:focus') + '{border-color:rgba(201,164,92,.6)!important;box-shadow:0 0 0 3px rgba(201,164,92,.16),0 8px 22px -12px rgba(201,164,92,.35)!important}',
+    each('.card:not(.pp .card) input:not([type=checkbox]):not([type=radio]):not([type=range]),.card:not(.pp .card) select,.card:not(.pp .card) textarea') + '{background-color:rgba(var(--fa-tintr,255,248,230),.05)!important;border-color:rgba(var(--fa-a2r,201,164,92),.16)!important}',
+    each('.card:not(.pp .card) input:focus,.card:not(.pp .card) select:focus,.card:not(.pp .card) textarea:focus') + '{border-color:rgba(var(--fa-a2r,201,164,92),.6)!important;box-shadow:0 0 0 3px rgba(var(--fa-a2r,201,164,92),.16),0 8px 22px -12px rgba(var(--fa-a2r,201,164,92),.35)!important}',
     /* カードの見出し：明朝・字間。説明の小さい字はふつうの字 */
-    G + '.card:not(.pp .card)>h2{font-family:' + SERIF + '!important;font-weight:500!important;letter-spacing:.16em!important;color:#DCC898!important}',
+    G + '.card:not(.pp .card)>h2{font-family:' + SERIF + '!important;font-weight:500!important;letter-spacing:.16em!important;color:var(--fa-at,#E6CB8A)!important}',
     G + '.card:not(.pp .card)>h2 *{font-family:' + SANS + '!important;letter-spacing:.02em!important}',
     /* 数字：桁がそろう形 */
     each('.card:not(.pp .card) input,.card:not(.pp .card) td,.tot,.actionbar') + '{font-variant-numeric:tabular-nums lining-nums}',
     /* PCのマウスの光（1つの丸を transform で動かすだけ） */
-    '.wl-glow{position:fixed;left:0;top:0;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;pointer-events:none;z-index:5;opacity:0;background:radial-gradient(circle,rgba(241,220,166,.06),rgba(241,220,166,0) 62%);transition:opacity .5s ease;will-change:transform,opacity}',
+    '.wl-glow{position:fixed;left:0;top:0;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;pointer-events:none;z-index:5;opacity:0;background:radial-gradient(circle,rgba(var(--fa-a1r,241,220,166),.06),rgba(var(--fa-a1r,241,220,166),0) 62%);transition:opacity .5s ease;will-change:transform,opacity}',
     '.wl-glow.on{opacity:1}',
     /* 押したところから広がる光 */
     '.wl-riph{position:relative;overflow:hidden}',
     '.wl-rip{position:absolute;border-radius:50%;pointer-events:none;width:12px;height:12px;margin:-6px 0 0 -6px;background:radial-gradient(circle,rgba(10,132,255,.28),rgba(10,132,255,0) 70%);will-change:transform,opacity}',
-    G + '.wl-rip{background:radial-gradient(circle,rgba(241,220,166,.42),rgba(201,164,92,0) 70%)}',
+    G + '.wl-rip{background:radial-gradient(circle,rgba(var(--fa-a1r,241,220,166),.42),rgba(var(--fa-a2r,201,164,92),0) 70%)}',
     '@media print{.wl-amb,.wl-hl,.wl-glow,.wl-rip{display:none!important}' + CARD + '{opacity:1!important;transform:none!important}}',
     '@media (prefers-reduced-motion:reduce){.wl-amb,.wl-hl,' + G + '.topbar h1{animation:none!important}}'
   ].join('\n');
@@ -20169,8 +20455,9 @@ window.WQ_MOTION = { sheets: false, swipe: false };
 
   /* 黒×金かどうか（外観を切りかえても追いかける） */
   function gold(){
-    var g = R.classList.contains('xa-gold') || R.classList.contains('xag') || R.classList.contains('sx-gold');
-    if(!g){ try{ g = getComputedStyle(R).getPropertyValue('--brand').trim().toUpperCase() === '#C9A45C' && !R.classList.contains('xa-light') && !R.classList.contains('xa-dark-blue'); }catch(e){} }
+    var g = R.classList.contains('fa-dark') || R.classList.contains('xa-gold') || R.classList.contains('xag') || R.classList.contains('sx-gold');
+    if(R.classList.contains('fa-light')) g = false;
+    if(!g && !R.classList.contains('fa')){ try{ g = getComputedStyle(R).getPropertyValue('--brand').trim().toUpperCase() === '#C9A45C' && !R.classList.contains('xa-light') && !R.classList.contains('xa-dark-blue'); }catch(e){} }
     if(R.classList.contains('wl-gold') !== g) R.classList.toggle('wl-gold', g);
   }
   gold();
