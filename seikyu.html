@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-13 07:52-->
+<!--BUILD:2026-11-13 13:00-->
 <html lang="ja"><head><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3034,7 +3034,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-13 07:52';
+const BUILD = '2026-11-13 13:00';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -19991,6 +19991,24 @@ X.siteMorph = function(B, h, id){
     LS('wq.apple.theme', b === 'gold' ? null : b);
     LS('wq.lux.theme', b === 'light' ? 'light' : 'dark');
     if(b === 'light'){ LS('seikyu.skin', 'apple'); LS('seikyu.apple.themeAuto', '0'); } else LS('seikyu.skin', null);
+    /* 2026-11-13 請求ナビ・web見積は 自分の明るい／暗いを別の名前で覚えていたので、それも合わせる（明るい色なのに字が白くて見えない を防ぐ） */
+    LS('seikyuNaviWeb.theme', b === 'light' ? 'light' : 'dark');
+    var sk = LS('wq.skin');
+    if(b === 'light'){ if(sk === 'yoru'){ var pb = LS('wq.skin.beforeLux'); LS('wq.skin', (pb && pb !== 'yoru') ? pb : ''); } }
+    else if(sk !== 'yoru'){ if(sk) LS('wq.skin.beforeLux', sk); LS('wq.skin', 'yoru'); }
+  }
+  /* 画面の明るい／暗いが、えらんだ色とちがっていたら直す（ほかの画面で切りかえた・前の設定が残っていた など）。
+     1つのページで1回だけ読み直す（くり返さない） */
+  function pageDark(){ var a = R.getAttribute('data-theme'); if(a === 'dark') return true; if(a === 'light') return false; return R.classList.contains('lux-dark') || R.classList.contains('xa-dark'); }
+  function heal(){
+    try{ if(window.top !== window.self || location.protocol === 'about:' || !document.body) return; }catch(e){ return; }
+    var x = cur(), want = x.c.b === 'dark';
+    if(!R.classList.contains('lux') && !R.hasAttribute('data-theme')) return;
+    if(pageDark() === want) return;
+    setBase(x.c);
+    var k = 'wq.fa.heal.' + location.pathname;
+    try{ if(sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); }catch(e){ return; }
+    location.reload();
   }
   function needReload(c){
     var b = baseOf(c), n = baseNow();
@@ -20120,10 +20138,27 @@ X.siteMorph = function(B, h, id){
   }, true);
   /* ほかのアプリ・窓で えらんだら、ここも合わせる */
   window.addEventListener('storage', function(e){ if(e.key && e.key.indexOf('wq.fa.') === 0) apply(); });
+  /* 2026-11-13 上の帯・アプリ一覧の「単価をしらべる」は、どのアプリからでも必ず別のタブで開く
+     （前は 請求ナビなどから押すと そのタブが見積に切りかわり、中に出ていた） */
+  try{ if(window.top === window.self && location.protocol !== 'about:') document.addEventListener('click', function(e){
+    var t = e.target && e.target.closest && e.target.closest('[data-k="miShirabe"],[data-k="wq:miShirabe"],a[href*="go=miShirabe"]');
+    if(!t || e.button > 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    var tabby = true; try{ tabby = !(matchMedia('(hover: none) and (pointer: coarse)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone); }catch(x){}
+    if(typeof window.しらべるを開く === 'function'){
+      if(!tabby) return;
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      try{ if(window.メニュー閉じる) window.メニュー閉じる(); }catch(x){}
+      window.しらべるを開く(); return;
+    }
+    if(!tabby) return;
+    e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+    var w = null; try{ w = window.open('./index.html?go=miShirabe', 'wq_tanka_app'); }catch(x){}
+    if(!w) location.href = './index.html?go=miShirabe';
+  }, true); }catch(e){}
   window.FA = { v: 1, open: open, apply: apply, cur: cur, C: C, S: S, V: V };
   apply();
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
-  window.addEventListener('load', function(){ apply(); if(LS('wq.fa.reopen') === '1'){ LS('wq.fa.reopen', null); setTimeout(open, 500); } });
+  window.addEventListener('load', function(){ apply(); setTimeout(heal, 900); if(LS('wq.fa.reopen') === '1'){ LS('wq.fa.reopen', null); setTimeout(open, 500); } });
 })();
 </script>
 <script id="wq-motion">
@@ -20469,6 +20504,8 @@ window.WQ_MOTION = { sheets: false, swipe: false };
     '.wl-rip{position:absolute;border-radius:50%;pointer-events:none;width:12px;height:12px;margin:-6px 0 0 -6px;background:radial-gradient(circle,rgba(10,132,255,.28),rgba(10,132,255,0) 70%);will-change:transform,opacity}',
     G + '.wl-rip{background:radial-gradient(circle,rgba(var(--fa-a1r,241,220,166),.42),rgba(var(--fa-a2r,201,164,92),0) 70%)}',
     '@media print{.wl-amb,.wl-hl,.wl-glow,.wl-rip{display:none!important}' + CARD + '{opacity:1!important;transform:none!important}}',
+    /* 2026-11-13 印刷・くっきり文字PDFが真っ白：印刷に切りかわる瞬間に「ふわっと出る」動きが最初(透明)からやり直しになっていた。印刷では動きを全部止める */
+    '@media print{html body *,html body *::before,html body *::after{animation:none!important;transition:none!important}}',
     /* 2026-11-13 軽く：スマホでは背景の光と線は止めた絵にする（電池と なめらかさ優先） */
     '@media (pointer:coarse){.wl-amb,.wl-hl{animation:none!important;will-change:auto!important}' + G + '.wl-hl{opacity:.55}}',
     '@media (prefers-reduced-motion:reduce){.wl-amb,.wl-hl,' + G + '.topbar h1{animation:none!important}}'
