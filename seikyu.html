@@ -1,6 +1,6 @@
 <!doctype html>
-<!--BUILD:2026-11-13 13:00-->
-<html lang="ja"><head><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
+<!--BUILD:2026-11-19 04:52-->
+<html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
 (function(){
@@ -3034,7 +3034,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-13 13:00';
+const BUILD = '2026-11-19 04:52';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -20092,8 +20092,8 @@ X.siteMorph = function(B, h, id){
     draw(0);
     try{ pn.animate([{ transform: 'translateY(105%)' }, { transform: 'none' }], { duration: 480, easing: 'cubic-bezier(.2,.9,.25,1.04)' }); bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260 }); }catch(e){}
     var gone = false;
-    function close(){ if(gone) return; gone = true; try{ var a = pn.animate([{ transform: getComputedStyle(pn).transform === 'none' ? 'none' : getComputedStyle(pn).transform }, { transform: 'translateY(105%)' }], { duration: 240, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' }); bg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' }); a.onfinish = function(){ w.remove(); }; }catch(e){ w.remove(); } }
-    bg.addEventListener('click', close); w.querySelector('.fx').addEventListener('click', close);
+    function close(){ if(gone) return; gone = true; try{ document.removeEventListener('keydown', onk, true); }catch(_){} try{ var a = pn.animate([{ transform: getComputedStyle(pn).transform === 'none' ? 'none' : getComputedStyle(pn).transform }, { transform: 'translateY(105%)' }], { duration: 240, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' }); bg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' }); a.onfinish = function(){ w.remove(); }; }catch(e){ w.remove(); } }
+    bg.addEventListener('click', close); w.querySelector('.fx').addEventListener('click', close); function onk(e){ if(e.key==='Escape' && !e.isComposing){ e.stopPropagation(); e.preventDefault(); close(); } } document.addEventListener('keydown', onk, true);
     w.querySelector('.ft').addEventListener('click', function(e){ var b = e.target.closest('button[data-t]'); if(!b || b.dataset.t === TAB) return; var order = 'csv', d = order.indexOf(b.dataset.t) > order.indexOf(TAB) ? 30 : -30; TAB = b.dataset.t; draw(d); });
     grid.addEventListener('click', function(e){
       var b = e.target.closest('button.fi'); if(!b) return;
