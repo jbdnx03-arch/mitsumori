@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-19 04:52-->
+<!--BUILD:2026-11-19 08:01-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -687,6 +687,27 @@ const XR = (function(){
     const body = Array.from(String(t)).map(ch => ch === '\n' ? '<br>' : '<i' + (isHalf(ch) ? ' class="h"' : '') + '>' + (ch === ' ' ? '&nbsp;' : esc(ch)) + '</i>').join('');
     return '<span class="st' + (o.wrap ? ' wr' : '') + (o.fit ? ' fit' : '') + '" style="' + st + '">' + body + '</span>';
   }
+  /* 2026-11-19 軽く：本物の用紙の線（1枚 約9〜22万字のSVG）をページごとに丸ごと入れていた（関東54枚で約600万字）。
+     用紙は1つだけ文書に置いて（#xsfSprite）、ページからは <use> で呼ぶ。紙の見た目・印刷は同じ。
+     画像にしてPDFを作るとき（html2canvas）は xsfFull で元のSVGにもどす。くっきりPDFは data-kd で用紙を選ぶ */
+  function xsfSprite(kind, F){
+    try{
+      let sp = document.getElementById('xsfSprite');
+      if(!sp){ sp = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sp.id = 'xsfSprite'; sp.setAttribute('aria-hidden', 'true'); sp.setAttribute('focusable', 'false');
+        sp.setAttribute('style', 'position:absolute;left:-10000px;top:0;width:1px;height:1px;overflow:hidden;pointer-events:none'); document.documentElement.appendChild(sp); }
+      if(!document.getElementById('xsfG_' + kind)){
+        const s = F.svg, a = s.indexOf('>') + 1, b = s.lastIndexOf('</svg>');
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.id = 'xsfG_' + kind; g.innerHTML = s.slice(a, b); sp.appendChild(g);
+      }
+      return true;
+    }catch(e){ return false; }
+  }
+  function xsfUse(kind, F){
+    if(!xsfSprite(kind, F)) return F.svg.replace('<svg ', '<svg class="xsf" ');
+    const s = F.svg, a = s.indexOf('>') + 1;
+    return s.slice(0, a).replace('<svg ', '<svg class="xsf" data-kd="' + kind + '" ') + '<use href="#xsfG_' + kind + '"></use></svg>';
+  }
+  window.xsfFull = function(root){ try{ (root || document).querySelectorAll('svg.xsf[data-kd]').forEach(sv => { const F = (typeof SF !== 'undefined') && SF[sv.getAttribute('data-kd')]; if(F && sv.querySelector('use')) sv.outerHTML = F.svg.replace('<svg ', '<svg class="xsf" '); }); }catch(e){} };
   function sysPage(kind, v, opt){
     opt = opt || {};
     const F = (typeof SF !== 'undefined') && SF[kind]; if(!F) return '';
@@ -746,7 +767,7 @@ const XR = (function(){
       const HKS = Array.isArray(opt.hanko) ? opt.hanko : [{ src: opt.hanko, pos: 'r' }], LX = { l: 703.7, m: 740.7, r: 777.6 };
       HKS.forEach(hk => h.push('<img class="xhk" alt="" src="' + hk.src + '" style="position:absolute;left:' + (LX[hk.pos] || LX.r) + 'pt;top:145.6pt;width:31.6pt;height:31.6pt;transform:rotate(-3deg);mix-blend-mode:multiply;opacity:.94">')); }
     return '<div class="xp land xsys"' + (opt.id ? ' data-pg="' + esc(opt.id) + '"' : '') + '>' +
-      '<div class="xsb ' + (OCL[kind] || '') + '" style="left:' + o[0] + 'pt;top:' + o[1] + 'pt">' + F.svg.replace('<svg ', '<svg class="xsf" ') + h.join('') +
+      '<div class="xsb ' + (OCL[kind] || '') + '" style="left:' + o[0] + 'pt;top:' + o[1] + 'pt">' + xsfUse(kind, F) + h.join('') +
       (opt.pn ? '<span class="st" style="top:1.0pt;left:750.1pt;font-size:9.96pt;line-height:9.96pt">' + Array.from(opt.pn).map(ch => '<i' + (isHalf(ch) ? ' class="h"' : '') + '>' + (ch === ' ' ? '&nbsp;' : esc(ch)) + '</i>').join('') + '</span>' : '') + '</div></div>';
   }
   function sysFit(root){
@@ -3034,7 +3055,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-19 04:52';
+const BUILD = '2026-11-19 08:01';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -5248,7 +5269,7 @@ async function makePdf(box, name){
     /* 画面の外に、印刷と同じ大きさで置いて写す */
     const W = document.createElement('div'); W.id = 'xPdfWork';
     W.style.cssText = 'position:fixed;left:-30000px;top:0;width:auto;z-index:-1;background:#fff';
-    W.innerHTML = box.innerHTML; document.body.appendChild(W);
+    W.innerHTML = box.innerHTML; document.body.appendChild(W); if(window.xsfFull) window.xsfFull(W);
     W.querySelectorAll('.xp,.pp').forEach(e => { e.style.margin = '0'; e.style.boxShadow = 'none'; e.style.zoom = '1'; e.style.transform = 'none'; });
     /* 紙の字体（システムと同じ幅の BIZ UD ゴシック・明朝）が読み込まれてから、はみ出しを測る */
     if(document.fonts && document.fonts.ready){ await document.fonts.ready; await new Promise(r => setTimeout(r, 120)); await document.fonts.ready; }
@@ -8043,7 +8064,7 @@ async function vecPdf(pages){
       if(!vis(sv)) continue;
       const r = sv.getBoundingClientRect(); if(r.width <= 0) continue;
       if(sv.classList.contains('xsf')){
-        const kd = (/\bid="(p1|p2|k1|k2)_/.exec(sv.innerHTML) || [])[1];
+        const kd = sv.getAttribute('data-kd') || (/\bid="(p1|p2|k1|k2)_/.exec(sv.innerHTML) || [])[1];
         if(!kd || !window.SF_PDF || !window.SF_PDF[kd]) throw new Error('本物の用紙（' + (kd || '?') + '）がない');
         if(!forms[kd]){ const src = await L.PDFDocument.load(b64(window.SF_PDF[kd])); [forms[kd]] = await doc.embedPdf(src, [0]); }
         page.drawPage(forms[kd], { x: X(r.left), y: Y(r.bottom), width: r.width * k, height: r.height * k });

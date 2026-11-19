@@ -6,7 +6,7 @@
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-21';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-22';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -36,7 +36,7 @@ self.addEventListener('install', function(ev){
 self.addEventListener('activate', function(ev){
   ev.waitUntil((async function(){
     var ks = await caches.keys();
-    await Promise.all(ks.filter(function(k){ return k.indexOf('wq-pwa-') === 0 && k !== VER; }).map(function(k){ return caches.delete(k); }));
+    await Promise.all(ks.filter(function(k){ return k.indexOf('wq-pwa-22') === 0 && k !== VER; }).map(function(k){ return caches.delete(k); }));
     await self.clients.claim();
   })());
 });
