@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-24 13:24-->
+<!--BUILD:2026-11-24 18:40-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3055,7 +3055,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-24 13:24';
+const BUILD = '2026-11-24 18:40';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -16103,7 +16103,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-24 13:24';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-24 18:40';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -20778,5 +20778,150 @@ window.WQ_MOTION = { sheets: false, swipe: false };
   if(typeof X.__rawChecks === 'function') X.__rawChecks = cached(X.__rawChecks);
   if(typeof window.updChkBadge === 'function'){ const _ub = window.updChkBadge; let t = 0; window.updChkBadge = function(){ clearTimeout(t); t = setTimeout(() => { try{ _ub(); }catch(e){} }, 250); }; }
 })();
+</script>
+<script id="wq-memx">
+/* 2026-11-24「この記憶機能は 全ツールにつけて！」（wq-memx・全アプリ共通）
+   打った言葉をおぼえて、次に同じ欄を打つときに候補を出す（使った回数が多い・最近のものほど上）。
+   ・1行の欄：欄に入れた内容まるごと。押すとそのまま入る
+   ・何行も書く欄：1行ずつおぼえる。打っている行に合う文を出し、押すとその行に入る
+   ・候補の右の × で、その言葉を忘れる
+   ・数字だけ・日付・電話・メール・パスワード・検索欄・自分の候補がもうある欄は、おぼえない／出さない
+   おぼえた言葉は localStorage の wq.mx（同じサイトのアプリで共通。ホームを開くとクラウドで端末どうし同じに） */
+(function(){
+  if(window.__wqMemx) return; window.__wqMemx = 1;
+  var KEY = 'wq.mx', MAX = 4000;
+  var APP = (String(location.pathname).split('/').pop() || 'index.html').replace(/\.html?$/, '') || 'index';
+  var EX = {
+    index: '#q,#nn,#togq,#office-tq,#office-sq,#office-cu-o,#shk-q,#fax-q,#repair-mq,#repair-cust,#map-addr,#map-cust,#map-genba,#f-cust,#nu,#nuName,#proInv,#k-to,#k-from,#map-when,[data-in="custq"],#office-csv,#keiri-imp,#datax-paste,#shk-imp,#pasteTxt,#dash-mu-t,#kashi-cats,#shorui-ykall',
+    seikyu: 'input.e[data-f="name"],#xTogQ',
+    memo: '*',
+    meishi: '#q,#fM,#fP,#fX,#fE',
+    zoto: '#q'
+  };
+  var NOLEARN = /pw|pass|token|secret|key$|銀行|口座|card|inv|mail\.to|bmto|mto/i;
+  function lsGet(){ try{ var o = JSON.parse(localStorage.getItem(KEY) || '{}'); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }catch(e){ return {}; } }
+  function lsSet(o){ try{ localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){} }
+  var M = null; function db(){ if(!M) M = lsGet(); return M; }
+  window.addEventListener('storage', function(e){ if(e.key === KEY) M = null; });
+  var hk = function(s){ return String(s || '').normalize('NFKC').replace(/[ぁ-ゖ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) + 0x60); }).replace(/[\s・･]/g, '').toLowerCase(); };
+  function ok(el){
+    if(!el || !el.tagName) return false;
+    var tg = el.tagName;
+    if(tg !== 'INPUT' && tg !== 'TEXTAREA') return false;
+    if(tg === 'INPUT'){ var ty = (el.getAttribute('type') || 'text').toLowerCase(); if(ty !== 'text') return false; }
+    if(el.readOnly || el.disabled || el.hidden) return false;
+    if(el.getAttribute('list') || el.getAttribute('enterkeyhint') === 'search') return false;
+    var im = (el.getAttribute('inputmode') || '').toLowerCase(); if(/numeric|decimal|tel|email|latin|url/.test(im)) return false;
+    if(el.closest && el.closest('[data-nomx]')) return false;
+    var ex = EX[APP]; if(ex === '*') return false;
+    try{ if(ex && el.matches(ex)) return false; }catch(e){}
+    if(el.classList.contains('dtx')) return false;
+    return !!fkey(el);
+  }
+  function fkey(el){
+    if(el.__mxk) return el.__mxk;
+    var d = el.dataset || {}, k = el.getAttribute('data-mx') || (el.id ? el.id.replace(/\d+/g, '#') : '') || d.f || d.k || d.nf || d.g || d.tf || d.tx || d.co || el.name || el.getAttribute('aria-label') || el.placeholder || '';
+    if(!k){ var lb = el.closest && el.closest('label'); if(!lb && el.parentElement) lb = el.parentElement.querySelector('label'); if(lb) k = (lb.textContent || '').trim().slice(0, 20); }
+    k = String(k).trim().slice(0, 40);
+    return (el.__mxk = k ? APP + ':' + k : '');
+  }
+  function good(v){ v = String(v || '').trim(); return v.length >= 2 && v.length <= 80 && !/^[\d\s,.\-+\/:：~〜()（）円%％年月日時分]+$/.test(v) && !/@.+\./.test(v); }
+  function learn(el, extra){
+    var f = fkey(el); if(!f || NOLEARN.test(f)) return;
+    var v = String(el.value || ''), parts = [];
+    if(el.tagName === 'TEXTAREA'){ if(v.length > 1500 || v.split('\n').length > 30) return; v.split(/\n+/).forEach(function(x){ x = x.trim(); if(good(x)) parts.push(x); }); }
+    else if(good(v)) parts.push(v.trim());
+    if(extra) parts.push(extra);
+    if(!parts.length) return;
+    var o = db(), t = Date.now();
+    parts.forEach(function(x){ var k = f + '\u0001' + x, e = o[k]; if(e){ e.n = (e.n || 0) + 1; e.t = t; } else o[k] = { f: f, v: x, n: 1, t: t }; });
+    var ks = Object.keys(o); if(ks.length > MAX){ ks.sort(function(a, b){ return ((o[a].n || 0) * 4 + (o[a].t || 0) / 864e5) - ((o[b].n || 0) * 4 + (o[b].t || 0) / 864e5); }); ks.slice(0, ks.length - MAX).forEach(function(k){ delete o[k]; }); }
+    lsSet(o);
+  }
+  function forget(f, v){ var o = db(); delete o[f + '\u0001' + v]; lsSet(o); }
+  function listFor(f){ var o = db(), a = []; for(var k in o){ var e = o[k]; if(e && e.f === f && e.v) a.push(e); } a.sort(function(x, y){ return (y.n || 0) - (x.n || 0) || (y.t || 0) - (x.t || 0); }); return a; }
+  function query(el){
+    var v = el.value || '';
+    if(el.tagName !== 'TEXTAREA') return { q: v.trim(), st: 0, en: v.length };
+    var c = el.selectionStart == null ? v.length : el.selectionStart, ls = v.lastIndexOf('\n', c - 1) + 1, le = v.indexOf('\n', c); if(le < 0) le = v.length;
+    return { q: v.slice(ls, c).trim(), st: ls, en: le };
+  }
+  function cands(el){
+    var r = query(el), L = listFor(fkey(el)), z = hk(r.q), a = [], b = [];
+    if(el.tagName === 'TEXTAREA' && !z) return { r: r, L: [] };
+    for(var i = 0; i < L.length; i++){ var k = hk(L[i].v); if(!z){ a.push(L[i].v); } else if(k === z) continue; else if(k.indexOf(z) === 0) a.push(L[i].v); else if(z.length >= 2 && k.indexOf(z) > 0) b.push(L[i].v); if(a.length >= 10) break; }
+    return { r: r, L: a.concat(b).slice(0, 10) };
+  }
+  /* ---- 候補の箱（画面の上に浮かせる。欄のすぐ下） ---- */
+  var box = null, cur = null;
+  function css(){
+    if(document.getElementById('wq-mx-css')) return;
+    var s = document.createElement('style'); s.id = 'wq-mx-css';
+    s.textContent = '#wqmx{position:fixed;z-index:2147483000;min-width:180px;max-width:min(460px,calc(100vw - 16px));overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:#fff;color:#111;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18),0 0 0 .5px rgba(0,0,0,.12);font:14px/1.35 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif}'
+      + '#wqmx[hidden]{display:none}#wqmx .h{font-size:11px;font-weight:700;color:#8a8a8e;padding:7px 12px 3px}'
+      + '#wqmx .r{display:flex;align-items:center;border-top:.5px solid rgba(0,0,0,.08)}#wqmx .r:first-of-type{border-top:0}'
+      + '#wqmx .v{flex:1;min-width:0;text-align:left;padding:10px 12px;background:none;border:0;color:inherit;font:inherit;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#wqmx .v:active,#wqmx .v:hover{background:rgba(127,127,127,.12)}'
+      + '#wqmx .x{flex:none;width:34px;height:34px;background:none;border:0;color:#aaa;font-size:15px;cursor:pointer}'
+      + '@media (prefers-color-scheme:dark){#wqmx{background:#2c2c2e;color:#f2f2f7;box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.12)}#wqmx .r{border-top-color:rgba(255,255,255,.08)}}';
+    (document.head || document.documentElement).appendChild(s);
+  }
+  function mk(){
+    if(box && box.isConnected) return box; css();
+    box = document.createElement('div'); box.id = 'wqmx'; box.hidden = true; document.body.appendChild(box);
+    box.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    box.addEventListener('touchstart', function(e){ box.__x = e.touches[0].clientX; box.__y = e.touches[0].clientY; }, { passive: true });
+    var act = function(t){ if(!cur) return; if(t.classList.contains('x')){ forget(fkey(cur), t.dataset.v); show(cur); return; } pick(cur, t.dataset.v); };
+    box.addEventListener('touchend', function(e){ var t = e.target.closest('button'); if(!t) return; var p = e.changedTouches[0]; if(Math.abs(p.clientX - (box.__x || 0)) > 8 || Math.abs(p.clientY - (box.__y || 0)) > 8) return; e.preventDefault(); act(t); });
+    box.addEventListener('click', function(e){ var t = e.target.closest('button'); if(t) act(t); });
+    return box;
+  }
+  function hide(){ if(box){ box.hidden = true; box.innerHTML = ''; } cur = null; }
+  function place(){
+    if(!box || box.hidden || !cur) return;
+    var r = cur.getBoundingClientRect(), vv = window.visualViewport, top0 = vv ? vv.offsetTop : 0, h = vv ? vv.height : innerHeight, left0 = vv ? vv.offsetLeft : 0, w = vv ? vv.width : innerWidth;
+    if(r.bottom < top0 || r.top > top0 + h){ hide(); return; }
+    var below = top0 + h - r.bottom - 8, above = r.top - top0 - 8, up = below < 140 && above > below;
+    var mh = Math.max(90, Math.min(300, up ? above : below));
+    box.style.maxHeight = mh + 'px';
+    var bw = Math.min(Math.max(r.width, 220), w - 16); box.style.width = bw + 'px';
+    var lx = Math.min(Math.max(left0 + 8, r.left), left0 + w - bw - 8); box.style.left = lx + 'px';
+    if(up){ box.style.top = ''; box.style.bottom = (innerHeight - r.top + 4) + 'px'; } else { box.style.bottom = ''; box.style.top = (r.bottom + 4) + 'px'; }
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function show(el){
+    if(!ok(el) || document.activeElement !== el){ if(cur === el) hide(); return; }
+    var c = cands(el);
+    if(el.__mxPick && el.__mxPick === c.r.q){ hide(); return; } el.__mxPick = null;
+    if(!c.L.length){ if(cur === el || !cur) hide(); return; }
+    var b = mk(); cur = el;
+    b.innerHTML = '<div class="h">' + (c.r.q ? 'おぼえた言葉' : 'よく使う') + '</div>' + c.L.map(function(v){ return '<div class="r"><button type="button" class="v" data-v="' + esc(v) + '">' + esc(v) + '</button><button type="button" class="x" data-v="' + esc(v) + '" aria-label="忘れる">×</button></div>'; }).join('');
+    b.hidden = false; b.scrollTop = 0; place(); requestAnimationFrame(place); setTimeout(place, 350);
+  }
+  function setVal(el, v){
+    var pr = Object.getPrototypeOf(el), d = Object.getOwnPropertyDescriptor(pr, 'value');
+    try{ if(d && d.set) d.set.call(el, v); else el.value = v; }catch(e){ el.value = v; }
+  }
+  function pick(el, v){
+    var r = query(el), s = el.value || '', nv, pos;
+    if(el.tagName === 'TEXTAREA'){ nv = s.slice(0, r.st) + v + s.slice(r.en); pos = r.st + v.length; } else { nv = v; pos = v.length; }
+    setVal(el, nv); try{ el.focus({ preventScroll: true }); el.setSelectionRange(pos, pos); }catch(e){}
+    el.__mxPick = v;
+    try{ el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){}
+    hide();
+  }
+  var tm = 0; function later(el){ clearTimeout(tm); tm = setTimeout(function(){ show(el); }, 110); }
+  document.addEventListener('focusin', function(e){ var el = e.target; if(ok(el)){ el.__mxV = el.value; later(el); } }, true);
+  document.addEventListener('input', function(e){ var el = e.target; if(!e.isComposing && ok(el)) later(el); }, true);
+  document.addEventListener('compositionend', function(e){ var el = e.target; if(ok(el)) later(el); }, true);
+  document.addEventListener('change', function(e){ var el = e.target; if(ok(el)) learn(el); }, true);
+  document.addEventListener('focusout', function(e){ var el = e.target; if(!ok(el)) return; if(el.value !== el.__mxV && el.tagName === 'TEXTAREA') learn(el); setTimeout(function(){ if(cur === el && document.activeElement !== el) hide(); }, 160); }, true);
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && box && !box.hidden) hide(); }, true);
+  window.addEventListener('scroll', function(){ if(cur) place(); }, true);
+  window.addEventListener('resize', function(){ if(cur) place(); });
+  if(window.visualViewport){ visualViewport.addEventListener('resize', function(){ if(cur) place(); }); visualViewport.addEventListener('scroll', function(){ if(cur) place(); }); }
+  /* 端末どうし同じに（ホームの同期のしくみがあるときだけ） */
+  var tries = 0; (function reg(){ try{ var W = window.WQ; if(W && W.sync && typeof W.sync.register === 'function'){ W.sync.register(KEY, { label: 'おぼえた言葉（入力の候補）' }); return; } }catch(e){} if(++tries < 30) setTimeout(reg, 2000); })();
+})();
+
 </script>
 </body></html>
