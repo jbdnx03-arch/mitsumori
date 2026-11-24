@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-23 09:20-->
+<!--BUILD:2026-11-24 13:24-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3055,7 +3055,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-23 09:20';
+const BUILD = '2026-11-24 13:24';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6277,7 +6277,7 @@ drawChecks = function(){
   let vtBusy = false;
   drawChecks = function(){
     const name = () => $$('#chkList > li').forEach((li, i) => { const k = li.dataset.i != null ? 'ck' + li.dataset.i : 'ckx' + i; li.style.viewTransitionName = k; });
-    if(!document.startViewTransition || reduce() || vtBusy || !$('#chkList') || !$('#chkList').children.length){ _dc(); name(); return; }
+    if(!document.startViewTransition || reduce() || vtBusy || !$('#chkList') || !$('#chkList').children.length || S.tab !== 'check' || $('#chkList').children.length > 30){ _dc(); name(); return; }
     vtBusy = true;
     const t = document.startViewTransition(() => { _dc(); name(); });
     t.finished.finally(() => { vtBusy = false; });
@@ -7545,16 +7545,30 @@ function diffParts(sh){
   const man = ls.filter(l => l.manual && !l.nb), manAmt = man.reduce((a, l) => a + lineAmt(l), 0);
   const edAmt = ls.filter(l => !l.manual && !l.nb && l.sys).reduce((a, l) => a + lineAmt(l) - sysAmt(l), 0);
   const nbAmt = ls.filter(l => l.nb && !l.manual).reduce((a, l) => a + sysAmt(l), 0);
-  return { manN: man.length, manAmt, edAmt, nbAmt };
+  const etc = ls.filter(l => l.nb && !l.manual && isNbCand(l)), etcAmt = etc.reduce((a, l) => a + sysAmt(l), 0);
+  return { manN: man.length, manAmt, edAmt, nbAmt, etcN: etc.length, etcAmt };
 }
 function diffHtml(sh){
   const d = diffParts(sh), sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(taxIn(v))) + '<small>（税抜 ' + (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(v)) + '）</small>', parts = [];
   if(d.manN) parts.push('手打ち <b>' + sg(d.manAmt) + '</b>（' + d.manN + '行）');
   if(d.edAmt) parts.push('手直し <b>' + sg(d.edAmt) + '</b>');
-  if(d.nbAmt) parts.push('出さない <b>' + sg(-d.nbAmt) + '</b>');
+  if(d.nbAmt) parts.push('出さない <b>' + sg(-d.nbAmt) + '</b>' + (d.etcAmt ? '（うち ' + esc(nbCodes().join('・')) + ' <b>' + sg(-d.etcAmt) + '</b>・' + d.etcN + '行）' : ''));
   return parts.length ? '<span class="xdiffp" title="システム（CSV）との差の内わけ">うち（税込）' + parts.join('／') + '</span>' : '';
 }
-st.textContent += '.xdiffp{font-size:12px;color:var(--ink2,#3E5A60);margin-left:6px}.xdiffp b{font-weight:800;color:inherit}';
+st.textContent += '.xdiffp{font-size:12px;color:var(--ink2,#3E5A60);margin-left:6px}.xdiffp b{font-weight:800;color:inherit}'
+  + 'button.xetc{display:block;margin:4px 0 0;padding:3px 8px;border:1px solid color-mix(in srgb,var(--acc,#B8860B) 45%,transparent);border-radius:8px;background:color-mix(in srgb,var(--acc,#B8860B) 8%,transparent);cursor:pointer;text-align:left;font:inherit;font-size:12px}'
+  + '.xetc-t{width:100%;border-collapse:collapse;font-size:13px}.xetc-t td,.xetc-t th{padding:4px 6px;border-bottom:1px solid var(--line,#ddd);text-align:left}.xetc-t td.n,.xetc-t th.n{text-align:right;white-space:nowrap}.xetc-t tr.sum td{font-weight:800;border-top:2px solid var(--line,#ccc)}';
+/* ETC888 など で外した行の一覧（押すとその行へ） */
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-xetc]'); if(!b) return; ev.preventDefault(); ev.stopPropagation();
+  const rows = []; S.sheets.forEach(sh => { if(sh.noBill || !sh.inKagami) return; linesOf(sh).forEach(l => { if(!l.head && l.nb && !l.manual && isNbCand(l)) rows.push({ sh, l, a: sysAmt(l) }); }); });
+  const tot = rows.reduce((a, r) => a + r.a, 0);
+  const html = '<p class="muted" style="margin:0 0 8px">商品番号が ' + esc(nbCodes().join('・')) + ' で「出さない」にした行（システム（CSV）の金額）。押すとその行へ</p>'
+    + '<table class="xetc-t"><thead><tr><th>現場</th><th>品名</th><th>伝票</th><th class="n">税抜</th><th class="n">税込</th></tr></thead><tbody>'
+    + rows.map(r => '<tr data-xetcgo="' + esc(r.l.id) + '" data-sh="' + esc(r.sh.id) + '" style="cursor:pointer"><td>' + esc(r.sh.name) + '</td><td>' + esc(r.l.name || '') + '</td><td>' + esc(String((r.l.sys && r.l.sys.den) || r.l.den || '')) + '</td><td class="n">' + yen(r.a) + '</td><td class="n">' + yen(taxIn(r.a)) + '</td></tr>').join('')
+    + '<tr class="sum"><td colspan="3">合計 ' + rows.length + ' 行</td><td class="n">' + yen(tot) + '</td><td class="n">' + yen(taxIn(tot)) + '</td></tr></tbody></table>';
+  if(typeof openPanel === 'function') openPanel(esc(nbCodes().join('・')) + ' で外した行', html, P => { P.onclick = e2 => { const tr = e2.target.closest('[data-xetcgo]'); if(!tr) return; try{ S.cur = tr.dataset.sh; setTab('sites'); drawSites(); }catch(x){} setTimeout(() => { const r = document.querySelector('tr[data-id="' + tr.dataset.xetcgo + '"]'); if(r){ r.scrollIntoView({ block: 'center', behavior: 'smooth' }); r.classList.remove('flash'); requestAnimationFrame(() => r.classList.add('flash')); } }, 200); }; });
+}, true);
 function siteDiff(){
   const sh = (typeof sheetById === 'function') ? sheetById(S.cur) : null, t = document.querySelector('#shead .tot'); if(!sh || !t) return;
   t.querySelectorAll('.xdiffp').forEach(x => x.remove());
@@ -7567,8 +7581,8 @@ drawKpis = function(){
   try{
     const tile = [...document.querySelectorAll('#kpis .kpi')].find(k => /システムとの差/.test(k.textContent)); if(!tile) return;
     tile.querySelectorAll('.xdiffp').forEach(x => x.remove());
-    let man = 0, n = 0, ed = 0, nb = 0, off = 0;
-    let nbS = 0, nbA = 0; S.sheets.forEach(sh => { if(sh.noBill){ nbS++; nbA += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } if(!sh.inKagami){ off += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } const d = diffParts(sh); man += d.manAmt; n += d.manN; ed += d.edAmt; nb += d.nbAmt; });
+    let man = 0, n = 0, ed = 0, nb = 0, off = 0, etcA = 0, etcN = 0, etcS = 0;
+    let nbS = 0, nbA = 0; S.sheets.forEach(sh => { if(sh.noBill){ nbS++; nbA += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } if(!sh.inKagami){ off += linesOf(sh).reduce((a, l) => a + sysAmt(l), 0); return; } const d = diffParts(sh); man += d.manAmt; n += d.manN; ed += d.edAmt; nb += d.nbAmt; etcA += d.etcAmt; etcN += d.etcN; if(d.etcN) etcS++; });
     const sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(taxIn(v))) + '<small>（税抜 ' + (v > 0 ? '+' : v < 0 ? '−' : '') + yen(Math.abs(v)) + '）</small>', parts = [];
     if(n) parts.push('手打ち <b>' + sg(man) + '</b>（' + n + '行）'); if(ed) parts.push('手直し <b>' + sg(ed) + '</b>'); if(nb) parts.push('出さない <b>' + sg(-nb) + '</b>'); if(off) parts.push('鑑から外した現場 <b>' + sg(-off) + '</b>');
     /* 2026-11-05 内わけの合計が上の差と合うように。合わない分は「その他」（消した行・CSVの合計とのずれなど） */
@@ -7576,6 +7590,8 @@ drawKpis = function(){
     { const T = totals(), rest = T.diff - (man + ed - nb - off - nbA); if(Math.abs(rest) >= 1) parts.push('その他 <b>' + sg(rest) + '</b>'); }
 
     if(parts.length) tile.insertAdjacentHTML('beforeend', '<div class="xdiffp" style="margin:4px 0 0">うち（税込）' + parts.join('／') + '</div>');
+    /* 2026-11-24「etc888とかで外したやつがいくらあるか」 */
+    if(etcN) tile.insertAdjacentHTML('beforeend', '<button type="button" class="xdiffp xetc" data-xetc="1" title="押すと行の一覧">' + esc(nbCodes().join('・')) + ' で外した <b>' + sg(-etcA) + '</b>（' + etcN + '行・' + etcS + '現場）</button>');
   }catch(e){}
 };
 const _ds = drawSites;
@@ -8767,7 +8783,9 @@ async function readReal(f){
 const nmK = s => String(s || '').normalize('NFKC').replace(/\s/g, '');
 const mdOf = iso => iso ? String(+iso.slice(5, 7)).padStart(2, '0') + '/' + iso.slice(8, 10) : '';
 function webRow(l){ const r = sysRow(l); return { name: r.name, den: String(r.den || ''), kanri: String(r.kanri || ''), kashi: r.kashi || '', start: r.start || '', end: r.end || '', ret: l.retd ? mdOf(l.retd) : '', qty: num(r.qty), unit: r.unit || '', days: num(r.days), sdays: num(r.sdays), kb: r.kb || '', lu: num(r.lu), la: num(r.la), su: num(r.su), sa: num(r.sa), bu: num(r.bu), ba: num(r.ba), head: !!l.head }; }
-function cmpSite(sh){
+/* 2026-11-24 軽く：チェックの計算の中では、同じ現場の突き合わせを1回だけ（3か所から呼ばれていた） */
+function cmpSite(sh){ const MM = window.__skCmpMemo; if(MM && sh){ if(MM.has(sh.id)) return MM.get(sh.id); const v = cmpSite0(sh); MM.set(sh.id, v); return v; } return cmpSite0(sh); }
+function cmpSite0(sh){
   const R = S.real && S.real.sites[String(sh.code)]; if(!R) return null;
   const web = billOf(sh).filter(l => !l.sub);
   const rr = R.rows.map((r, i) => ({ r, i, used: false }));
@@ -13383,9 +13401,10 @@ function find(q, selfId){
 }
 /* 2026-11-04 よく一緒に出る品（ext3b）からも使う：品名にいちばん合う候補（区分・単位・単価） */
 window.seikyuExt = window.seikyuExt || {};
-window.seikyuExt.nmLoad = loadSaved; window.seikyuExt.nmDict = () => dict('');
+const dictNow = () => { if(!dictNow.v){ dictNow.v = dict(''); setTimeout(() => { dictNow.v = null; }, 0); } return dictNow.v; };
+window.seikyuExt.nmLoad = loadSaved; window.seikyuExt.nmDict = () => dictNow().slice();
 window.seikyuExt.nmAll = function(name, selfId){ const k = nk(name); if(!k) return []; return dict(selfId || '').filter(e => nk(e.name) === k).sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); };
-window.seikyuExt.nmBest = function(name){ const k = nk(name); if(!k) return null; const all = dict('').filter(e => nk(e.name) === k); all.sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); return all[0] || null; };
+window.seikyuExt.nmBest = function(name){ const k = nk(name); if(!k) return null; const all = dictNow().filter(e => nk(e.name) === k); all.sort((a, b) => b.w - a.w || (b.at > a.at ? 1 : b.at < a.at ? -1 : 0)); return all[0] || null; };
 /* ---- 下に出す箱 ---- */
 let box = null, cur = null;   /* cur = { inp, mode:'row'|'sheet', id, items, ix } */
 function close(){ if(box){ box.remove(); box = null; } cur = null; }
@@ -14614,13 +14633,15 @@ function sysNameList(){
 function nameTypos(){
   const L = sysNameList(), have = new Set(L.map(e => e.k)), out = [];
   if(!L.length) return out;
+  { const sig = L.length + '|' + L.map(e => e.k + ':' + e.w).join('\u0001'); if(nameTypos.sig !== sig){ nameTypos.sig = sig; nameTypos.mm = new Map(); } }
+  const MM = nameTypos.mm;
   S.lines.forEach(l => {
     if(l.head || l.nb || !l.name) return;
     const sh = sheetById(l.sheet); if(!sh || !sh.inKagami) return;
     const k = nn(l.name); if(k.length < 6 || have.has(k)) return;
     if(!(l.manual || (l.sys && nn(l.sys.name) !== k))) return;   /* システムのままの品名は見ない */
-    let best = null;
-    L.forEach(e => { if(Math.abs(e.k.length - k.length) > 2) return; if(noDig(e.k) === noDig(k) || !realDiff(k, e.k)) return; const d = dist(k, e.k), lt = diffChars(k, e.k).some(c => /[A-Z]/.test(c)); if(d >= 1 && d <= (lt && k.length >= 12 ? 2 : 1) && (!best || d < best.d || (d === best.d && e.w > best.e.w))) best = { e, d }; });
+    let best = MM.get(k); if(best === undefined){ best = null;
+    L.forEach(e => { if(Math.abs(e.k.length - k.length) > 2) return; if(noDig(e.k) === noDig(k) || !realDiff(k, e.k)) return; const d = dist(k, e.k), lt = diffChars(k, e.k).some(c => /[A-Z]/.test(c)); if(d >= 1 && d <= (lt && k.length >= 12 ? 2 : 1) && (!best || d < best.d || (d === best.d && e.w > best.e.w))) best = { e, d }; }); MM.set(k, best); }
     if(!best) return;
     out.push({ lv: 'warn', t: '品名の打ちまちがい？：' + l.name, s: sh.name + '　システムには「' + best.e.name + '」はあるが「' + l.name + '」はない（' + best.d + ' 字ちがい）。直すなら「品名を直す」', id: l.id, sh: sh.id, xnm: best.e.name });
   });
@@ -16082,7 +16103,7 @@ window.WQNAV_APP = "seikyu"; window.WQNAV_CSS = ".top{top:var(--wqnav-h,0px)!imp
 'use strict';
 if(window.__wqnav) return; window.__wqnav = 1;
 var APP = window.WQNAV_APP || '';
-window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-23 09:20';
+window.WQNAV_BUILD = window.WQNAV_BUILD || '2026-11-24 13:24';
 var KEY = 'wq.nav.items';
 var DEF = [
   { key:'miSeikyu', label:'請求ナビ', href:'./seikyu.html', fixed:1 },
@@ -20713,4 +20734,49 @@ window.WQ_MOTION = { sheets: false, swipe: false };
   }, check:check, run:run };
 })();
 </script><script>try{WQKIT.init({app:window.WQNAV_APP||"",file:"seikyu.html",build:String(window.WQNAV_BUILD||""),btn:"[data-wqup]"});}catch(e){}</script><!--/WQKIT-->
+<script id="sk-speed">
+/* 2026-11-24「請求ナビ 全体的に重い！」
+   ・チェック（checks）は全部で 0.2〜0.5 秒かかる。前は 0.4 秒たつと作り直していたので、現場を押すたび・保存のたび（学習・バッジ・保存の中身）に何回も作り直していた
+     → 請求の中身（行・現場・鑑・設定・出さない決め・本物・前月）が同じ間は、前の結果を使う。中身が1字でも変わったら作り直す
+   ・中身以外（見積・住所・決まりごとの辞書など）の変化は、15秒より古いときに手のあいた瞬間で作り直して、ちがえば表示を直す
+   ・チェックのタブの数（バッジ）は、打っている間は待って、止まってから1回だけ */
+(function(){
+  if(typeof window.checks !== 'function' || typeof S === 'undefined') return;
+  const ids = new WeakMap(); let idn = 0;
+  const oid = o => { if(!o || typeof o !== 'object') return 0; let v = ids.get(o); if(!v){ v = ++idn; ids.set(o, v); } return v; };
+  let fpT = null;
+  const clr = () => { fpT = null; };
+  const fp = () => {
+    if(fpT != null) return fpT;
+    const e = S.ext || {}, ex = {}; for(const k in e){ if(k !== 'log' && k !== 'time') ex[k] = e[k]; }
+    let mute = ''; try{ mute = localStorage.getItem('seikyu.mute.' + ((S.meta && S.meta.custCode) || '')) || ''; }catch(x){}
+    fpT = JSON.stringify([S.workId, S.built, S.lines, (S.sheets || []).map(s => Object.assign({}, s, { prev: oid(s.prev) })), S.meta, ex, S.opt, S.nbFix, S.skipFix, S.sameMonth, oid(S.prev), oid(S.real), (S.trash || []).length, S.status, mute]);
+    setTimeout(clr, 0);
+    return fpT;
+  };
+  ['input', 'change', 'click', 'keydown', 'pointerdown', 'drop', 'paste'].forEach(t => document.addEventListener(t, clr, true));
+  ['save', 'undo', 'openWork', 'build'].forEach(fn => { if(typeof window[fn] === 'function'){ const o = window[fn]; window[fn] = function(){ clr(); try{ return o.apply(this, arguments); }finally{ clr(); } }; } });
+  const ric = window.requestIdleCallback ? (f => requestIdleCallback(f, { timeout: 4000 })) : (f => setTimeout(f, 300));
+  const sigOf = v => (v || []).map(x => (x.lv || '') + (x.never ? '!' : '') + (x.t || '')).join('\n');
+  function cached(_c, after){
+    let cache = null, idle = false;
+    const run = function(self, args){ const MM = window.__skCmpMemo; window.__skCmpMemo = MM || new Map(); try{ return _c.apply(self, args); }finally{ if(!MM) window.__skCmpMemo = null; } };
+    const copy = a => a.map(o => (o && typeof o === 'object') ? Object.assign({}, o) : o);
+    return function(){
+      if(arguments.length) return run(this, arguments);
+      let k; try{ k = fp(); }catch(e){ return run(this, arguments); }
+      if(cache && cache.k === k){
+        if(Date.now() - cache.t > 15000 && !idle){ idle = true; ric(() => { idle = false; try{ const k2 = fp(); if(!cache || cache.k !== k2) return; const v = run(null, []); const ch = sigOf(v) !== sigOf(cache.v); cache = { k: k2, v: copy(v), t: Date.now() }; if(ch && after) after(); }catch(e){} }); }
+        return copy(cache.v);
+      }
+      const v = run(this, arguments); if(!Array.isArray(v)) return v; cache = { k, v: copy(v), t: Date.now() }; return v;
+    };
+  }
+  const redraw = () => { try{ updChkBadge(); }catch(e){} try{ if(S.tab === 'check' && typeof drawChecks === 'function') drawChecks(); }catch(e){} };
+  window.checks = cached(window.checks, redraw);
+  const X = window.seikyuExt || {};
+  if(typeof X.__rawChecks === 'function') X.__rawChecks = cached(X.__rawChecks);
+  if(typeof window.updChkBadge === 'function'){ const _ub = window.updChkBadge; let t = 0; window.updChkBadge = function(){ clearTimeout(t); t = setTimeout(() => { try{ _ub(); }catch(e){} }, 250); }; }
+})();
+</script>
 </body></html>
