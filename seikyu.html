@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 20:58-->
+<!--BUILD:2026-11-27 21:30-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3060,7 +3060,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 20:58';
+const BUILD = '2026-11-27 21:30';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -21063,4 +21063,222 @@ function auto(sel,opt){ var go=function(){ document.querySelectorAll(sel).forEac
 window.FACUST={ CUSTM:CUSTM, search:search, remember:remember, attach:attach, auto:auto, code:code, full:full, nk:nk };
 })();
 
-FACUST.auto('#shCust, #qCust');</script></body></html>
+FACUST.auto('#shCust, #qCust');</script><script>
+/* ---------- 〔ext-clean〕 スッキリ表示（2026-11-27） ----------
+   「ごちゃごちゃしてるよね？ もっとスッキリで やりやすくしてほしい」（PCがメイン・大きく作り直してOK）
+   ・上の6枚の数字 → 「請求額／システムとの差／前月の引き継ぎ／チェック／進み」の1本の帯。元の6枚は「くわしい数字」で開く
+   ・帯の右に「次にやること」のボタンを1つだけ大きく（引き継ぎ → 現場 → チェック → プレビュー・PDF）
+   ・絞り込みの丸ボタン5つ → 「絞り込み」でひらく（使っている時は出たまま）
+   ・現場の上：ロックの帯は1行に、説明文はしまう。「もう1枚に分ける」「ほかの現場にまとめる」は「⋯ この現場」の中へ
+   ・色の見方（凡例）は「色の見方」で開く
+   ・開いたとたんに「全現場 完了 ✓」がかぶさって出るのをやめる（最後の1現場を完了にした時だけ出す）
+   ・元に戻す／やり直す は ↶ ↷ だけに（キーは今までどおり）
+   ・紙・PDF・作業データには一切さわらない。Ctrl+K「スッキリ表示を切りかえ」で前の表示にもどせる */
+(function(){
+'use strict';
+const X = window.seikyuExt = window.seikyuExt || {};
+const KEY = 'seikyu.clean', KEYD = 'seikyu.clean.detail';
+const ls = { get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : v; }catch(e){ return d; } }, set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} } };
+const H = document.documentElement;
+const on = () => H.classList.contains('xclean');
+function setClean(v){ H.classList.toggle('xclean', !!v); ls.set(KEY, v ? '1' : '0'); try{ paint(); }catch(e){} }
+H.classList.toggle('xclean', ls.get(KEY, '1') !== '0');
+H.classList.toggle('xc-detail', ls.get(KEYD, '0') === '1');
+
+const css = document.createElement('style'); css.id = 'xclean-css';
+css.textContent = [
+/* 数字の帯 */
+'#xcSum{display:none}',
+'html.xclean #xcSum{display:grid;grid-template-columns:1.25fr 1.25fr 1fr 1fr .8fr auto;gap:10px;align-items:stretch;margin:0 0 12px;animation:xcIn .32s cubic-bezier(.2,.8,.2,1)}',
+'html.xclean:not(.xc-detail) #kpis{display:none!important}',
+'html.xclean.xc-detail #kpis{animation:xcIn .28s cubic-bezier(.2,.8,.2,1)}',
+'#xcSum .xt{position:relative;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;padding:10px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line);color:var(--ink);text-align:left;font:inherit;cursor:default;transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s,border-color .18s}',
+'#xcSum button.xt{cursor:pointer}',
+'#xcSum button.xt:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.14);border-color:var(--acc,var(--brand))}',
+'#xcSum button.xt:active{transform:translateY(0) scale(.98)}',
+'#xcSum .xk{font-size:11.5px;font-weight:700;color:var(--ink3);white-space:nowrap;display:flex;align-items:center;gap:6px}',
+'#xcSum .xk kbd{font-size:10px;padding:0 5px;border-radius:5px;border:1px solid var(--line);color:var(--ink3);font-family:inherit}',
+'#xcSum .xv{font-size:24px;font-weight:800;letter-spacing:-.01em;line-height:1.15;white-space:nowrap;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}',
+'#xcSum .xv small{font-size:12px;font-weight:700;opacity:.7;margin-left:4px}',
+'#xcSum .xs{font-size:11.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+'#xcSum .xt.ok .xv{color:var(--ok,#2E9E6A)}',
+'#xcSum .xt.ng .xv{color:var(--ng,#D9534F)}',
+'#xcSum .xt.wn .xv{color:var(--warn,#E0A020)}',
+'#xcSum .xt.big .xv{font-size:28px}',
+'#xcSum .xnext{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:210px}',
+'#xcSum .xnext small{font-size:11px;color:var(--ink3);font-weight:700}',
+'#xcSum .xnext .btn{min-height:44px;font-size:14px;font-weight:800;padding:0 18px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}',
+'#xcSum .xnext .btn kbd{font-size:10px}',
+'#xcSum .xmore{position:absolute;right:8px;top:8px;font-size:10.5px;font-weight:700;color:var(--ink3)}',
+'#xcDet{display:none}',
+'html.xclean #xcDet{display:flex;justify-content:flex-end;margin:-6px 0 10px}',
+'#xcDet button{border:0;background:transparent;color:var(--ink3);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:4px 8px;border-radius:8px}',
+'#xcDet button:hover{background:var(--soft);color:var(--ink)}',
+'#xcDet button i{display:inline-block;font-style:normal;transition:transform .25s cubic-bezier(.2,.8,.2,1)}',
+'html.xc-detail #xcDet button i{transform:rotate(180deg)}',
+'@media (max-width:1100px){html.xclean #xcSum{grid-template-columns:1fr 1fr 1fr}html.xclean #xcSum .xnext{grid-column:1/-1}}',
+/* 絞り込み */
+'#xcFlt{display:none}',
+'html.xclean #xcFlt{display:inline-flex;align-items:center;gap:5px}',
+'html.xclean .xsearch .xf{display:none}',
+'html.xclean.xc-flt .xsearch .xf, html.xclean .xsearch .xf:has(.on){display:inline-flex;animation:xcSide .24s cubic-bezier(.2,.8,.2,1)}',
+'html.xclean.xc-flt #xcFlt, html.xclean .xsearch:has(.xf .on) #xcFlt{background:var(--soft);color:var(--ink)}',
+/* 現場の上 */
+'html.xclean #shead .xlockbar{padding:6px 10px!important;min-height:0!important;gap:10px!important}',
+'html.xclean #shead .xlockbar > span{display:none}',
+'html.xclean #shead .xlockbar .btn{min-height:26px;font-size:12px}',
+'html.xclean #shead small.muted{display:none}',
+'html.xclean #shead .xc-rare{display:none!important}',
+'html.xclean.xc-site #shead .xc-rare{display:inline-flex!important;animation:xcSide .22s cubic-bezier(.2,.8,.2,1)}',
+'#xcSiteMore{display:none}',
+'html.xclean #xcSiteMore{display:inline-flex}',
+'html.xclean .xleg{display:none}',
+'html.xclean.xc-leg .xleg{display:flex;animation:xcIn .22s cubic-bezier(.2,.8,.2,1)}',
+'#xcLeg{display:none}',
+'html.xclean #xcLeg{display:inline-flex;border:0;background:transparent;color:var(--ink3);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;padding:2px 6px;border-radius:7px;margin:6px 0 0 2px}',
+'html.xclean #xcLeg:hover{background:var(--soft);color:var(--ink)}',
+/* 現場の一覧：選んでいない現場の「前月比」はしまう */
+'html.xclean #siteList .site:not(.on) .xwhy{display:none}',
+/* 上の帯：↶ ↷ は小さく */
+'html.xclean #btnUndo, html.xclean #btnRedo{min-width:38px;padding:0 10px;font-size:16px}',
+/* 前回の続き：真ん中に浮かせず、上の帯の下に細く */
+'html.xclean #xResume{top:110px!important;padding:6px 12px!important;border-radius:11px!important;font-size:12.5px;box-shadow:0 8px 22px rgba(0,0,0,.18)!important}',
+'@keyframes xcIn{from{opacity:0;transform:translateY(6px)}}',
+'@keyframes xcSide{from{opacity:0;transform:translateX(-6px)}}',
+'@media (prefers-reduced-motion:reduce){#xcSum,#kpis,.xsearch .xf,#shead .xc-rare,.xleg{animation:none!important}#xcSum .xt{transition:none}}',
+'@media print{#xcSum,#xcDet,#xcFlt,#xcSiteMore,#xcLeg{display:none!important}}'
+].join('\n');
+document.head.appendChild(css);
+
+const $1 = s => document.querySelector(s);
+const esc2 = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+
+/* ---- 数字を集める ---- */
+function carryInfo(){
+  let n = 0;
+  try{ const G = X.carryGroups ? X.carryGroups() : []; G.forEach(g => { if(!g.out) n += g.rows.filter(r => !r.on).length; else n += g.rows.filter(r => !r.l.nbDec && !r.l.pxDec && !r.l.luDec).length; }); }catch(e){}
+  const dec = !!((S.ext || {}).carryDecAt);
+  return { n, dec, has: !!S.prev };
+}
+function chkInfo(){
+  let c = []; try{ c = checks(); }catch(e){}
+  try{ if(X.chkDone) c = c.filter(x => x.lv !== 'sales' && !X.chkDone(x)); }catch(e){}
+  const w = c.filter(x => x.lv === 'warn').length; return { all: c.length, warn: w };
+}
+function progInfo(){
+  const ks = S.sheets.filter(s => s.inKagami); const d = (S.ext || {}).siteDone || {};
+  return { done: ks.filter(s => d[s.id]).length, all: ks.length };
+}
+function kv(i){ const k = document.querySelectorAll('#kpis > .kpi')[i]; if(!k) return null; const v = k.querySelector('.v'), s = k.querySelector('.s'); return { v: v ? v.innerHTML : '', vt: v ? v.textContent : '', s: s ? s.textContent : '', ok: k.classList.contains('ok') }; }
+
+function nextStep(c, k, p){
+  if(c.has && !c.dec && c.n > 0) return { t: '前月の引き継ぎを決める', s: 'まだ決めていない ' + c.n + ' 件', go: () => { const b = $1('#xCarryBtn'); if(b) b.click(); else toast('現場を選ぶと出てくる'); } };
+  if(p.all && p.done < p.all){
+    const d = (S.ext || {}).siteDone || {}; const nx = S.sheets.find(s => s.inKagami && !d[s.id]);
+    return { t: '次の現場へ：' + (nx ? nx.name : ''), s: 'あと ' + (p.all - p.done) + ' 現場', go: () => { if(nx){ S.cur = nx.id; try{ save(); }catch(e){} setTab('sites'); drawSites(); } } };
+  }
+  if(k.warn) return { t: 'チェックを見る', s: '要確認 ' + k.warn + ' 件', key: '3', go: () => setTab('check') };
+  return { t: 'プレビュー → PDF保存', s: '全現場 完了・チェックOK', key: 'V', go: () => { const b = $1('#btnTopPv'); if(b) b.click(); else if(typeof topPreview === 'function') topPreview(); } };
+}
+
+let lastNext = null;
+function paint(){
+  const K = $1('#kpis'); if(!K || !window.S || !S.built) return;
+  let box = $1('#xcSum');
+  if(!box){ box = document.createElement('div'); box.id = 'xcSum'; K.parentNode.insertBefore(box, K);
+    const det = document.createElement('div'); det.id = 'xcDet'; det.innerHTML = '<button type="button" title="今までの6枚の数字（システムの合計・来月の見込みなど）"><span>くわしい数字</span> <i>▾</i></button>';
+    K.parentNode.insertBefore(det, K);
+    det.firstChild.addEventListener('click', () => { const v = !H.classList.contains('xc-detail'); H.classList.toggle('xc-detail', v); ls.set(KEYD, v ? '1' : '0'); });
+    box.addEventListener('click', ev => { const t = ev.target.closest('[data-xc]'); if(!t) return; const a = t.dataset.xc;
+      if(a === 'carry'){ const b = $1('#xCarryBtn'); if(b) b.click(); else toast('現場を選ぶと出てくる'); }
+      else if(a === 'chk') setTab('check');
+      else if(a === 'pv'){ const b = $1('#btnTopPv'); if(b) b.click(); }
+      else if(a === 'next' && lastNext) lastNext.go();
+      else if(a === 'det'){ const v = !H.classList.contains('xc-detail'); H.classList.toggle('xc-detail', v); ls.set(KEYD, v ? '1' : '0'); }
+    });
+  }
+  if(!on()) return;
+  const gk = kv(1) || {}, df = kv(2) || {}, c = carryInfo(), k = chkInfo(), p = progInfo();
+  const zero = df.ok;
+  const n = nextStep(c, k, p); lastNext = n;
+  const h =
+    '<div class="xt big"><span class="xk">請求額（鑑の合計・税込）</span><span class="xv">' + (gk.v || '—') + '</span><span class="xs">' + esc2(gk.s || '') + '</span></div>' +
+    '<button type="button" class="xt big ' + (zero ? 'ok' : 'wn') + '" data-xc="det" title="押すと くわしい数字"><span class="xk">システムとの差（税込）</span><span class="xv">' + (df.v || '—') + '</span><span class="xs">' + (zero ? '本物の請求書と同じ ✓' : '手直し・外した現場のぶん') + '</span></button>' +
+    '<button type="button" class="xt ' + (!c.has ? '' : c.dec || !c.n ? 'ok' : 'wn') + '" data-xc="carry" title="前月の手直し・手で足した行・ETC888 などを入れる／出す"><span class="xk">前月の引き継ぎ</span><span class="xv">' + (!c.has ? '—' : c.dec || !c.n ? '決めた ✓' : c.n + '<small>件 まだ</small>') + '</span><span class="xs">' + (!c.has ? '前月の作業なし' : '押すと開く') + '</span></button>' +
+    '<button type="button" class="xt ' + (k.warn ? 'ng' : k.all ? 'wn' : 'ok') + '" data-xc="chk"><span class="xk">チェック <kbd>3</kbd></span><span class="xv">' + (k.all ? k.all + '<small>件' + (k.warn ? '（要確認 ' + k.warn + '）' : '') + '</small>' : 'OK ✓') + '</span><span class="xs">' + (k.all ? '押すとチェックの画面' : '気になるところなし') + '</span></button>' +
+    '<div class="xt ' + (p.all && p.done === p.all ? 'ok' : '') + '"><span class="xk">進み具合</span><span class="xv">' + p.done + '<small>/ ' + p.all + ' 現場</small></span><span class="xs">' + (p.all && p.done === p.all ? '全現場 完了' : '完了にした現場') + '</span></div>' +
+    '<div class="xnext"><small>次にやること：' + esc2(n.s) + '</small><button type="button" class="btn primary lux-sheen" data-xc="next">' + esc2(n.t) + (n.key ? '<kbd>' + n.key + '</kbd>' : '') + ' →</button></div>';
+  if(box.innerHTML !== h) box.innerHTML = h;
+}
+
+/* ---- 絞り込み ---- */
+function fltBtn(){
+  const s = $1('#xsearch'); if(!s || $1('#xcFlt')) return;
+  const xf = s.querySelector('.xf'); if(!xf) return;
+  const b = document.createElement('button'); b.type = 'button'; b.id = 'xcFlt'; b.className = 'btn sm'; b.innerHTML = '絞り込み <span style="font-size:10px">▾</span>'; b.title = '手直しした行・前月とちがう行・要確認の行 などだけ出す';
+  b.addEventListener('click', () => H.classList.toggle('xc-flt'));
+  s.insertBefore(b, xf);
+}
+
+/* ---- 現場の上（shead） ---- */
+function tidyHead(){
+  const hd = $1('#shead'); if(!hd) return;
+  hd.querySelectorAll('button').forEach(b => {
+    const t = (b.textContent || '').trim();
+    if(/^同じ現場名でもう1枚に分ける|^この現場をほかの現場にまとめる/.test(t)) b.classList.add('xc-rare');
+    if(/^ぜんぶ本物どおりにする/.test(t) && !b.classList.contains('sm')) b.classList.add('sm');
+  });
+  const lb = hd.querySelector('.xlockbar'); if(lb){ const sp = lb.querySelector(':scope > span'); if(sp && !lb.title) lb.title = sp.textContent; }
+  const sm = hd.querySelector('small.muted'); if(sm && sm.parentNode && !sm.parentNode.title) sm.parentNode.title = sm.textContent;
+  const sh = hd.querySelector('.sh');
+  if(sh && hd.querySelector('.xc-rare') && !hd.querySelector('#xcSiteMore')){
+    const m = document.createElement('button'); m.type = 'button'; m.id = 'xcSiteMore'; m.className = 'btn sm'; m.textContent = '⋯ この現場'; m.title = 'もう1枚に分ける・ほかの現場にまとめる';
+    m.addEventListener('click', () => H.classList.toggle('xc-site'));
+    const pv = sh.querySelector('#btnSitePv'); if(pv) pv.insertAdjacentElement('afterend', m); else sh.appendChild(m);
+  }
+  const lg = document.querySelector('#siteBody .xleg');
+  if(lg && !document.getElementById('xcLeg')){
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'xcLeg'; b.textContent = '色の見方 ?';
+    b.addEventListener('click', () => H.classList.toggle('xc-leg'));
+    lg.parentNode.insertBefore(b, lg);
+  }
+}
+
+/* ---- 上の帯 ---- */
+function tidyTop(){
+  [['#btnUndo', '↶', '元に戻す（Ctrl+Z）'], ['#btnRedo', '↷', 'やり直す（Ctrl+Shift+Z）']].forEach(([s, ic, t]) => {
+    const b = $1(s); if(!b) return;
+    if(on()){ if(!b.dataset.xcTx){ b.dataset.xcTx = b.innerHTML; } if(b.textContent.trim() !== ic){ b.textContent = ic; b.title = t; b.setAttribute('aria-label', t); } }
+    else if(b.dataset.xcTx){ b.innerHTML = b.dataset.xcTx; delete b.dataset.xcTx; }
+  });
+}
+
+/* ---- 開いたとたんの「全現場 完了 ✓」をやめる ---- */
+let wid = null, openedAt = 0;
+setInterval(() => { try{ const w = window.S && S.built ? S.workId : null; if(w !== wid){ wid = w; openedAt = Date.now(); } }catch(e){} }, 400);
+new MutationObserver(ms => { if(!on()) return; ms.forEach(m => m.addedNodes.forEach(n => { if(n.nodeType === 1 && n.classList && n.classList.contains('xdone') && Date.now() - openedAt < 8000) n.remove(); })); })
+  .observe(document.body, { childList: true });
+
+/* ---- 描き直しのたびに整える ---- */
+let tm = 0;
+function all(){ tm = 0; try{ tidyTop(); }catch(e){} if(!on()) return; try{ fltBtn(); }catch(e){} try{ tidyHead(); }catch(e){} try{ paint(); }catch(e){} }
+function soon(){ if(!tm) tm = setTimeout(all, 60); }
+const watch = () => { const t = document.getElementById('tab-sites'); if(!t){ setTimeout(watch, 500); return; } new MutationObserver(soon).observe(t, { childList: true, subtree: true }); soon(); };
+watch();
+document.addEventListener('click', () => setTimeout(soon, 30), true);
+document.addEventListener('keyup', () => setTimeout(soon, 30), true);
+
+/* 窓の外を押したら・Esc で、ひらいた「絞り込み」「⋯ この現場」「色の見方」を閉じる */
+document.addEventListener('keydown', ev => { if(ev.key === 'Escape' && H.matches('.xc-flt,.xc-site,.xc-leg')){ H.classList.remove('xc-site', 'xc-leg'); if(!document.querySelector('.xsearch .xf .on')) H.classList.remove('xc-flt'); } });
+document.addEventListener('pointerdown', ev => {
+  if(H.classList.contains('xc-site') && !ev.target.closest('#xcSiteMore, .xc-rare')) H.classList.remove('xc-site');
+});
+
+/* Ctrl+K から切りかえ */
+(X.cmdExtra = X.cmdExtra || []).push(add => {
+  add(on() ? '前の表示にもどす（スッキリ表示をやめる）' : 'スッキリ表示にする', '', () => { setClean(!on()); all(); toast(on() ? 'スッキリ表示にした' : '前の表示にもどした', 2000); }, '見た目');
+  add('くわしい数字（6枚）を出す／しまう', '', () => { const v = !H.classList.contains('xc-detail'); H.classList.toggle('xc-detail', v); ls.set(KEYD, v ? '1' : '0'); }, '見た目');
+});
+X.clean = { set: setClean, on, paint: all };
+})();
+</script></body></html>
