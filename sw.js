@@ -6,7 +6,7 @@
    ・ログイン画面の「新しい版があるか」の確認（?v=…／Range／no-store）は、いつもネットへ通す
      （通さないと、古い版がいつまでも出る）。切れているときは確認が失敗するだけで、キャッシュの版で開く */
 'use strict';
-var VER = 'wq-pwa-25';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
+var VER = 'wq-pwa-26';            // 作りを変えたら番号を上げる（古いキャッシュは自動で消える）
 var CDN = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -99,6 +99,15 @@ self.addEventListener('fetch', function(ev){
   // ほかのページ（請求ナビ・滅失申請・車両管理など ./*.html）は、本体と同じ「ネット優先」。
   // 前は「キャッシュ優先＋裏で更新」だったので、GitHubに上げたあと1回目に開くと古い版が出ていた（2026-10-27）
   if(/\.html$/i.test(rel)){
+    /* 2026-11-27 「最新版にする」の取り直し（?v=… や reload）は、?v= をつけたまま ネットへ。
+       前は ?v= を外して取っていたので、GitHubに上げた直後は古い版が返り、請求ナビが3回入れかえをくり返していた */
+    if(url.searchParams.has('v') || req.cache === 'reload' || req.cache === 'no-store'){
+      ev.respondWith(fetch(new Request(url.href, { cache: 'no-store' })).then(function(res){
+        if(res && res.ok){ var cp = res.clone(); caches.open(VER).then(function(c){ return c.put(url.origin + url.pathname, cp); }).catch(function(){}); }
+        return res;
+      }).catch(function(){ return caches.open(VER).then(function(c){ return c.match(url.origin + url.pathname); }).then(function(hit){ return hit || Response.error(); }); }));
+      return;
+    }
     ev.respondWith(ネット優先(url.origin + url.pathname, new Request(url.origin + url.pathname, { cache: 'no-cache' }), 9000));
     return;
   }

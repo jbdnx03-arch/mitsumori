@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 20:19-->
+<!--BUILD:2026-11-27 20:44-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3060,7 +3060,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 20:19';
+const BUILD = '2026-11-27 20:44';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -3070,6 +3070,8 @@ function 上がっている版(){
 /* 古い画面が出つづけるとき用：保存してあるページのコピー（Service Worker とキャッシュ）を消して取り直す。作業のデータは消さない */
 async function 強制で入れかえ(){
   try{ await saveNow(); }catch(e){}
+  /* 2026-11-27 ここも「新しい版が取れたのを確かめてから1回だけ開き直す」共通のしくみ（WQUP）で */
+  try{ if(window.WQUP && WQUP.run){ const bar = document.getElementById('verBar'); if(bar) bar.hidden = true; const nv = document.getElementById('xNewVer'); if(nv) nv.remove(); await WQUP.check(); WQUP.run(); return; } }catch(e){}
   toast('キャッシュを消して、最新版を取り直します…');
   try{ const rs = await navigator.serviceWorker.getRegistrations(); for(const r of rs){ try{ await r.unregister(); }catch(e){} } }catch(e){}
   try{ const ks = await caches.keys(); for(const k of ks){ try{ await caches.delete(k); }catch(e){} } }catch(e){}
@@ -16325,13 +16327,33 @@ function run(){
   UPAPPS.forEach(function(x){ jobs.push(fetch('./' + x.f, { cache:'reload' }).catch(function(){})); });
   jobs.push(fetch('./sw.js', { cache:'reload' }).catch(function(){}));
   var t = new Promise(function(ok){ setTimeout(ok, 9000); });
-  Promise.race([Promise.all(jobs.map(function(p){ return Promise.resolve(p).catch(function(){}); })), t]).then(function(){
-    var me = rows.filter(function(x){ return x.a === APP; })[0];
-    var q = new URLSearchParams(location.search);
-    q.set('v', (me && me.latest) || String(Date.now()));
-    try{ sessionStorage.setItem('wq.upd', '1'); }catch(e){}
-    location.replace(location.pathname + '?' + q.toString() + location.hash);
-  });
+  /* 2026-11-27「入れ替えたときに3回くらい同じ動きして画面が変になる」：GitHubに上げた直後は、版の確認（先頭だけ）には新しい版が見えても、
+     ページ全体はまだ古い版が返ってくることがある → 開き直しても古いまま → また入れかえ…を3回くり返していた。
+     いまは「新しい版が本当に取れた」のを確かめてから1回だけ開き直す。まだなら開き直さずに待つ（8秒ごと・最大90秒） */
+  var me = rows.filter(function(x){ return x.a === APP; })[0];
+  var want = (me && me.latest) || '';
+  var q = new URLSearchParams(location.search);
+  q.set('v', want || String(Date.now()));
+  var url = location.pathname + '?' + q.toString();
+  var tries = 0;
+  function go(){ try{ sessionStorage.setItem('wq.upd', want || '1'); }catch(e){} location.replace(url + location.hash); }
+  function attempt(){
+    if(!want || !/^https?:$/.test(location.protocol)){ go(); return; }
+    fetch(url, { cache:'reload' }).then(function(r){ return r.ok ? r.text() : ''; }).catch(function(){ return ''; }).then(function(tx){
+      var m = String(tx || '').slice(0, 400).match(/<!--BUILD:([^>]*?)-->/), got = m ? m[1] : '';
+      if(!got || got >= want){ go(); return; }
+      if(++tries >= 11){ unbusy(); note('GitHub で新しい版（' + sv(want) + '）を準備中みたい。1分くらいしてから「↻ 最新版」を押してね'); return; }
+      busy('GitHub で新しい版を準備中…（' + sv(want) + '）'); setTimeout(attempt, 8000);
+    });
+  }
+  Promise.race([Promise.all(jobs.map(function(p){ return Promise.resolve(p).catch(function(){}); })), t]).then(attempt);
+}
+function unbusy(){ if(ov) ov.hidden = true; }
+function note(msg){
+  var d = document.createElement('div'); d.id = 'wqup-note'; d.setAttribute('role', 'status');
+  d.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);z-index:2147483001;max-width:min(92vw,420px);background:#1E2628;color:#fff;border-radius:12px;padding:11px 16px;font:700 13px/1.5 "Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:wqupu .22s cubic-bezier(.2,.8,.2,1);cursor:pointer';
+  d.textContent = msg; d.onclick = function(){ d.remove(); }; var o = document.getElementById('wqup-note'); if(o) o.remove(); document.body.appendChild(d);
+  setTimeout(function(){ d.style.transition = 'opacity .3s'; d.style.opacity = '0'; setTimeout(function(){ d.remove(); }, 320); }, 7000);
 }
 var ov = null;
 function busy(msg){
@@ -16403,7 +16425,7 @@ var UPCSS =
 (function(){ var st = document.createElement('style'); st.id = 'wqup-css'; st.textContent = UPCSS; (document.head || document.documentElement).appendChild(st); })();
 /* 最新版にしたあとの知らせ・URL の ?v= を消す */
 function afterLoad(){
-  try{ if(sessionStorage.getItem('wq.upd')){ sessionStorage.removeItem('wq.upd'); var d = document.createElement('div'); d.id = 'wqup-busy'; d.style.background = 'transparent'; d.style.pointerEvents = 'none'; d.innerHTML = '<div>✓ 最新版にしました' + (BLD ? '（版 ' + esc(sv(BLD)) + '）' : '') + '</div>'; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 2600); } }catch(e){}
+  try{ var upw = sessionStorage.getItem('wq.upd'); if(upw){ sessionStorage.removeItem('wq.upd'); if(/^\d{4}-/.test(upw) && BLD && BLD < upw) throw 0; var d = document.createElement('div'); d.id = 'wqup-busy'; d.style.background = 'transparent'; d.style.pointerEvents = 'none'; d.innerHTML = '<div>✓ 最新版にしました' + (BLD ? '（版 ' + esc(sv(BLD)) + '）' : '') + '</div>'; document.body.appendChild(d); setTimeout(function(){ d.remove(); }, 2600); } }catch(e){}
   try{ var q = new URLSearchParams(location.search); if(q.has('v') || q.has('ck')){ q.delete('v'); q.delete('ck'); var s = q.toString(); history.replaceState(history.state, '', location.pathname + (s ? '?' + s : '') + location.hash); } }catch(e){}
   var t0 = Date.now();
   setTimeout(function(){
