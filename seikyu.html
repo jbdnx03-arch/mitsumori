@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 21:50-->
+<!--BUILD:2026-11-27 22:12-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -2513,12 +2513,12 @@ function paperSkCover(){
       v['E' + r] = pi * 30 + i + 1;
       if(!sh) continue;
       const n = sheetNet(sh), x = tax(n); pn += n; px += x;
-      v['F' + r] = (sh.skv && sh.skv.F23) || sh.kouji || ''; v['G' + r] = sh.siteName || sh.name; v['H' + r] = n; v['I' + r] = x; v['J' + r] = n + x;
+      v['F' + r] = (sh.skv && sh.skv.F23) || sh.kouji || ''; v['G' + r] = sh.coverName || sh.siteName || sh.name; v['H' + r] = n; v['I' + r] = x; v['J' + r] = n + x;
       if(sh.skv && sh.skv.S23) v['L' + r] = sh.skv.S23; if(sh.coverAtt) v['O' + r] = sh.coverAtt; if(sh.coverNote) v['Q' + r] = sh.coverNote;
     }
     tn += pn; tt += px;
     v.H44 = pn; v.I44 = px; v.J44 = pn + px;
-    return XR.page(XT.cover, v, { id: '請求書表紙', bw: true });
+    return XR.page(XT.cover, v, { id: '請求書表紙', bw: true, ovk: 'cover' + pi });
   }).join('');
 }
 function paperSkSheet(sh){
@@ -3060,7 +3060,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 21:50';
+const BUILD = '2026-11-27 22:12';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8657,6 +8657,7 @@ const CELL = {
   kgName: { t:'現場名（鑑）', get: sh => kgNm(sh), set: (sh, v) => { if(v && v !== (sh.siteName || sh.name)) sh.kgName = v; else delete sh.kgName; }, n:'空にすると現場名にもどる（鑑だけ）。金額は「この現場」から直す' },
   kgCode: { t:'現場コード（鑑）', get: sh => kgCd(sh), set: (sh, v) => { if(v !== '' && v !== String(sh.code)) sh.kgCode = v; else delete sh.kgCode; }, n:'空にするといつものコードにもどる（鑑だけ）' },
   kgGo: { t:'この現場の金額', get: sh => String(sheetNet(sh)), set: () => {}, n:'金額は現場の明細から出ている。「この現場」を押すと明細へ' },
+  cvName: { t:'工事名称（表紙）', get: sh => sh.coverName || sh.siteName || sh.name, set: (sh, v) => { if(v && v !== (sh.siteName || sh.name)) sh.coverName = v; else delete sh.coverName; }, n:'空にすると現場名にもどる（表紙だけ）' },
   kgCust: { t:'宛名（鑑）', get: sh => S.meta.kgCust || S.meta.custName || '', set: (sh, v) => { if(v && v !== S.meta.custName) S.meta.kgCust = v; else delete S.meta.kgCust; }, n:'空にするといつもの宛名にもどる（鑑だけ）' },
   ykmA3: { t:'宛名（まとめ）', get: sh => S.meta.ykmA3 || custOf(sh), set: (sh, v) => { if(v && v !== custOf(sh)) S.meta.ykmA3 = v; else delete S.meta.ykmA3; }, n:'空にするといつもの宛名にもどる（まとめだけ）' },
   ykmA6: { t:'作業所（まとめ）', get: sh => S.meta.ykmA6 || '下記の各作業所', set: (sh, v) => { if(v && v !== '下記の各作業所') S.meta.ykmA6 = v; else delete S.meta.ykmA6; }, n:'空にすると「下記の各作業所」にもどる' },
@@ -8674,16 +8675,38 @@ function skCell(a){ const col = (/^[A-Z]+/.exec(a) || [''])[0]; const nm = SK_NA
 /* Yours の指定用紙：契約金額・出来高・前回迄・累計・契約残高・摘要の1行目 */
 const YK = { keiyaku:'契約金額（税込）', dekidaka:'出来高', dekidaka2:'上記出来高×0.9', zenkai:'前回迄請求済額', ruikei:'累計請求額', zan:'契約残高', D33:'摘要の1行目' };
 function ykCell(k){ return { t: YK[k], get: sh => (sh.skv && sh.skv[k] != null) ? String(sh.skv[k]) : '', set: (sh, v) => { sh.skv = sh.skv || {}; if(v === '') delete sh.skv[k]; else sh.skv[k] = k === 'D33' ? v : String(num(v)); }, n: '空にすると自動の値にもどる' }; }
-function cellOf(ck){ const p = String(ck).split(':'); if(p[0] === 'sk') return { C: skCell(p[1]), sh: sheetById(p[2]) }; if(p[0] === 'yk') return { C: ykCell(p[1]), sh: sheetById(p[2]) }; return { C: CELL[p[0]], sh: sheetById(p[1]) }; }
+function cellOf(ck){ const p = String(ck).split(':'); if(p[0] === 'ov') return ovCell(decodeURIComponent(p[1]), p[2]); if(p[0] === 'sk') return { C: skCell(p[1]), sh: sheetById(p[2]) }; if(p[0] === 'yk') return { C: ykCell(p[1]), sh: sheetById(p[2]) }; return { C: CELL[p[0]], sh: sheetById(p[1]) }; }
 const shOfPg = id => { const n = String(id || '').slice(1); return S.sheets.find(s => s.name === n); };
 const _pg = XR.page;
+/* 2026-11-27「三貴もプレビューで全てかえられるように」「これから全部同じ仕様に」：
+   指定用紙・表紙は、決まった欄（工番・担当者・各行…）のほかも、紙に出ている欄はどれでも押して直せる。
+   直した値は 作業に（S.meta.pvOv[ページ][欄]）覚えて、プレビュー・印刷・PDF のどれにも出る。空にすると自動の値にもどる */
+const OVT = () => [XT.cover, XT.sk, XT.yk, XT.ykm].filter(Boolean);
+const ovKey = (T, opt) => String(T.sheet || '') + '|' + String((opt && (opt.ovk || opt.id)) || '');
+const OVDEF = {};
+function ovCell(pk, a){
+  const pg = pk.split('|')[1] || '', sh = shOfPg(pg) || S.sheets.find(x => x.inKagami) || S.sheets[0];
+  const dk = pk + '|' + a, d = OVDEF[dk] == null ? '' : OVDEF[dk];
+  const fmt = x => (typeof x === 'number' ? String(x) : String(x == null ? '' : x));
+  return { C: { t: '「' + String(fmt(d)).slice(0, 14) + '」の欄', num: typeof d === 'number',
+      get: () => { const o = ((S.meta.pvOv || {})[pk] || {})[a]; return o != null ? fmt(o) : fmt(d); },
+      set: (s0, v) => { S.meta.pvOv = S.meta.pvOv || {}; const m = S.meta.pvOv[pk] = S.meta.pvOv[pk] || {};
+        if(v === '' || v === fmt(d)) delete m[a]; else m[a] = (typeof d === 'number' && /^[-−]?[\d,，.]+$/.test(v)) ? num(v) : v;
+        if(!Object.keys(m).length) delete S.meta.pvOv[pk]; },
+      n: '空にすると自動の値にもどる（この紙だけ）' }, sh }; }
 XR.page = function(T, v, opt){
+  if(T && v && OVT().includes(T)){
+    const pk = ovKey(T, opt), ov = (S.meta && S.meta.pvOv || {})[pk];
+    if(window.__pvMark) Object.keys(v).forEach(a => { OVDEF[pk + '|' + a] = v[a]; });
+    if(ov){ v = Object.assign({}, v); Object.keys(ov).forEach(a => { v[a] = ov[a]; }); arguments[1] = v; }
+  }
   if(window.__pvMark && T && v){
     opt = Object.assign({}, opt || {}); const mk = opt.marks = (opt.marks || []).slice();
     if(T === XT.cover){
       const ks = S.sheets.filter(s => s.inKagami);
       for(let r = 14; r < 44; r++){ const no = +v['E' + r]; const sh = ks[no - 1]; if(!sh) continue;
         if(!v['F' + r] && window.seikyuExt.skMiss && window.seikyuExt.skMiss(sh).some(x => /工事番号/.test(x))) v['F' + r] = '⚠未入力';
+        mk.push({ a:'G' + r, k:'cvName:' + sh.id, t:'工事名称を直す（表紙だけ）' }, { a:'H' + r, k:'kgGo:' + sh.id, t:'この現場の金額を見る' }, { a:'I' + r, k:'kgGo:' + sh.id, t:'この現場の金額を見る' }, { a:'J' + r, k:'kgGo:' + sh.id, t:'この現場の金額を見る' });
         mk.push({ a:'F' + r, k:'kouji:' + sh.id, t:'工事番号を直す' }, { a:'L' + r, k:'chuban:' + sh.id, t:'注文書番号を直す' }, { a:'O' + r, k:'att:' + sh.id, t:'添付有無を直す' }, { a:'Q' + r, k:'note:' + sh.id, t:'備考を書く' });
         /* 表紙には出ない「三貴担当者名」を、プレビューだけ右はしに（抜けていたら赤） */
         const tn = (sh.skv && sh.skv.AD21) || '', miss = !tn && window.seikyuExt.skMiss && window.seikyuExt.skMiss(sh).some(x => /担当/.test(x));
@@ -8701,6 +8724,15 @@ XR.page = function(T, v, opt){
       const sh = shOfPg(opt.id); if(sh){ mk.push({ a:'A3', k:'ykA3:' + sh.id, t:'宛名を直す' }, { a:'A6', k:'ykA6:' + sh.id, t:'作業所を直す' }, { a:'E9', c2:14, k:'ykCode:' + sh.id, t:'取引先コードを入れる' }, { a:'E14', c2:13, k:'chuban:' + sh.id, t:'注文番号を入れる' });
         [['E18', 'keiyaku'], ['E20', 'dekidaka'], ['E22', 'dekidaka2'], ['E26', 'zenkai'], ['E28', 'ruikei'], ['E30', 'zan']].forEach(([a, k]) => mk.push({ a, c2:14, k:'yk:' + k + ':' + sh.id, t: YK[k] + 'を入れる' }));
         mk.push({ a:'D33', c2:16, k:'yk:D33:' + sh.id, t:'摘要の1行目を直す' }); }
+    }
+    /* のこりの欄（自社の住所・日付・合計など）も、紙に出ていれば押して直せる */
+    if(OVT().includes(T)){
+      const pk = ovKey(T, opt), had = new Set(mk.map(x => x.a));
+      const rowOf = a => +((/\d+$/.exec(a) || ['0'])[0]);
+      Object.keys(v).forEach(a => { if(had.has(a) || !/^[A-Z]+\d+$/.test(a)) return; const x = v[a]; if(x == null || x === '') return;
+        if(T === XT.cover && rowOf(a) >= 14 && rowOf(a) <= 43) return;              /* 表紙の各行は 上の決まった欄で */
+        if(/^ykm\d+$/.test(String(opt.id || '')) && rowOf(a) >= 33 && rowOf(a) < 33 + YKM_PER) return;   /* まとめの各行も */
+        mk.push({ a, k:'ov:' + encodeURIComponent(pk) + ':' + a, t:'押すと直せる' }); });
     }
     arguments[2] = opt;
   }
