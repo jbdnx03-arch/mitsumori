@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 18:05-->
+<!--BUILD:2026-11-27 19:48-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3055,7 +3055,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 18:05';
+const BUILD = '2026-11-27 19:48';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -5165,7 +5165,7 @@ function ykmTpl(n){
   return T;
 }
 /* まとめの行の名前（プレビューで直した名前があればそれ。2026-11-27） */
-function ykmRowName(sh){ const k = sh.skv || {}; return k.ykmName ? String(k.ykmName) : ykmSiteName(sh).normalize('NFKC') + '　建機レンタル'; }
+function ykmRowName(sh){ const k = sh.skv || {}; return k.ykmName ? String(k.ykmName) : ykmSiteName(sh).normalize('NFKC'); }  /* 2026-11-27「建機レンタルってのいらない」 */
 function ykmSiteName(sh){ const k = sh.skv || {}; return String((k.A6 != null && k.A6 !== '' ? k.A6 : (sh.siteName || sh.name)) || '').replace(/^[【\[]\s*|\s*[】\]]$/g, '').trim(); }
 function paperYkm(){
   if(!XT.ykm){ XT.ykm = JSON.parse(JSON.stringify(XT.yk)); const t = XT.ykm.cells.find(c => c.r === 1 && c.c === 1); if(t){ t.v = '請求書　まとめ'; t.d = 1; } const q = XT.ykm.cells.find(c => c.r === 33 && c.c === 17); if(q){ delete q.v; q.d = 1; } }
@@ -8649,7 +8649,7 @@ const CELL = {
   ykA6: { t:'作業所', get: sh => (sh.skv && sh.skv.A6) || sh.siteName || sh.name, set: (sh, v) => { sh.skv = sh.skv || {}; if(v && v !== (sh.siteName || sh.name)) sh.skv.A6 = v; else delete sh.skv.A6; }, n:'空にすると現場名にもどる（この用紙だけ）' },
   ykmA3: { t:'宛名（まとめ）', get: sh => S.meta.ykmA3 || custOf(sh), set: (sh, v) => { if(v && v !== custOf(sh)) S.meta.ykmA3 = v; else delete S.meta.ykmA3; }, n:'空にするといつもの宛名にもどる（まとめだけ）' },
   ykmA6: { t:'作業所（まとめ）', get: sh => S.meta.ykmA6 || '下記の各作業所', set: (sh, v) => { if(v && v !== '下記の各作業所') S.meta.ykmA6 = v; else delete S.meta.ykmA6; }, n:'空にすると「下記の各作業所」にもどる' },
-  ykmName: { t:'まとめの行の名前', get: sh => ykmRowName(sh), set: (sh, v) => { sh.skv = sh.skv || {}; const d = ykmSiteName(sh).normalize('NFKC') + '　建機レンタル'; if(v && v !== d) sh.skv.ykmName = v; else delete sh.skv.ykmName; }, n:'空にすると「現場名　建機レンタル」にもどる。金額は「この現場」から直す' },
+  ykmName: { t:'まとめの行の名前', get: sh => ykmRowName(sh), set: (sh, v) => { sh.skv = sh.skv || {}; const d = ykmSiteName(sh).normalize('NFKC'); if(v && v !== d) sh.skv.ykmName = v; else delete sh.skv.ykmName; }, n:'空にすると現場名にもどる。金額は「この現場」から直す' },
   ykCode: { t:'取引先コード', get: sh => (sh.skv && sh.skv.code) || '', set: (sh, v) => { sh.skv = sh.skv || {}; if(v) sh.skv.code = v; else delete sh.skv.code; } }
 };
 /* 三貴の指定用紙：どの欄でも（工種名・仕様・数量・単位・単価・金額・端数処理・請求回数・管理番号） */
