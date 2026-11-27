@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 19:48-->
+<!--BUILD:2026-11-27 19:50-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3055,7 +3055,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 19:48';
+const BUILD = '2026-11-27 19:50';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -14201,7 +14201,9 @@ document.head.appendChild(css);
    ・完了の現場には ✓ 。せまい画面では「目次」ボタンで開く */
 (function(){
 const done = id => !!(S.ext && S.ext.siteDone && S.ext.siteDone[id]);
-const groupOf = n => { n = String(n || ''); if(!n || n === '鑑' || /表紙|^cover/i.test(n)) return '__k'; const sh = S.sheets.find(s => s.name === n) || S.sheets.find(s => 'y' + s.name === n || 's' + s.name === n || n.indexOf(s.name) === 1); return sh ? sh.id : '__k'; };
+/* 2026-11-27「目次がおかしい、変なとこ飛ぶ」：Yoursのまとめ（ykm0…）が鑑あつかいになっていた／名前の頭がにた現場（渋谷・渋谷2）に飛んでいた → まとめは別の項目、名前はぴったり合うものを先に */
+const groupOf = n => { n = String(n || ''); if(!n || n === '鑑' || /表紙|^cover/i.test(n)) return '__k'; if(/^ykm\d+$/.test(n)) return '__ykm';
+  const sh = S.sheets.find(s => s.name === n) || S.sheets.find(s => 'y' + s.name === n || 's' + s.name === n) || S.sheets.filter(s => s.name && n.indexOf(s.name) === 1).sort((a, b) => b.name.length - a.name.length)[0]; return sh ? sh.id : '__k'; };
 let toc = null, scT = 0;
 function build(){
   const M = document.getElementById('sitePv'), B = document.getElementById('spvBody');
@@ -14211,11 +14213,11 @@ function build(){
   const all = typeof pvAll !== 'undefined' && pvAll;
   const first = {}; if(all) B.querySelectorAll('.xp[data-pg]').forEach(p => { const g = groupOf(p.dataset.pg); if(!first[g]) first[g] = p; });
   const items = [];
-  if(all){ if(first.__k) items.push({ id: '__k', t: '鑑（表紙）', kag: true }); S.sheets.forEach(sh => { if(first[sh.id]) items.push({ id: sh.id, t: sh.name, net: sheetNet(sh), ok: done(sh.id) }); }); }
+  if(all){ if(first.__ykm) items.push({ id: '__ykm', t: '請求書　まとめ', kag: true, lb: 'ま' }); if(first.__k) items.push({ id: '__k', t: '鑑（表紙）', kag: true, lb: '鑑' }); S.sheets.forEach(sh => { if(first[sh.id]) items.push({ id: sh.id, t: sh.name, net: sheetNet(sh), ok: done(sh.id) }); }); }
   else S.sheets.filter(s => s.inKagami).forEach(sh => items.push({ id: sh.id, t: sh.name, net: sheetNet(sh), ok: done(sh.id), on: sh.id === S.cur }));
   const nDone = items.filter(i => i.ok).length, nS = items.filter(i => !i.kag).length;
   toc.innerHTML = '<button type="button" class="xtoc-x" data-tocx title="目次をひらく／とじる">☰ 目次</button><div class="xtoc-h">目次<small>完了 ' + nDone + ' / ' + nS + '</small></div><ol>' +
-    items.map((it, i) => '<li><a href="#" data-tg="' + it.id + '" class="' + (it.on ? 'on ' : '') + (it.kag ? 'kag' : '') + '"><span class="n">' + (it.kag ? '鑑' : i + (first.__k ? 0 : 1)) + '</span><span class="t">' + esc(it.t) + '</span>' + (it.ok ? '<span class="ok" title="完了">✓</span>' : '') + (it.net != null ? '<small>' + yen(it.net) + '</small>' : '') + '</a></li>').join('') + '</ol>';
+    items.map((it, i) => '<li><a href="#" data-tg="' + it.id + '" class="' + (it.on ? 'on ' : '') + (it.kag ? 'kag' : '') + '"><span class="n">' + (it.kag ? (it.lb || '鑑') : items.slice(0, i).filter(z => !z.kag).length + 1) + '</span><span class="t">' + esc(it.t) + '</span>' + (it.ok ? '<span class="ok" title="完了">✓</span>' : '') + (it.net != null ? '<small>' + yen(it.net) + '</small>' : '') + '</a></li>').join('') + '</ol>';
   toc.hidden = false; toc.__first = first; toc.__all = all;
   { const bar = M.querySelector('.spv-bar'); if(bar) toc.style.top = (bar.offsetHeight + 10) + 'px'; }
   if(!B.__xtoc){ B.__xtoc = 1; B.addEventListener('scroll', () => { clearTimeout(scT); scT = setTimeout(mark, 80); }, { passive: true }); }
