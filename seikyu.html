@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 22:24-->
+<!--BUILD:2026-11-27 22:58-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3060,7 +3060,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 22:24';
+const BUILD = '2026-11-27 22:58';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -6290,12 +6290,12 @@ drawChecks = function(){
   const roll = (el, from, to, suffixHtml) => {
     if(reduce() || from === to || isNaN(from) || isNaN(to)){ return; }
     const t0 = performance.now(), dur = 420; el.dataset.lxroll = '1';
-    const put = v => { const t = flatNum(el); if(t) t.nodeValue = (v > 0 && el.dataset.plus ? '+' : '') + yen(v); };
+    const put = v => { const t = flatNum(el); if(t) t.nodeValue = (v > 0 && el.dataset.plus ? '+' : v < 0 ? '−' : '') + yen(Math.abs(v)); };   /* 2026-11-27 マイナスの差が＋に見えていた（−を読めず、符号なしで書いていた） */
     const step = now => { const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3); const v = Math.round(from + (to - from) * e);
       put(v); if(p < 1) requestAnimationFrame(step); else { put(to); delete el.dataset.lxroll; } };
     requestAnimationFrame(step);
   };
-  const numOf = s => { const m = /[-+]?[\d,]+/.exec(String(s || '')); return m ? +m[0].replace(/[,+]/g, '') : NaN; };
+  const numOf = s => { const m = /[-+−]?[\d,]+/.exec(String(s || '')); return m ? +m[0].replace(/[,+]/g, '').replace('−', '-') : NaN; };
   const _dk = drawKpis;
   drawKpis = function(){
     const old = $$('#kpis .kpi .v').map(v => { const t = flatNum(v); return numOf(t && t.nodeValue); });
@@ -21207,7 +21207,7 @@ function kv(i){ const k = document.querySelectorAll('#kpis > .kpi')[i]; if(!k) r
   return { v, sub, s: s ? s.textContent : '', ok: k.classList.contains('ok') }; }
 
 function nextStep(c, k, p){
-  if(c.has && !c.dec && c.n > 0) return { t: '前月の引き継ぎを決める', s: 'まだ決めていない ' + c.n + ' 件', go: () => { const b = $1('#xCarryBtn'); if(b) b.click(); else toast('現場を選ぶと出てくる'); } };
+  if(c.has && c.n > 0) return { t: '前月の引き継ぎを決める', s: 'まだ決めていない ' + c.n + ' 件', go: () => { const b = $1('#xCarryBtn'); if(b) b.click(); else toast('現場を選ぶと出てくる'); } };
   if(p.all && p.done < p.all){
     const d = (S.ext || {}).siteDone || {}; const nx = S.sheets.find(s => s.inKagami && !d[s.id]);
     return { t: '次の現場へ：' + (nx ? nx.name : ''), s: 'あと ' + (p.all - p.done) + ' 現場', go: () => { if(nx){ S.cur = nx.id; try{ save(); }catch(e){} setTab('sites'); drawSites(); } } };
@@ -21239,7 +21239,7 @@ function paint(){
   const h =
     '<div class="xct big"><span class="xck">請求額（鑑の合計・税込）</span><span class="xcv">' + (gk.v || '—') + '</span><span class="xcs">' + esc2(gk.s || '') + '</span></div>' +
     '<button type="button" class="xct big ' + (zero ? 'ok' : 'wn') + '" data-xc="det" title="押すと くわしい数字"><span class="xck">システムとの差（税込）</span><span class="xcv">' + (df.v || '—') + '</span><span class="xcs">' + (zero ? '本物の請求書と同じ ✓' : esc2(df.sub ? df.sub + '・手直しのぶん' : '手直し・外した現場のぶん')) + '</span></button>' +
-    '<button type="button" class="xct ' + (!c.has ? '' : c.dec || !c.n ? 'ok' : 'wn') + '" data-xc="carry" title="前月の手直し・手で足した行・ETC888 などを入れる／出す"><span class="xck">前月の引き継ぎ</span><span class="xcv">' + (!c.has ? '—' : c.dec || !c.n ? '決めた ✓' : c.n + '<small>件 まだ</small>') + '</span><span class="xcs">' + (!c.has ? '前月の作業なし' : '押すと開く') + '</span></button>' +
+    '<button type="button" class="xct ' + (!c.has ? '' : !c.n ? 'ok' : 'wn') + '" data-xc="carry" title="前月の手直し・手で足した行・ETC888 などを入れる／出す"><span class="xck">前月の引き継ぎ</span><span class="xcv">' + (!c.has ? '—' : !c.n ? '決めた ✓' : c.n + '<small>件 まだ</small>') + '</span><span class="xcs">' + (!c.has ? '前月の作業なし' : '押すと開く') + '</span></button>' +
     '<button type="button" class="xct ' + (k.warn ? 'ng' : k.all ? 'wn' : 'ok') + '" data-xc="chk"><span class="xck">チェック <kbd>3</kbd></span><span class="xcv">' + (k.all ? k.all + '<small>件' + (k.warn ? '（要確認 ' + k.warn + '）' : '') + '</small>' : 'OK ✓') + '</span><span class="xcs">' + (k.all ? '押すとチェックの画面' : '気になるところなし') + '</span></button>' +
     '<div class="xct ' + (p.all && p.done === p.all ? 'ok' : '') + '"><span class="xck">進み具合</span><span class="xcv">' + p.done + '<small>/ ' + p.all + ' 現場</small></span><span class="xcs">' + (p.all && p.done === p.all ? '全現場 完了' : '完了にした現場') + '</span></div>' +
     '<div class="xnext"><small>次にやること：' + esc2(n.s) + '</small><button type="button" class="btn primary lux-sheen" data-xc="next">' + esc2(n.t) + (n.key ? '<kbd>' + n.key + '</kbd>' : '') + ' →</button></div>';
