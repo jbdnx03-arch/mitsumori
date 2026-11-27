@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 19:50-->
+<!--BUILD:2026-11-27 19:53-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -726,6 +726,7 @@ const XR = (function(){
       add(44.0, 52.2, v.addr1, { sz: 11.04 });
       if(v.addr2) add(44.0, 63.2, v.addr2, { sz: 11.04 });
       add(43.9, 76.0, v.nameBlock, { sz: 11.04, lh: 11.0, wrap: 1, w: 264 });
+      if(kind === 'k1' && v.kgSid && window.__pvMark) h.push('<span class="xcell" data-ck="kgCust:' + esc(v.kgSid) + '" title="宛名を直す（鑑だけ）" style="left:40pt;top:72pt;width:270pt;height:26pt"></span>');
       add(95.0, 115.0, v.custNo, { sz: 8.04 });
       add(95.0, 124.0, v.siteNo, { sz: 8.04 });
       add(395.0, 97.0, v.seikyu, { sz: 9.96 });
@@ -743,6 +744,7 @@ const XR = (function(){
       const R = R0 + i * P;
       /* プレビューで気になる行に色・書き込みをつけるための目印（色も字もない。印刷には何も出ない） */
       if(r.lid) h.push('<span class="xlid" data-lid="' + esc(r.lid) + '" style="position:absolute;left:0;top:' + (R - 1.2).toFixed(2) + 'pt;width:822pt;height:' + P + 'pt"></span>');
+      if(KG && r.sid && window.__pvMark){ const mk = (x, w, k, t) => h.push('<span class="xcell" data-ck="' + esc(k + ':' + r.sid) + '" title="' + t + '" style="left:' + x + 'pt;top:' + (R - 0.5).toFixed(2) + 'pt;width:' + w + 'pt;height:' + P + 'pt"></span>'); mk(0, 194, 'kgName', '現場名を直す（鑑だけ）'); mk(196, 64, 'kgCode', '現場コードを直す（鑑だけ）'); mk(560, 200, 'kgGo', 'この現場の金額を見る'); }
       if(KG){ addName(r.name, R); add(198.5, R + 10.5, r.code, { sz: 9.0 }); if(r.net) add(636.3, R + 8.8, comma(r.net), { sz: 9.96, al: 'r' }); if(r.tax) add(693.9, R + 8.8, comma(r.tax), { sz: 9.96, al: 'r' }); if(r.gross) add(750.3, R + 8.8, comma(r.gross), { sz: 9.96, al: 'r' }); return;   /* 鑑の金額は本物と同じ 9.96pt */ }
       if(r.total != null){ add(5.0, R + 6.0, r.label ? r.label : '****御買上計****', { sz: 9.96 }); add(693.9, R + 1.0, comma(r.total), { sz: 9.0, al: 'r' }); return; }
       addName(r.name, R);
@@ -2420,16 +2422,19 @@ function onchuLine(nm){
   else { lines.push(line + (u(line + '　') <= W ? '　' : '')); lines.push('　御中'); }
   return lines.join('\n');
 }
+/* 鑑（現場合計表）だけの名前・現場コード（プレビューで押して直す。2026-11-27「ここ編集できない」） */
+function kgNm(sh){ return (sh.kgName != null && sh.kgName !== '') ? sh.kgName : (sh.siteName || sh.name); }
+function kgCd(sh){ return (sh.kgCode != null && sh.kgCode !== '') ? sh.kgCode : sh.code; }
 function paperKagamiSys(){
   const m = S.meta, ks = S.sheets.filter(s => s.inKagami), T = totals();
-  const rows = ks.map(sh => { const n = sheetNet(sh), x = tax(n); return { name: sh.siteName || sh.name, code: sh.code, net: n, tax: x, gross: n + x }; });
+  const rows = ks.map(sh => { const n = sheetNet(sh), x = tax(n); return { sid: sh.id, name: kgNm(sh), code: kgCd(sh), net: n, tax: x, gross: n + x }; });
   const pages = chunk(rows, 15, 22);
   const custNo = m.custCode ? m.custCode + '-' + (m.custBr || '0') : '';
   const sum = { net: T.net, tax: T.tax, gross: T.net + T.tax, bill: T.net + T.tax };
   if(S.opt.zan){ sum.prev = m.prevBill; sum.nyu = m.nyukin; sum.neb = m.nebiki; sum.kuri = m.kurikoshi; sum.bill = num(m.kurikoshi) + T.net + T.tax; }
   return pages.map((pg, pi) => {
     const pn = (pi + 1) + ' / ' + pages.length;
-    if(pi === 0) return XR.sysPage('k1', { zip: m.zip, addr1: m.addr, nameBlock: m.custName + '　　御中', custNo, siteNo: '', seikyu: jdate(m.seikyuDate), pay: jdate(m.payDate), sum, rows: pg }, { hanko: hankoStamps(), id: '鑑', pn });
+    if(pi === 0) return XR.sysPage('k1', { kgSid: ks[0] && ks[0].id, zip: m.zip, addr1: m.addr, nameBlock: (m.kgCust || m.custName) + '　　御中', custNo, siteNo: '', seikyu: jdate(m.seikyuDate), pay: jdate(m.payDate), sum, rows: pg }, { hanko: hankoStamps(), id: '鑑', pn });
     return XR.sysPage('k2', { custName: m.custName, custNo, rows: pg }, { id: '鑑', pn });
   }).join('');
 }
@@ -2440,7 +2445,7 @@ function paperKagamiXl(){
     let v, r0;
     if(pi === 0){ v = sumVals(headVals(m, '', ''), T.net, T.tax, m, S.opt.zan); r0 = 26; }
     else { v = { C60: m.custName, O60: m.custCode, T60: '', AG60: '' }; r0 = 65; }
-    pg.forEach((sh, i) => { const r = r0 + i * 2, n = sheetNet(sh), x = tax(n); v['C' + r] = sh.siteName || sh.name; v['O' + r] = sh.code; v['AJ' + (r + 1)] = n; v['AL' + (r + 1)] = x; v['AM' + (r + 1)] = n + x; });
+    pg.forEach((sh, i) => { const r = r0 + i * 2, n = sheetNet(sh), x = tax(n); v['C' + r] = kgNm(sh); v['O' + r] = kgCd(sh); v['AJ' + (r + 1)] = n; v['AL' + (r + 1)] = x; v['AM' + (r + 1)] = n + x; });
     return XR.page(pi === 0 ? XT.kagami1 : XT.kagami2, v, { hanko: pi === 0 && hankoStamps(), id: '鑑', pn: (pi + 1) + '/' + pages.length, sys: S.opt.style !== 'excel' });
   }).join('');
 }
@@ -3055,7 +3060,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 19:50';
+const BUILD = '2026-11-27 19:53';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -8647,6 +8652,10 @@ const CELL = {
   note: { t:'備考', get: sh => sh.coverNote || '', set: (sh, v) => { if(v) sh.coverNote = v; else delete sh.coverNote; } },
   ykA3: { t:'宛名（指定用紙）', get: sh => (sh.skv && sh.skv.A3) || custOf(sh), set: (sh, v) => { sh.skv = sh.skv || {}; if(v && v !== custOf(sh)) sh.skv.A3 = v; else delete sh.skv.A3; }, n:'空にするといつもの宛名にもどる' },
   ykA6: { t:'作業所', get: sh => (sh.skv && sh.skv.A6) || sh.siteName || sh.name, set: (sh, v) => { sh.skv = sh.skv || {}; if(v && v !== (sh.siteName || sh.name)) sh.skv.A6 = v; else delete sh.skv.A6; }, n:'空にすると現場名にもどる（この用紙だけ）' },
+  kgName: { t:'現場名（鑑）', get: sh => kgNm(sh), set: (sh, v) => { if(v && v !== (sh.siteName || sh.name)) sh.kgName = v; else delete sh.kgName; }, n:'空にすると現場名にもどる（鑑だけ）。金額は「この現場」から直す' },
+  kgCode: { t:'現場コード（鑑）', get: sh => kgCd(sh), set: (sh, v) => { if(v !== '' && v !== String(sh.code)) sh.kgCode = v; else delete sh.kgCode; }, n:'空にするといつものコードにもどる（鑑だけ）' },
+  kgGo: { t:'この現場の金額', get: sh => String(sheetNet(sh)), set: () => {}, n:'金額は現場の明細から出ている。「この現場」を押すと明細へ' },
+  kgCust: { t:'宛名（鑑）', get: sh => S.meta.kgCust || S.meta.custName || '', set: (sh, v) => { if(v && v !== S.meta.custName) S.meta.kgCust = v; else delete S.meta.kgCust; }, n:'空にするといつもの宛名にもどる（鑑だけ）' },
   ykmA3: { t:'宛名（まとめ）', get: sh => S.meta.ykmA3 || custOf(sh), set: (sh, v) => { if(v && v !== custOf(sh)) S.meta.ykmA3 = v; else delete S.meta.ykmA3; }, n:'空にするといつもの宛名にもどる（まとめだけ）' },
   ykmA6: { t:'作業所（まとめ）', get: sh => S.meta.ykmA6 || '下記の各作業所', set: (sh, v) => { if(v && v !== '下記の各作業所') S.meta.ykmA6 = v; else delete S.meta.ykmA6; }, n:'空にすると「下記の各作業所」にもどる' },
   ykmName: { t:'まとめの行の名前', get: sh => ykmRowName(sh), set: (sh, v) => { sh.skv = sh.skv || {}; const d = ykmSiteName(sh).normalize('NFKC'); if(v && v !== d) sh.skv.ykmName = v; else delete sh.skv.ykmName; }, n:'空にすると現場名にもどる。金額は「この現場」から直す' },
@@ -8726,7 +8735,7 @@ document.addEventListener('mousedown', ev => { if(pop2 && !pop2.contains(ev.targ
 const _cl2 = closeSitePv; closeSitePv = function(){ close2(); return _cl2.apply(this, arguments); };
 const st2 = document.createElement('style');
 st2.textContent = '.xin .xcell.xchip{display:flex;align-items:center;justify-content:flex-end;overflow:visible;z-index:4}.xin .xcell.xchip em{font-style:normal;white-space:nowrap;font:600 11px/1.2 system-ui,sans-serif;padding:2px 7px;border-radius:9px;background:#EAF4F5;color:#2B5A60;border:1px solid #BFD9DC;margin-right:2px}.xin .xcell.xchip.miss em{background:#FDECEC;color:#B42318;border-color:#F3B5B5}.xin .xcell.xchip.none em{opacity:.6}.xin .xcell.xchip:hover{background:none;outline:none}.xin .xcell.xchip:hover em{box-shadow:0 0 0 2px rgba(20,110,120,.35)}' +
-  '.xin .xcell{position:absolute;z-index:3;cursor:pointer;border-radius:2px}.xin .xcell:hover{background:rgba(20,110,120,.10);outline:1.2px dashed rgba(20,110,120,.7)}@media print{.xcell{display:none}}';
+  '.xin .xcell,.xsb .xcell{position:absolute;z-index:3;cursor:pointer;border-radius:2px}.xin .xcell:hover,.xsb .xcell:hover{background:rgba(20,110,120,.10);outline:1.2px dashed rgba(20,110,120,.7)}@media print{.xcell{display:none}}';
 document.head.appendChild(st2);
 })();
 
