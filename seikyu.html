@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 12:25-->
+<!--BUILD:2026-11-27 18:05-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3055,7 +3055,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 12:25';
+const BUILD = '2026-11-27 18:05';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -5164,18 +5164,20 @@ function ykmTpl(n){
   for(let i = 1; i < n; i++){ const y = Math.round((y0 + i * hh) * 10) / 10; T.lines.push([31, y, 651, y, 'hair', '#000000']); }
   return T;
 }
+/* まとめの行の名前（プレビューで直した名前があればそれ。2026-11-27） */
+function ykmRowName(sh){ const k = sh.skv || {}; return k.ykmName ? String(k.ykmName) : ykmSiteName(sh).normalize('NFKC') + '　建機レンタル'; }
 function ykmSiteName(sh){ const k = sh.skv || {}; return String((k.A6 != null && k.A6 !== '' ? k.A6 : (sh.siteName || sh.name)) || '').replace(/^[【\[]\s*|\s*[】\]]$/g, '').trim(); }
 function paperYkm(){
   if(!XT.ykm){ XT.ykm = JSON.parse(JSON.stringify(XT.yk)); const t = XT.ykm.cells.find(c => c.r === 1 && c.c === 1); if(t){ t.v = '請求書　まとめ'; t.d = 1; } const q = XT.ykm.cells.find(c => c.r === 33 && c.c === 17); if(q){ delete q.v; q.d = 1; } }
   const ks = S.sheets.filter(s => s.inKagami); if(!ks.length) return '';
   const d = S.meta.seikyuDate, y = +String(d).slice(0, 4), mo = +String(d).slice(5, 7), dd = +String(d).slice(8, 10);
   const rows = ks.map(sh => { const n = sheetNet(sh), x = tax(n), k = sh.skv || {}; const ex = (k.rows || []).reduce((a, r) => a + num(r.amt), 0);
-    return { name: ykmSiteName(sh).normalize('NFKC') + '　建機レンタル', kei: n + ex, x, g: n + x + ex }; });
+    return { name: ykmRowName(sh), kei: n + ex, x, g: n + x + ex }; });
   const kei = rows.reduce((a, r) => a + r.kei, 0), xs = rows.reduce((a, r) => a + r.x, 0), g = rows.reduce((a, r) => a + r.g, 0);
   const pages = Math.max(1, Math.ceil(rows.length / YKM_PER)); let h = '';
   for(let p = 0; p < pages; p++){
     const last = p === pages - 1, part = rows.slice(p * YKM_PER, p * YKM_PER + YKM_PER), T = ykmTpl(part.length), dy = Math.max(0, part.length - 7);
-    const v = { A3: String(custOf(ks[0]) || '').replace(/\s+/g, ' '), A1: '請求書　まとめ' + (pages > 1 ? '（' + (p + 1) + '／' + pages + '）' : ''), A6: '下記の各作業所', S3: (y - 2018) + '年', U3: mo + '月', V3: dd + '日' };
+    const v = { A3: String((S.meta.ykmA3 || custOf(ks[0])) || '').replace(/\s+/g, ' '), A1: '請求書　まとめ' + (pages > 1 ? '（' + (p + 1) + '／' + pages + '）' : ''), A6: S.meta.ykmA6 || '下記の各作業所', S3: (y - 2018) + '年', U3: mo + '月', V3: dd + '日' };
     part.forEach((r, i) => { const row = 33 + i; v['D' + row] = r.name; split3(v, row, r.kei); });
     if(last){ digitsTo(v, 10, 5, 14, g); split3(v, 40 + dy, kei); split3(v, 41 + dy, xs); split3(v, 42 + dy, g); }
     h += XR.page(T, v, { id: 'ykm' + p });
@@ -8645,6 +8647,9 @@ const CELL = {
   note: { t:'備考', get: sh => sh.coverNote || '', set: (sh, v) => { if(v) sh.coverNote = v; else delete sh.coverNote; } },
   ykA3: { t:'宛名（指定用紙）', get: sh => (sh.skv && sh.skv.A3) || custOf(sh), set: (sh, v) => { sh.skv = sh.skv || {}; if(v && v !== custOf(sh)) sh.skv.A3 = v; else delete sh.skv.A3; }, n:'空にするといつもの宛名にもどる' },
   ykA6: { t:'作業所', get: sh => (sh.skv && sh.skv.A6) || sh.siteName || sh.name, set: (sh, v) => { sh.skv = sh.skv || {}; if(v && v !== (sh.siteName || sh.name)) sh.skv.A6 = v; else delete sh.skv.A6; }, n:'空にすると現場名にもどる（この用紙だけ）' },
+  ykmA3: { t:'宛名（まとめ）', get: sh => S.meta.ykmA3 || custOf(sh), set: (sh, v) => { if(v && v !== custOf(sh)) S.meta.ykmA3 = v; else delete S.meta.ykmA3; }, n:'空にするといつもの宛名にもどる（まとめだけ）' },
+  ykmA6: { t:'作業所（まとめ）', get: sh => S.meta.ykmA6 || '下記の各作業所', set: (sh, v) => { if(v && v !== '下記の各作業所') S.meta.ykmA6 = v; else delete S.meta.ykmA6; }, n:'空にすると「下記の各作業所」にもどる' },
+  ykmName: { t:'まとめの行の名前', get: sh => ykmRowName(sh), set: (sh, v) => { sh.skv = sh.skv || {}; const d = ykmSiteName(sh).normalize('NFKC') + '　建機レンタル'; if(v && v !== d) sh.skv.ykmName = v; else delete sh.skv.ykmName; }, n:'空にすると「現場名　建機レンタル」にもどる。金額は「この現場」から直す' },
   ykCode: { t:'取引先コード', get: sh => (sh.skv && sh.skv.code) || '', set: (sh, v) => { sh.skv = sh.skv || {}; if(v) sh.skv.code = v; else delete sh.skv.code; } }
 };
 /* 三貴の指定用紙：どの欄でも（工種名・仕様・数量・単位・単価・金額・端数処理・請求回数・管理番号） */
@@ -8676,6 +8681,11 @@ XR.page = function(T, v, opt){
       const sh = shOfPg(opt.id); if(sh){ mk.push({ a:'F23', k:'kouji:' + sh.id, t:'工事番号を直す' }, { a:'AD21', k:'tan:' + sh.id, t:'三貴担当者名を直す' }, { a:'S23', k:'chuban:' + sh.id, t:'注文番号を直す' }, { a:'F21', k:'kname:' + sh.id, t:'工事名称を直す' });
         for(let r = 16; r <= 20; r++) ['C', 'L', 'AC', 'AG', 'AJ', 'AO'].forEach(c => mk.push({ a: c + r, k:'sk:' + c + r + ':' + sh.id, t:'押すと直せる' }));
         ['AD22', 'AC23', 'X30'].forEach(a => mk.push({ a, k:'sk:' + a + ':' + sh.id, t:'押すと直せる' })); }
+    }else if(opt && /^ykm\d+$/.test(String(opt.id || ''))){
+      /* Yours「請求書　まとめ」：宛名・作業所・各行（押すとその現場の名前を直せる／「この現場」で金額のもとへ） */
+      const ks = S.sheets.filter(s => s.inKagami), p = +String(opt.id).slice(3), part = ks.slice(p * YKM_PER, p * YKM_PER + YKM_PER);
+      if(ks[0]){ mk.push({ a:'A3', k:'ykmA3:' + ks[0].id, t:'宛名を直す' }, { a:'A6', k:'ykmA6:' + ks[0].id, t:'作業所を直す' }); }
+      part.forEach((sh, i) => mk.push({ a:'D' + (33 + i), c2:23, k:'ykmName:' + sh.id, t:'この行（' + sh.name + '）を直す' }));
     }else if(T === XT.yk){
       const sh = shOfPg(opt.id); if(sh){ mk.push({ a:'A3', k:'ykA3:' + sh.id, t:'宛名を直す' }, { a:'A6', k:'ykA6:' + sh.id, t:'作業所を直す' }, { a:'E9', c2:14, k:'ykCode:' + sh.id, t:'取引先コードを入れる' }, { a:'E14', c2:13, k:'chuban:' + sh.id, t:'注文番号を入れる' });
         [['E18', 'keiyaku'], ['E20', 'dekidaka'], ['E22', 'dekidaka2'], ['E26', 'zenkai'], ['E28', 'ruikei'], ['E30', 'zan']].forEach(([a, k]) => mk.push({ a, c2:14, k:'yk:' + k + ':' + sh.id, t: YK[k] + 'を入れる' }));
