@@ -1,5 +1,5 @@
 <!doctype html>
-<!--BUILD:2026-11-27 10:40-->
+<!--BUILD:2026-11-27 12:25-->
 <html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
@@ -3055,7 +3055,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 10:40';
+const BUILD = '2026-11-27 12:25';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -5147,6 +5147,42 @@ function paperYkSheet(sh){
   return XR.page(XT.yk, v, { id: 'y' + sh.name });
 }
 window.seikyuExt.paperYkSheet = paperYkSheet;
+/* 2026-11-27 Yours の「請求書　まとめ」（指定用紙の右のシート）：鑑の前に入れる。
+   ・請求金額＝合計（税込）／契約金額〜契約残高は無記載／明細に各現場名（略さない）と工事種目・金額
+   ・明細は7行。8現場以上は、同じ高さの中で行を足す（最大12行。2026-11-27「行追加して」）。13現場以上は2枚目へ */
+const YKM_PER = 12;
+/* 明細の行を n 行に（明細の枠の高さは同じまま、1行を細く） */
+function ykmTpl(n){
+  if(n <= 7) return XT.ykm;
+  const T = JSON.parse(JSON.stringify(XT.ykm)), dy = n - 7, y0 = T.ys[32], y1 = T.ys[39], hh = (y1 - y0) / n;
+  const ys = T.ys.slice(0, 33); for(let i = 1; i <= n; i++) ys.push(Math.round((y0 + i * hh) * 100) / 100); T.ys = ys.concat(XT.ykm.ys.slice(40));
+  const tpl = T.cells.filter(c => c.r === 34), keep = [];
+  T.cells.forEach(c => { if(c.r >= 33 && c.r <= 39) return; if(c.r >= 40){ c.r += dy; if(c.m) c.m = [c.m[0] + dy, c.m[1]]; } keep.push(c); });
+  for(let r = 33; r < 33 + n; r++) tpl.forEach(c => { const q = JSON.parse(JSON.stringify(c)); q.r = r; if(q.m) q.m = [r, q.m[1]]; if(n > 9) q.sz = 9; keep.push(q); });
+  T.cells = keep;
+  T.lines = T.lines.filter(l => !(l[1] === l[3] && l[1] > y0 + 0.5 && l[1] < y1 - 0.5));
+  for(let i = 1; i < n; i++){ const y = Math.round((y0 + i * hh) * 10) / 10; T.lines.push([31, y, 651, y, 'hair', '#000000']); }
+  return T;
+}
+function ykmSiteName(sh){ const k = sh.skv || {}; return String((k.A6 != null && k.A6 !== '' ? k.A6 : (sh.siteName || sh.name)) || '').replace(/^[【\[]\s*|\s*[】\]]$/g, '').trim(); }
+function paperYkm(){
+  if(!XT.ykm){ XT.ykm = JSON.parse(JSON.stringify(XT.yk)); const t = XT.ykm.cells.find(c => c.r === 1 && c.c === 1); if(t){ t.v = '請求書　まとめ'; t.d = 1; } const q = XT.ykm.cells.find(c => c.r === 33 && c.c === 17); if(q){ delete q.v; q.d = 1; } }
+  const ks = S.sheets.filter(s => s.inKagami); if(!ks.length) return '';
+  const d = S.meta.seikyuDate, y = +String(d).slice(0, 4), mo = +String(d).slice(5, 7), dd = +String(d).slice(8, 10);
+  const rows = ks.map(sh => { const n = sheetNet(sh), x = tax(n), k = sh.skv || {}; const ex = (k.rows || []).reduce((a, r) => a + num(r.amt), 0);
+    return { name: ykmSiteName(sh).normalize('NFKC') + '　建機レンタル', kei: n + ex, x, g: n + x + ex }; });
+  const kei = rows.reduce((a, r) => a + r.kei, 0), xs = rows.reduce((a, r) => a + r.x, 0), g = rows.reduce((a, r) => a + r.g, 0);
+  const pages = Math.max(1, Math.ceil(rows.length / YKM_PER)); let h = '';
+  for(let p = 0; p < pages; p++){
+    const last = p === pages - 1, part = rows.slice(p * YKM_PER, p * YKM_PER + YKM_PER), T = ykmTpl(part.length), dy = Math.max(0, part.length - 7);
+    const v = { A3: String(custOf(ks[0]) || '').replace(/\s+/g, ' '), A1: '請求書　まとめ' + (pages > 1 ? '（' + (p + 1) + '／' + pages + '）' : ''), A6: '下記の各作業所', S3: (y - 2018) + '年', U3: mo + '月', V3: dd + '日' };
+    part.forEach((r, i) => { const row = 33 + i; v['D' + row] = r.name; split3(v, row, r.kei); });
+    if(last){ digitsTo(v, 10, 5, 14, g); split3(v, 40 + dy, kei); split3(v, 41 + dy, xs); split3(v, 42 + dy, g); }
+    h += XR.page(T, v, { id: 'ykm' + p });
+  }
+  return h;
+}
+window.seikyuExt.paperYkm = paperYkm;
 paperSkSheet = function(sh){
   const n = sheetNet(sh), x = tax(n), m = S.meta, me = meVals(m);
   const v = { AV3: me.zip, AU4: me.addr, AU5: '', Z6: m.seikyuDate, AU7: me.co, AW9: me.inv, BB9: me.kyo, AV10: me.tel, BA10: me.fax,
@@ -5162,6 +5198,7 @@ const _paperHtml = paperHtml;
 paperHtml = function(){
   if(!isYours()) return _paperHtml();
   const o = S.opt, ks = S.sheets.filter(s => s.inKagami); let h = '';
+  if(o.ykm !== false) h += paperYkm();
   if(o.kagami) h += paperKagami();
   ks.forEach(sh => { if(o.yk !== false) h += paperYkSheet(sh); if(o.sheets) h += paperSheet(sh); });
   return h;
@@ -5176,6 +5213,7 @@ const _drawPaper2 = drawPaper;
 drawPaper = function(){
   _drawPaper2();
   if(isYours() && !$('#pvOpts [data-o="yk"]')){ const o = $('#pvOpts'); o.insertAdjacentHTML('beforeend', '<label><input type="checkbox" data-o="yk"' + (S.opt.yk !== false ? ' checked' : '') + '>Yours：請求書（指定用紙）</label>'); }
+  if(isYours() && !$('#pvOpts [data-o="ykm"]')){ const o = $('#pvOpts'); o.insertAdjacentHTML('beforeend', '<label><input type="checkbox" data-o="ykm"' + (S.opt.ykm !== false ? ' checked' : '') + '>Yours：請求書まとめ（鑑の前）</label>'); }
 };
 /* 指定用紙を直す画面 */
 async function skEdit(sh){
@@ -11539,6 +11577,7 @@ async function yoursZip(){
       toast('現場ごとのPDF ' + (i + 1) + ' / ' + ks.length + '：' + sh.name, 60000);
       const r = await pdfBytes(html, pdfSiteName(sh.name)); if(r) files.push(r);
     }
+    if(o.ykm !== false){ toast('請求書まとめのPDF', 60000); const r = await pdfBytes(X.paperYkm(), ym + '_請求書まとめ'); if(r) files.unshift(r); }
     if(o.kagami){ toast('鑑のPDF', 60000); const r = await pdfBytes(paperKagami(), ym + '_鑑'); if(r) files.push(r); }
     if(!files.length){ toast('PDFを作れなかった', 6000); return; }
     const z = new JSZip(); files.forEach(f => z.file(f.fn, f.blob));
@@ -11568,7 +11607,7 @@ X.yoursPdf = async function(box, name){
   if(!yo() || !S.built) return makePdf(box, name);
   const n = S.sheets.filter(s => s.inKagami).length;
   const v = await askDialog('Yours の PDF', 'Excel版と同じく<b>現場ごとに1本ずつ</b>（指定用紙＋明細）作って、zip にまとめます。<br>' +
-    '<small>名前：' + esc(pdfYm()) + '_現場名.pdf（' + n + ' 本）' + (S.opt.kagami ? '・' + esc(pdfYm()) + '_鑑.pdf' : '') + ' → ' + esc(pdfBase()) + '.zip</small>',
+    '<small>名前：' + (S.opt.ykm !== false ? esc(pdfYm()) + '_請求書まとめ.pdf・' : '') + esc(pdfYm()) + '_現場名.pdf（' + n + ' 本）' + (S.opt.kagami ? '・' + esc(pdfYm()) + '_鑑.pdf' : '') + ' → ' + esc(pdfBase()) + '.zip</small>',
     [{ t: '現場ごとに1本ずつ（zip）', v: 'gen', primary: true, k: 'Y' }, { t: '全部まとめて1本', v: 'one', k: 'O' }, { t: 'やめる', v: null, ghost: true, k: 'N' }]);
   if(!v) return;
   if(v === 'gen') return yoursZip();
