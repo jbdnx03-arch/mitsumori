@@ -1,6 +1,6 @@
 <!doctype html>
-<!--BUILD:2026-11-27 22:58-->
-<html lang="ja"><head><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
+<!--BUILD:2026-11-28 21:55-->
+<html lang="ja"><head><script id="fa-simple-boot">/* 2026-11-28 Apple風シンプルを標準に（1回だけ。✦でほかの外観にもどせる） */try{if(!localStorage.getItem('wq.fa.simple1')){localStorage.setItem('wq.fa.c','apple');localStorage.setItem('wq.fa.s','apple');localStorage.setItem('wq.fa.simple1','1');}}catch(e){}</script><script id="vt-safe">/* 2026-11-19 画面の切りかえの動き（View Transition）がとちゅうで止められても、エラーにしない（ready／finished をつないだ先も） */(function(){var o=document.startViewTransition;if(!o||o.__safe)return;var q=function(x){try{return x&&x.then?x.then(function(v){return v;},function(){}):Promise.resolve();}catch(e){return Promise.resolve();}};var f=function(cb){var t=o.call(document,cb);var w={ready:q(t.ready),finished:q(t.finished),updateCallbackDone:q(t.updateCallbackDone),skipTransition:function(){try{t.skipTransition();}catch(e){}},types:t.types};return w;};f.__safe=1;document.startViewTransition=f;})();</script><script id="wq-perf">/* 2026-11-13 軽く（全アプリ共通・いちばん先に読む）
    ・0.5〜5秒ごとに見回る仕組み（setInterval）は、画面が裏にあるときは休み、表にあるときも「手のあいた瞬間」に回す
      （打っている・スクロールしている最中に割りこまない。前の回が終わっていなければ重ねない） */
 (function(){
@@ -3060,7 +3060,7 @@ document.addEventListener('keydown', ev => {
 $('#btnWorksReload').addEventListener('click', () => drawWorks(true));
 
 /* ====================== 版：web見積と同じしくみ（ページ先頭の <!--BUILD:…--> を見比べる） ====================== */
-const BUILD = '2026-11-27 22:58';
+const BUILD = '2026-11-28 21:55';
 const verShort = v => { const m = /^\d{4}-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(v || ''); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] : v; };
 /* 先頭の400バイトだけ取る（Range つきは Service Worker も素通しするので、いつもネットの最新を見る） */
 function 上がっている版(){
@@ -21315,5 +21315,114 @@ document.addEventListener('pointerdown', ev => {
   add('くわしい数字（6枚）を出す／しまう', '', () => { const v = !H.classList.contains('xc-detail'); H.classList.toggle('xc-detail', v); ls.set(KEYD, v ? '1' : '0'); }, '見た目');
 });
 X.clean = { set: setClean, on, paint: all };
+})();
+</script><style id="fa-simple">/* ===== F.Aツール Apple風シンプル（2026-11-28）：全アプリ共通。外観が「ホワイト×青」＋デザイン「Apple」のときだけ効く。紙（.pp）と印刷にはさわらない ===== */
+@media screen{
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e){--fs-ink:#1D1D1F;--fs-ink2:#6E6E73;--fs-ink3:#86868B;--fs-line:#E5E5EA;--fs-blue:#0071E3;--fs-bg:#F5F5F7;--fs-fill:rgba(118,118,128,.12);
+  --fs-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 28px rgba(0,0,0,.06)}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e),html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) body{background:var(--fs-bg)!important;-webkit-font-smoothing:antialiased}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #lux-noise,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .wl-glow,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .lux-glowdot,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .lx-mouse{display:none!important}
+/* --- いちばん上のアプリの帯 --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #wqnav{background:rgba(255,255,255,.78)!important;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:.5px solid rgba(0,0,0,.12)!important;box-shadow:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #wqnav .wqn{background:transparent!important;color:var(--fs-ink)!important;font-weight:600!important;font-size:13px!important;border:0!important;box-shadow:none!important;transition:background .2s,color .2s}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #wqnav .wqn:hover{background:rgba(0,0,0,.05)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #wqnav .wqn.cur{background:rgba(0,113,227,.10)!important;color:var(--fs-blue)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #wqnav .wqn.cur::after{display:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #wqnav .wqn.up,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #wqnav .wqn.lx{color:var(--fs-blue)!important;background:#E9E9EE!important}
+/* --- アプリの題の帯 --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .topbar,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) body>.top{background:rgba(245,245,247,.82)!important;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:.5px solid rgba(0,0,0,.08)!important;box-shadow:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .topbar::after,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) body>.top::after{display:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .topbar h1{font-size:22px!important;font-weight:700!important;letter-spacing:-.02em!important;color:var(--fs-ink)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .menubtn,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #x5bMenu{box-shadow:none!important}
+/* --- カード --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card:not(.pp .card){background:#fff!important;border:0!important;border-radius:20px!important;box-shadow:var(--fs-shadow)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card.lux-hl::after,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card.lux-hl::before,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card.lux-glow::before{display:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card:not(.pp .card)>h2,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) section.card:not(.pp .card)>h2{font-size:18px!important;font-weight:700!important;letter-spacing:-.01em!important;line-height:1.35!important;color:var(--fs-ink)!important;background:none!important;border-bottom:0!important;padding-top:18px!important;padding-bottom:4px!important;text-transform:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card>h2::before{display:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card>h2 .right,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card>h2 small,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card>h2 .sub{font-size:13px!important;font-weight:500!important;color:var(--fs-ink3)!important;letter-spacing:0!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card .hint,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card .note,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card .sub,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card .muted,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .hint{color:var(--fs-ink3)!important}
+/* --- ボタン（小さなボタンは灰色の丸、文字は青） --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .iconbtn,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .h2btn,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .hktop,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .latest{background:var(--fs-fill)!important;color:var(--fs-blue)!important;border:0!important;box-shadow:none!important;border-radius:999px!important;font-weight:600!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .iconbtn:hover,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .h2btn:hover,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .hktop:hover,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .latest:hover{background:rgba(118,118,128,.2)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .pvtop{background:var(--fs-blue)!important;color:#fff!important;border:0!important;box-shadow:none!important;border-radius:999px!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) kbd{background:transparent!important;border:1px solid rgba(0,0,0,.12)!important;color:var(--fs-ink3)!important;box-shadow:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .pvtop kbd{border-color:rgba(255,255,255,.5)!important;color:rgba(255,255,255,.85)!important}
+/* --- 入力欄 --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not(.pp *),html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card select:not(.pp *),html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card textarea:not(.pp *){background:#F2F2F7!important;border:0!important;box-shadow:none!important;border-radius:10px!important;color:var(--fs-ink)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card input:focus,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card select:focus,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card textarea:focus{box-shadow:0 0 0 3px rgba(0,113,227,.28)!important;outline:0!important;background:#fff!important}
+/* --- 下のバー（控えに保存・チェック・プレビュー） --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .bottombar,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .bbar,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #bottombar,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .footbar{background:rgba(255,255,255,.82)!important;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid rgba(0,0,0,.12)!important;box-shadow:none!important}
+/* --- 知らせ --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .alert{border:0!important;border-radius:14px!important;box-shadow:none!important}
+/* --- 請求ナビの左の帯 --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xRail{background:#fff!important;border-right:.5px solid rgba(0,0,0,.08)!important;box-shadow:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xRail .xr-it{border-radius:12px!important;color:var(--fs-ink2)!important;background:transparent!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xRail .xr-it:hover{background:rgba(0,0,0,.04)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xRail .xr-it.on{background:rgba(0,113,227,.10)!important;color:var(--fs-blue)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xRail .xr-it span{font-size:12px!important;font-weight:600!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xRail .xr-logo i{box-shadow:none!important}
+/* --- 請求ナビの上の帯 --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) body>.top{border-bottom:0!important}
+/* --- ぼかしから出る動きは短く --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .card{animation-duration:.35s!important}
+/* --- 請求ナビ：説明はしまって、押す所だけ --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #worksNote,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xQtBtn>.muted,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) [data-x3row]>.muted{display:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xAny{border:1.5px dashed rgba(0,113,227,.35)!important;background:rgba(0,113,227,.03)!important;border-radius:16px!important;box-shadow:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xAny>b{font-size:17px!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #xQtBtn{background:#F5F5F7!important;border:0!important;border-radius:14px!important;box-shadow:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #carryOpt{display:block!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) #carryOpt>b{display:block;margin:0 0 6px}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .fs-seg{display:inline-flex;flex-wrap:wrap;padding:3px;border-radius:10px;background:var(--fs-fill);gap:2px;max-width:100%}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .fs-seg label{position:relative;display:inline-flex!important;align-items:center;padding:7px 14px!important;margin:0!important;border-radius:8px!important;font-size:13.5px!important;font-weight:600!important;cursor:pointer;border:0!important;background:transparent!important;box-shadow:none!important;color:var(--fs-ink)!important;transition:background .25s,box-shadow .25s}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .fs-seg label input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .fs-seg label.on{background:#fff!important;box-shadow:0 3px 8px rgba(0,0,0,.12),0 3px 1px rgba(0,0,0,.04)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .fs-desc{font-size:12.5px;color:var(--fs-ink3);margin-top:6px}
+/* --- カード以外の白い箱（ホームのタイル・知らせなど）も同じやわらかい影 --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .lux-glow:not(.card):not(.pp){border:0!important;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 18px rgba(0,0,0,.05)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .lux-glow.lux-hl:not(.pp)::after{display:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .hm-app:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(0,0,0,.05),0 12px 28px rgba(0,0,0,.08)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .hm-hi b{letter-spacing:-.02em!important}
+/* --- 入力欄の名前を読みやすく --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) .field>label,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e) label.f>span:first-child{font-size:13px!important;font-weight:600!important;color:var(--fs-ink2)!important;letter-spacing:0!important}
+/* --- 単価をしらべる（窓の中） --- */
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .sx-amb{display:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx header{background:rgba(245,245,247,.86)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx header h1{font-size:30px!important;font-weight:700!important;letter-spacing:-.02em!important;color:var(--fs-ink)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .tabs{background:var(--fs-fill)!important;border:0!important;box-shadow:none!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .tabs .sx-thumb{background:#fff!important;box-shadow:0 3px 8px rgba(0,0,0,.12),0 3px 1px rgba(0,0,0,.04)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .tabs button{color:var(--fs-ink)!important;font-weight:600!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .tabs button.on{color:var(--fs-ink)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .edhint{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;color:var(--fs-ink3)!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .sec{font-size:20px!important;font-weight:700!important;letter-spacing:-.01em!important;color:var(--fs-ink)!important;margin-top:22px!important}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx .sec .secsub{display:block;font-size:13px!important;font-weight:500!important;color:var(--fs-ink3)!important;margin-top:2px}
+html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx #o table,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx #o2 table,html.fa-c-apple.fa-s-apple:not(#s_a):not(#s_b):not(#s_c):not(#s_d):not(#s_e).sx #o3 table{border-radius:16px!important;box-shadow:var(--fs-shadow)!important;border:0!important}
+}
+</style><script id="fa-simple-js">/* ===== F.Aツール Apple風シンプル：アプリごとの「長い説明をしまう」（2026-11-28）。外観が ホワイト×青＋Apple のときだけ ===== */
+(function(){
+  var R=document.documentElement;
+  function on(){ return R.classList.contains('fa-c-apple')&&R.classList.contains('fa-s-apple'); }
+  function $(s,r){ return (r||document).querySelector(s); }
+  function tip(el){ if(el&&!el.dataset.fsTip){ el.dataset.fsTip='1'; var p=el.parentNode; if(p&&!p.title) p.title=el.textContent.trim(); } }
+  function seikyu(){
+    var a=$('#worksNote'); if(a) tip(a);
+    var x=$('#xAny > .muted'); if(x&&!x.dataset.fsShort){ x.dataset.fsShort='1'; x.dataset.fsLong=x.textContent; x.title=x.textContent; x.textContent='CSV・請求書PDF・前月の請求ナビ・見積書などを、まとめて置くか押して選ぶ'; }
+    var q=$('#xQtBtn > .muted'); if(q) tip(q);
+    var r=$('[data-x3row] > .muted'); if(r) tip(r);
+    var co=$('#carryOpt'); if(co&&!co.dataset.fsSeg){
+      var MAP={real:['本物の請求書どおり','前月の引き継ぎ・ETC888 などは、あとで「前月の引き継ぎ」ボタンでまとめて入れる／出す'],simple:['書きかえは自動','単価・数量・品名の書きかえは自動。1行を分けた・別の品にした行は確かめてから'],all:['全部自動','前月の手直しを全部そのまま入れる'],none:['引き継がない','前月の手直しは入れない']};
+      var labs=co.querySelectorAll('label'); if(!labs.length) return; co.dataset.fsSeg='1';
+      var seg=document.createElement('div'); seg.className='fs-seg'; var desc=document.createElement('div'); desc.className='fs-desc';
+      Array.prototype.forEach.call(labs,function(l){ var i=l.querySelector('input'); if(!i) return; var m=MAP[i.value]; if(!m) return; l.title=l.textContent.trim();
+        Array.prototype.slice.call(l.childNodes).forEach(function(n){ if(n!==i) l.removeChild(n); });
+        var t=document.createElement('span'); t.textContent=m[0]; l.appendChild(t); l.dataset.fsDesc=m[1]; seg.appendChild(l); });
+      co.appendChild(seg); co.appendChild(desc);
+      function upd(){ var c=co.querySelector('input:checked'); desc.textContent=c&&c.parentNode.dataset.fsDesc||''; Array.prototype.forEach.call(seg.children,function(l){ l.classList.toggle('on',!!l.querySelector('input:checked')); }); }
+      co.addEventListener('change',upd); upd();
+    }
+  }
+  function run(){ if(!on()) return; try{ seikyu(); }catch(e){} }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){ setTimeout(run,300); }); else setTimeout(run,300);
+  setTimeout(run,1500);
+  try{ new MutationObserver(function(){ run(); }).observe(R,{attributes:true,attributeFilter:['class']}); }catch(e){}
 })();
 </script></body></html>
